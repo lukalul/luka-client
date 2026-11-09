@@ -12,11 +12,6 @@ public final class MotionBlurSettings {
     public static final int MODE_PHOSPHOR = 0, MODE_BLEND = 1, MODE_CAPPED = 2;
     /** V1 phosphor, V2 blend, V3 capped blend (see BlurRenderer). */
     public static volatile int mode = MODE_CAPPED;
-    /**
-     * Off (default, the way Lunar does it): the blur weight is applied once per frame, so it is subtler at high FPS and the picture
-     * stays crisp. On: the weight is scaled to frame time so the trail lasts the same real time at any FPS (longer, more "filmic").
-     */
-    public static volatile boolean frameRateIndependent;
     /** Between-tick smoothing adapted from framejob (see META-INF/LICENSE.framejob). */
     public static volatile boolean smoothSwings = true;
     public static volatile boolean smoothFov = true;
@@ -33,7 +28,6 @@ public final class MotionBlurSettings {
         data.frameSkip = frameSkip;
         data.toggleKey = toggleKey;
         data.mode = mode;
-        data.frameRateIndependent = frameRateIndependent;
         data.smoothSwings = smoothSwings;
         data.smoothFov = smoothFov;
         data.smoothHandSway = smoothHandSway;
@@ -49,7 +43,6 @@ public final class MotionBlurSettings {
         frameSkip = data.frameSkip;
         toggleKey = data.toggleKey;
         mode = data.mode;
-        frameRateIndependent = data.frameRateIndependent;
         smoothSwings = data.smoothSwings;
         smoothFov = data.smoothFov;
         smoothHandSway = data.smoothHandSway;

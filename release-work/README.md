@@ -31,7 +31,7 @@ luka is free software under the GPL-3.0-or-later with the additional terms in `N
 
 ## Server rules
 
-Servers can switch mods off (Hypixel and MineMen use Badlion's mod API, StrafePvP and others use Lunar's Apollo protocol). luka reads both: any luka module the server disables is turned off while you are on that server and comes back when you leave; your own switches are never changed. The module card says "DISABLED BY SERVER" and luka prints one chat line listing what the server restricts. Macros also follow the server's command lists.
+Servers can switch mods off (Hypixel and MineMen use Badlion's mod API, StrafePvP and others use the Apollo protocol). luka reads both: any luka module the server disables is turned off while you are on that server and comes back when you leave; your own switches are never changed. The module card says "DISABLED BY SERVER" and luka prints one chat line listing what the server restricts. Macros also follow the server's command lists.
 
 ## Chat macros
 

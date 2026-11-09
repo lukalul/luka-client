@@ -92,7 +92,7 @@ final class Replay {
     private boolean useRt;
     private int rtFbo, rtTex, rtDepth;
     private boolean hiddenLogged;
-    /** The game redraws into the window whatever target is bound (Lunar), so a minimised window cannot be rendered. */
+    /** The game redraws into the window whatever target is bound on some clients, so a minimised window cannot be rendered. */
     private boolean windowDependent;
     private int drawChecks;
     private Boolean savedFboEnable;
@@ -111,7 +111,7 @@ final class Replay {
     private long rangeStartT, rangeEndT;
     private double pendingSeekT = -1;
     private boolean loopRange;
-    // handing the screen to the client's own menu (Right Shift on Lunar and similar)
+    // handing the screen to the client's own menu (Right Shift and similar)
     private boolean menuReleased, clientScreenSeen, menuDrove, menuWasPaused, pendingPaused;
     private long menuReleaseT, menuSavedPos, menuLastTick;
     private final boolean diffMode;

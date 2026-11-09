@@ -19,7 +19,6 @@ public final class MotionBlurConfig {
         public int frameSkip = 1;
         public int toggleKey;
         public int mode = 2;
-        public boolean frameRateIndependent;
         public boolean smoothSwings = true;
         public boolean smoothFov = true;
         public boolean smoothHandSway = true;
@@ -48,7 +47,6 @@ public final class MotionBlurConfig {
         data.frameSkip = readInt(json, "frameSkip", data.frameSkip);
         data.toggleKey = readInt(json, "toggleKey", data.toggleKey);
         data.mode = readInt(json, "mode", data.mode);
-        data.frameRateIndependent = readBoolean(json, "frameRateIndependent", data.frameRateIndependent);
         data.smoothSwings = readBoolean(json, "smoothSwings", data.smoothSwings);
         data.smoothFov = readBoolean(json, "smoothFov", data.smoothFov);
         data.smoothHandSway = readBoolean(json, "smoothHandSway", data.smoothHandSway);
@@ -70,7 +68,6 @@ public final class MotionBlurConfig {
             + "  \"frameSkip\": " + data.frameSkip + ",\n"
             + "  \"toggleKey\": " + data.toggleKey + ",\n"
             + "  \"mode\": " + data.mode + ",\n"
-            + "  \"frameRateIndependent\": " + data.frameRateIndependent + ",\n"
             + "  \"smoothSwings\": " + data.smoothSwings + ",\n"
             + "  \"smoothFov\": " + data.smoothFov + ",\n"
             + "  \"smoothHandSway\": " + data.smoothHandSway + ",\n"

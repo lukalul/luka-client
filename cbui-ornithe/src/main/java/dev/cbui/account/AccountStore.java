@@ -108,6 +108,7 @@ public final class AccountStore {
 
   /** Keeps (or updates) a Microsoft account after a sign-in and makes the game use it. */
   public Account addMicrosoft(MicrosoftAuth.Session session) {
+    load();
     Account account = null;
     for (Account a : accounts) if (a.microsoft() && a.uuid.equals(session.uuid)) account = a;
     if (account == null) {
@@ -131,6 +132,7 @@ public final class AccountStore {
   /** Signs a saved Microsoft account in again (network, so call it off the render thread) and makes the game use it. */
   public String switchToMicrosoft(Account account) {
     try {
+      load();
       MicrosoftAuth auth = new MicrosoftAuth(clientId(), liveFlow());
       if (account.refreshToken.isEmpty()) return "Sign in to " + account.name + " again";
       MicrosoftAuth.Session session = auth.refresh(account.refreshToken, text -> { });
@@ -180,6 +182,7 @@ public final class AccountStore {
   }
 
   public Account addOffline(String name) {
+    load();
     for (Account a : accounts) if (!a.microsoft() && a.name.equalsIgnoreCase(name)) return a;
     Account account = new Account("offline", name, offlineUuid(name));
     accounts.add(account);
@@ -188,6 +191,7 @@ public final class AccountStore {
   }
 
   public void remove(Account account) {
+    load();
     if (accounts.size() <= 1 || isActive(account)) return;
     accounts.remove(account);
     selected = Math.max(0, indexOfActive());
@@ -197,12 +201,14 @@ public final class AccountStore {
   /** Makes the game use this offline account. Returns false for a Microsoft account (see switchToMicrosoft) or on failure. */
   public boolean switchTo(Account account) {
     if (account.microsoft()) return false;
+    load();
     if (!setSession(new Session(account.name, account.uuid, "0", "legacy"))) return false;
     selected = accounts.indexOf(account);
     save();
     return true;
   }
 
+  /** Reads the file again: the launcher edits it too. Account objects are kept, so the ones on screen stay valid. */
   private void load() {
     if (!file.isFile()) return;
     Properties p = new Properties();
@@ -217,12 +223,21 @@ public final class AccountStore {
     } catch (NumberFormatException e) {
       return;
     }
+    List<Account> read = new ArrayList<>();
     for (int i = 0; i < count; i++) {
       String name = p.getProperty(i + ".name", "Player");
-      Account a = new Account(p.getProperty(i + ".type", "offline"), name, p.getProperty(i + ".uuid", offlineUuid(name)));
+      String type = p.getProperty(i + ".type", "offline");
+      String uuid = p.getProperty(i + ".uuid", offlineUuid(name));
+      Account a = null;
+      for (Account known : accounts) if (known.type.equals(type) && known.uuid.equals(uuid)) a = known;
+      if (a == null) a = new Account(type, name, uuid);
+      a.name = name;
       a.refreshToken = p.getProperty(i + ".refresh", "");
-      accounts.add(a);
+      read.add(a);
     }
+    if (read.isEmpty()) return;
+    accounts.clear();
+    accounts.addAll(read);
     try {
       selected = Integer.parseInt(p.getProperty("selected", "0"));
     } catch (NumberFormatException e) {
@@ -243,9 +258,11 @@ public final class AccountStore {
     }
     try {
       file.getParentFile().mkdirs();
-      try (OutputStreamWriter out = new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8)) {
+      File temp = new File(file.getPath() + ".tmp");
+      try (OutputStreamWriter out = new OutputStreamWriter(new FileOutputStream(temp), StandardCharsets.UTF_8)) {
         p.store(out, "luka accounts (the refresh token is a login: keep this file private)");
       }
+      java.nio.file.Files.move(temp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
     } catch (IOException ignored) {
       // the list simply is not saved
     }

@@ -69,7 +69,7 @@ public final class NametagRenderer {
         return EnvoySettings.staffSticky && dev.envoy.module.staff.StaffState.allowsNametags();
     }
 
-    /** Lunar's Nametags staff mod: a tag over every other player, through walls and up to the chosen distance, Apollo lines when the server sent them. */
+    /** A tag over every other player, through walls and up to the chosen distance, Apollo lines when the server sent them. */
     private void renderStaffTags(float partialTicks) {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.theWorld == null || mc.thePlayer == null) {

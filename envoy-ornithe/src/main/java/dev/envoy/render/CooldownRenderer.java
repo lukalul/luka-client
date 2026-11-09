@@ -15,12 +15,12 @@ import net.minecraft.client.renderer.entity.RenderItem;
 import dev.envoy.platform.RenderGameOverlayEvent;
 
 /**
- * Draws the Apollo cooldowns in the HUD, Lunar Client style: a "track" ring ({@code circleEnd})
+ * Draws the Apollo cooldowns in the HUD: a "track" ring ({@code circleEnd})
  * covered by a progress arc ({@code circleStart}) proportional to the remaining time (which empties
  * out as the animation), edge rings ({@code circleEdge}), the item icon (with glint) in the center,
  * and the remaining time as text ({@code textColor}).
  *
- * <p>Layout and proportions taken from Lunar's cooldown renderer: ~34px cell, item at 1.4×, ring
+ * <p>Layout: ~34px cell, item at 1.4×, ring
  * ~11.5 to 15.</p>
  */
 public final class CooldownRenderer {

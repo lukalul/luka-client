@@ -55,6 +55,19 @@ public final class ScreenshotActions {
 
   private ScreenshotActions() { }
 
+  /** Encoding the PNG is the slow part of a screenshot, so it happens here instead of on the game thread. Jobs that need the file queue up behind it. */
+  public static boolean writeInBackground(java.awt.image.RenderedImage image, String format, File file) throws IOException {
+    file.createNewFile(); // claims the name, so a second screenshot in the same second gets its own file
+    IO.execute(() -> {
+      try {
+        ImageIO.write(image, format, file);
+      } catch (Throwable failure) {
+        notifyUser("Could not save the screenshot: " + failure, EnumChatFormatting.RED);
+      }
+    });
+    return true;
+  }
+
   public static File findSavedFile(IChatComponent vanillaMessage) {
     if (!(vanillaMessage instanceof ChatComponentTranslation)) return null;
     Object[] arguments = ((ChatComponentTranslation) vanillaMessage).getFormatArgs();
@@ -132,18 +145,6 @@ public final class ScreenshotActions {
     if (file.isFile()) return true;
     notifyUser("Screenshot file not found.", EnumChatFormatting.GOLD);
     return false;
-  }
-
-  private static void copyPath(File file) {
-    String path = file.getAbsolutePath();
-    try {
-      if (GraphicsEnvironment.isHeadless()) throw new IOException("headless");
-      Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(path), null);
-      notifyUser("Screenshot path copied to clipboard!", EnumChatFormatting.GREEN);
-    } catch (Throwable failure) {
-      try { net.minecraft.client.gui.GuiScreen.setClipboardString(path); notifyUser("Screenshot path copied to clipboard!", EnumChatFormatting.GREEN); }
-      catch (Throwable ignored) { notifyUser("Could not copy the screenshot path.", EnumChatFormatting.RED); }
-    }
   }
 
   private static void openTarget(File target) {
@@ -308,8 +309,8 @@ public final class ScreenshotActions {
 
   private enum Action {
     COPY("copy", "[COPY]", EnumChatFormatting.BLUE) {
-      @Override void perform(ScreenshotMessageEnhancerModule module, int token, File file) { if (requireFile(file)) copyPath(file); }
-      @Override String hover(File file) { return "Copy the screenshot path"; }
+      @Override void perform(ScreenshotMessageEnhancerModule module, int token, File file) { if (requireFile(file)) IO.execute(() -> copyImage(file)); }
+      @Override String hover(File file) { return "Copy the screenshot"; }
     },
     OPEN("open", "[OPEN]", EnumChatFormatting.GREEN) {
       @Override void perform(ScreenshotMessageEnhancerModule module, int token, File file) { if (requireFile(file)) openTarget(file); }

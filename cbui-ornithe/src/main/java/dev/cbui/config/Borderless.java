@@ -121,7 +121,7 @@ public final class Borderless {
         int h = (Integer) mode.getClass().getMethod("height").invoke(mode);
         if (saved == null) saved = windowRect(glfw, window);
         attrib.invoke(null, window, 0x20005, 0); // GLFW_DECORATED
-        // Same geometry Lunar uses: 1 px taller than the monitor and shifted up 1 px. It still covers the taskbar,
+        // 1 px taller than the monitor and shifted up 1 px. It still covers the taskbar,
         // but is not an exact monitor match, so Windows/Discord do not treat it as exclusive fullscreen.
         setPos.invoke(null, window, 0, -1);
         setSize.invoke(null, window, w, h + 1);

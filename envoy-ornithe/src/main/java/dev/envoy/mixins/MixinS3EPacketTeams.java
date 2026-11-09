@@ -17,7 +17,7 @@ import net.minecraft.network.play.server.S3EPacketTeams;
  * client) if the string is longer than 16 characters. A full hex prefix ({@code §x§r§r§g§g§b§b} = 14
  * chars) would leave only 2 usable characters.</p>
  *
- * <p>Like a Lunar client, Envoy lifts that cap: the server (which knows which players are Envoy
+ * <p>Envoy lifts that cap: the server (which knows which players are Envoy
  * clients from the channel registration) can send a <b>normal</b> Team packet with a full hex prefix
  * to those clients only, without changing anything else. The resulting {@code §x} is rendered natively
  * by {@code MixinFontRenderer} + HexTextRenderer everywhere the name shows up (tab, nametag,

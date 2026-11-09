@@ -37,7 +37,7 @@ public final class BridgeFeatures {
     out.add(motionBlur());
   }
 
-  /** One card for normal name tags and the server's (Lunar / Apollo) tags: the server tags' settings move onto the Nametags card. */
+  /** One card for normal name tags and the server's (Apollo) tags: the server tags' settings move onto the Nametags card. */
   public static void merge(List<AbstractHudModule> all) {
     dev.cbui.feature.FeatureModule nametags = null, staffCard = null;
     BridgeModule server = null, staffTags = null;
@@ -48,11 +48,11 @@ public final class BridgeFeatures {
       if (m instanceof BridgeModule && m.name().equals("Staff nametags (server)")) staffTags = (BridgeModule) m;
     }
     if (nametags != null && server != null)
-      server.embedInto(nametags, "Server tags (Lunar / Apollo)", "Show the server's tags", true,
+      server.embedInto(nametags, "Server tags (Apollo)", "Show the server's tags", true,
           "Draws the tags the server sends (CPS line, ranks, [Mod Mode]) in the style set on this card");
     if (staffCard != null && staffTags != null)
       staffTags.embedInto(staffCard, "Sticky nametags", "Sticky nametags", true,
-          "Every other player gets a tag through walls and from far away (Lunar's Nametags staff mod, Apollo compatible). Needs the server to grant it");
+          "Every other player gets a tag through walls and from far away (Apollo compatible). Needs the server to grant it");
   }
 
   private static BridgeModule simple(String name, String field, String tip) {
@@ -66,7 +66,7 @@ public final class BridgeFeatures {
         .toggle("Visible through walls", "nametagThroughWalls", true, "Server tags stay readable behind blocks");
   }
 
-  /** Staff Mode's tag options: Lunar's Nametags staff mod (through walls, from far away) with Slinky-style details. Embedded in the Staff Mode card. */
+  /** Staff Mode's tag options: tags through walls and from far away, with Slinky-style details. Embedded in the Staff Mode card. */
   private static BridgeModule staffTags() {
     return new BridgeModule("Staff nametags (server)", "UTILITY", true, A, "staffSticky").after(SAVE_CLASS, "save")
         .slider("Sticky tag distance", "staffStickyDistance", 128, 16, 512, 16, "How far away other players still get a tag, in blocks")
@@ -95,7 +95,7 @@ public final class BridgeFeatures {
         .toggle("Show beams", "waypointBeam", true, "A light beam at the waypoint")
         .slider("Beam opacity", "waypointBeamOpacity", 0.4f, 0f, 1f, 0.05f, "How see-through the beam is")
         .slider("Beam width", "waypointBeamWidth", 1f, 0.5f, 4f, 0.1f, "Multiplier on the normal width")
-        .group("Server waypoints (Lunar / Apollo)")
+        .group("Server waypoints (Apollo)")
         .toggle("Show server waypoints", "waypointShowServer", true, "Waypoints the server sends (Apollo). Your own waypoints always show")
         .group("Death")
         .toggle("Create a waypoint on death", "deathWaypoints", true, "Marks where you died")
@@ -123,9 +123,8 @@ public final class BridgeFeatures {
     String mb = "dev.motionblur.MotionBlur";
     return new BridgeModule("Motion Blur", "VISUALS", false, s, mb, "setEnabled")
         .after(mb, "settingsChanged").after(mb, "save")
-        .choice("Mode", null, "mode", 2, "Same three modes as Lunar. V1: bright things leave fading ghosts. V2: even smear, gets long at high levels. V3: even smear with a limit, never mushy", "V1 Phosphor", "V2 Blend", "V3 Capped blend")
-        .slider("Level", "level", 3, 1, 10, 1, "How much of the previous frame is kept each frame, as in Lunar. 1 is faint, 5 is Lunar's default, 10 is a long smear")
-        .toggle("Match across frame rates", "frameRateIndependent", false, "Off (like Lunar): the blur is applied once per frame, so it stays subtle and crisp at high FPS. On: the trail lasts the same real time at any FPS, which looks longer, like a low-FPS video, on a fast PC")
+        .choice("Mode", null, "mode", 2, "V1: bright things leave fading ghosts. V2: even smear, gets long at high levels. V3: even smear with a limit, never mushy", "V1 Phosphor", "V2 Blend", "V3 Capped blend")
+        .slider("Level", "level", 3, 1, 10, 1, "How long the trail lasts. 1 is faint, 10 is a long smear")
         .toggle("Blur while in menus", "blurMenus", true, "Keeps the world-background blur running while a menu is open")
         .slider("Blend every Nth frame", "frameSkip", 1, 1, 10, 1, "1 blends every frame; higher trades smoothness for less GPU work")
         .group("Smoothing")

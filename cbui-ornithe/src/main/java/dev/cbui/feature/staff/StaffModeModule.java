@@ -15,7 +15,7 @@ import org.lwjgl.input.Keyboard;
 
 /**
  * The Staff Mode card. It is only listed in the mods menu while staff mode is on (Envoy detects it from Apollo's staff-mod message or
- * the "Mod Mode" tag). It holds the sticky-nametag options (merged in from Envoy, see BridgeFeatures) and Lunar's X-Ray staff mod,
+ * the "Mod Mode" tag). It holds the sticky-nametag options (merged in from Envoy, see BridgeFeatures) and the X-Ray staff mod,
  * which only works while the server has granted X-Ray through Apollo.
  */
 public final class StaffModeModule extends FeatureModule implements Features.Synced {

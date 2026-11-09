@@ -4,7 +4,7 @@ import net.minecraft.block.Block;
 import net.minecraft.init.Blocks;
 
 /**
- * Shared state of Lunar's X-Ray staff mod. The mixins on the terrain renderer (see the XRay* mixins) read these volatile fields from the
+ * Shared state of the X-Ray staff mod. The mixins on the terrain renderer (see the XRay* mixins) read these volatile fields from the
  * render thread and from the chunk meshing threads; StaffModeModule keeps them up to date. While {@link #active} is false nothing changes.
  */
 public final class XRayState {

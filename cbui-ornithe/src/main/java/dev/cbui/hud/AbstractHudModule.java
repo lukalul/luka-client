@@ -193,7 +193,7 @@ public abstract class AbstractHudModule {
   private long blockedVersion = -2;
   private boolean blocked;
 
-  /** True while the server has switched this mod off (Badlion / Lunar server APIs); the player's own setting is kept. */
+  /** True while the server has switched this mod off (server mod APIs); the player's own setting is kept. */
   public boolean serverBlocked() {
     long version = dev.cbui.server.ServerRulesBridge.cachedVersion();
     if (version != blockedVersion) {

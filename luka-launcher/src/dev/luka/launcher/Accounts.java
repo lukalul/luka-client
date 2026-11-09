@@ -12,7 +12,10 @@ import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 
-/** The accounts the launcher knows: offline names and Microsoft accounts (kept with their refresh token). */
+/**
+ * The accounts the launcher knows: offline names and Microsoft accounts (kept with their refresh token). The running game edits the
+ * same file, so the list is read again whenever the file has changed; otherwise the launcher would hide those accounts and overwrite them.
+ */
 final class Accounts {
   static final class Account {
     final String type; // "offline" or "msa"
@@ -34,45 +37,74 @@ final class Accounts {
   private final File file;
   private final List<Account> accounts = new ArrayList<>();
   private int selected;
+  private long loadedAt = -1;
 
   Accounts(File file) {
     this.file = file;
+    reload();
+  }
+
+  /** Reads the file if it changed since the last read. Account objects are kept, so a sign-in in progress still points at the right one. */
+  private void reload() {
+    long changed = file.lastModified();
+    if (changed == loadedAt) return;
     Properties p = new Properties();
     if (file.isFile()) {
       try (InputStream in = new FileInputStream(file)) {
         p.load(new java.io.InputStreamReader(in, StandardCharsets.UTF_8));
-      } catch (IOException ignored) {
-        // start empty
+      } catch (IOException | IllegalArgumentException unreadable) {
+        return; // mid-write or damaged: keep what is in memory and try again later
       }
     }
-    int count = Integer.parseInt(p.getProperty("count", "0"));
-    for (int i = 0; i < count; i++) {
-      String type = p.getProperty(i + ".type", "offline");
-      Account a = new Account(type, p.getProperty(i + ".name", "Player"), p.getProperty(i + ".uuid", offlineUuid(p.getProperty(i + ".name", "Player"))));
-      a.refreshToken = p.getProperty(i + ".refresh", "");
-      accounts.add(a);
+    try {
+      int count = Integer.parseInt(p.getProperty("count", "0"));
+      List<Account> read = new ArrayList<>();
+      for (int i = 0; i < count; i++) {
+        String type = p.getProperty(i + ".type", "offline");
+        String name = p.getProperty(i + ".name", "Player");
+        String uuid = p.getProperty(i + ".uuid", offlineUuid(name));
+        Account a = find(type, uuid);
+        if (a == null) a = new Account(type, name, uuid);
+        a.name = name;
+        a.refreshToken = p.getProperty(i + ".refresh", "");
+        read.add(a);
+      }
+      accounts.clear();
+      accounts.addAll(read);
+      selected = Math.max(0, Math.min(accounts.size() - 1, Integer.parseInt(p.getProperty("selected", "0"))));
+      loadedAt = changed;
+    } catch (NumberFormatException damaged) {
+      // keep what is in memory
     }
-    selected = Math.max(0, Math.min(accounts.size() - 1, Integer.parseInt(p.getProperty("selected", "0"))));
+  }
+
+  private Account find(String type, String uuid) {
+    for (Account a : accounts) if (a.type.equals(type) && a.uuid.equals(uuid)) return a;
+    return null;
   }
 
   static String offlineUuid(String name) {
     return UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8)).toString().replace("-", "");
   }
 
-  List<Account> all() {
-    return accounts;
+  synchronized List<Account> all() {
+    reload();
+    return new ArrayList<>(accounts);
   }
 
-  Account selected() {
-    return accounts.isEmpty() ? null : accounts.get(selected);
+  synchronized Account selected() {
+    reload();
+    return accounts.isEmpty() ? null : accounts.get(Math.min(selected, accounts.size() - 1));
   }
 
-  void select(Account account) {
+  synchronized void select(Account account) {
+    reload();
     selected = Math.max(0, accounts.indexOf(account));
     save();
   }
 
-  Account addOffline(String name) {
+  synchronized Account addOffline(String name) {
+    reload();
     for (Account a : accounts) if (!a.microsoft() && a.name.equalsIgnoreCase(name)) { select(a); return a; }
     Account a = new Account("offline", name, offlineUuid(name));
     accounts.add(a);
@@ -80,7 +112,8 @@ final class Accounts {
     return a;
   }
 
-  Account addMicrosoft(String name, String uuid, String refreshToken) {
+  synchronized Account addMicrosoft(String name, String uuid, String refreshToken) {
+    reload();
     for (Account a : accounts) {
       if (a.microsoft() && a.uuid.equals(uuid)) {
         a.name = name;
@@ -96,13 +129,14 @@ final class Accounts {
     return a;
   }
 
-  void remove(Account account) {
+  synchronized void remove(Account account) {
+    reload();
     accounts.remove(account);
     selected = 0;
     save();
   }
 
-  void save() {
+  synchronized void save() {
     Properties p = new Properties();
     p.setProperty("count", String.valueOf(accounts.size()));
     p.setProperty("selected", String.valueOf(selected));
@@ -115,9 +149,12 @@ final class Accounts {
     }
     try {
       file.getParentFile().mkdirs();
-      try (OutputStream out = new FileOutputStream(file)) {
+      File temp = new File(file.getPath() + ".tmp");
+      try (OutputStream out = new FileOutputStream(temp)) {
         p.store(new java.io.OutputStreamWriter(out, StandardCharsets.UTF_8), "luka accounts (the refresh token is a login: keep this file private)");
       }
+      java.nio.file.Files.move(temp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+      loadedAt = file.lastModified();
     } catch (IOException ignored) {
       // accounts are re-added on the next sign in
     }

@@ -23,7 +23,7 @@ import java.util.Map;
 
 /**
  * Lists every recording in the game's subframe folder: watch it, render it, rename it, delete it, open the folder.
- * Opened from a button on the main menu (vanilla and Lunar Client) or with the manager key.
+ * Opened from a button on the main menu or with the manager key.
  */
 final class ReplayManagerScreen extends GuiScreen {
     private static final int WATCH = 1, RENDER = 2, RENAME = 3, DELETE = 4, FOLDER = 5, DONE = 6;

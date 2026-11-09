@@ -10,7 +10,7 @@ import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL30;
 
 /**
- * Temporal blur with three modes (the same three families Lunar offers):
+ * Temporal blur with three modes:
  * <ul>
  *   <li>V1 phosphor: {@code history = max(history * f, frame)} - bright things leave fading ghosts</li>
  *   <li>V2 blend: {@code history = history * w + frame * (1 - w)} - symmetric smear</li>
@@ -112,7 +112,7 @@ public final class BlurRenderer {
                 long now = System.nanoTime();
                 double dt = fixedDt > 0 ? fixedDt : lastBlendNanos == 0L ? AlphaMath.REFERENCE_DT : (now - lastBlendNanos) / 1_000_000_000.0;
                 lastBlendNanos = now;
-                float keep = (float) AlphaMath.keep(AlphaMath.frameWeight(MotionBlurSettings.level, mode), dt, MotionBlurSettings.frameRateIndependent);
+                float keep = (float) AlphaMath.retention(AlphaMath.frameWeight(MotionBlurSettings.level, mode), dt);
                 dbgBlends++;
                 dbgWeight += keep;
                 process(mc.displayWidth, mc.displayHeight, keep, false, mode);

@@ -17,7 +17,7 @@ public final class ServerRulesBridge {
     private static volatile Set<String> disabled = Collections.emptySet();
     private static final Map<String, String[]> ALIASES = new HashMap<String, String[]>();
     static {
-        // luka module (normalized name) -> the ids other clients' server APIs (Badlion, Lunar/Apollo) use for the same mod
+        // luka module (normalized name) -> the ids other clients' server APIs (Badlion, Apollo) use for the same mod
         alias("freelook", "perspective", "freelook");
         alias("polyzoom", "zoom", "polyzoom");
         alias("motionblur", "motionblur");

@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * <p>Two knobs, both scaled by the level:
  * <ul>
  *   <li>Building: fewer new chunks are handed to the builder threads at once, so they take less CPU from the game and
- *       new terrain trickles in over more frames (Lunar's trade-off: a little slower, steadier FPS).</li>
+ *       new terrain trickles in over more frames (a little slower, steadier FPS).</li>
  *   <li>Showing: at most a few finished chunks are taken off the results queue per frame; the rest stay queued, in
  *       order, for the next frames. Celeritas otherwise uploads everything that finished in one frame, which is the
  *       spike when you join a server or teleport.</li>
