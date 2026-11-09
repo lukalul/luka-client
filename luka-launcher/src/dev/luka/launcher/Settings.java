@@ -36,10 +36,6 @@ final class Settings {
     }
   }
 
-  String javaPath() {
-    return values.getProperty("javaPath", "");
-  }
-
   /** Where launcher, mod and dependency updates are announced; the player can change or clear it in launcher.properties. */
   String updateUrl() { return System.getProperty("luka.manifest", values.getProperty("updateUrl", "https://client.luka.wtf/update.json")).trim(); }
 
@@ -72,6 +68,12 @@ final class Settings {
   boolean viaPrism() {
     return Boolean.parseBoolean(values.getProperty("viaPrism", "false"));
   }
+
+  /** Use Nvidia's faster present method for luka's Java (see NvidiaProfile). */
+  boolean nvOptimize() { return Boolean.parseBoolean(values.getProperty("nvOptimize", "true")); }
+
+  /** True while luka's Nvidia profile is in place, so turning the option off knows there is something to remove. */
+  boolean nvApplied() { return Boolean.parseBoolean(values.getProperty("nvApplied", "false")); }
 
   void set(String key, String value) {
     values.setProperty(key, value);

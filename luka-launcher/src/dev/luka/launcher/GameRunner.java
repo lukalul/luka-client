@@ -78,6 +78,7 @@ final class GameRunner {
     progress.update("Starting luka", 0.95);
     List<String> command = command(libs, assets, natives);
     log.accept("Command: " + String.join(" ", command).replace(identity.accessToken, "***"));
+    NvidiaProfile.apply(settings, new File(command.get(0)), log);
     gameDir().mkdirs();
     ProcessBuilder builder = new ProcessBuilder(command).directory(gameDir()).redirectErrorStream(true);
     process = builder.start();

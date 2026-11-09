@@ -935,6 +935,24 @@ final class LauncherFrame extends JFrame {
       String syncLine = syncStatus.isEmpty() ? (settings.syncFolder().isEmpty() ? "Sync folder not set" : settings.syncFolder()) : syncStatus;
       g.drawString(ellipsize(g, syncLine, 432), x, y + 274);
 
+      final boolean nvOn = settings.nvOptimize();
+      area(x, y + 286, 432, 34, () -> {
+        settings.set("nvOptimize", String.valueOf(!nvOn));
+        settings.save();
+      });
+      g.setColor(nvOn ? PURPLE : new Color(0x241B33));
+      g.fillRoundRect(x, y + 290, 16, 16, 5, 5);
+      if (nvOn) {
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(x + 5, y + 295, 6, 6, 3, 3);
+      }
+      g.setFont(bold.deriveFont(10f));
+      g.setColor(new Color(0xCFC6DB));
+      g.drawString("OPTIMIZE NVIDIA SETTINGS", x + 24, y + 299);
+      g.setFont(regular.deriveFont(10f));
+      g.setColor(FAINT);
+      g.drawString("Changes Nvidia's present method for luka only. Untick to undo. Applies on the next Play.", x + 24, y + 313);
+
       g.setFont(regular.deriveFont(10f));
       g.setColor(FAINT);
       g.drawString(ellipsize(g, updateStatus, iw - 32), ix + 16, iy + 174);

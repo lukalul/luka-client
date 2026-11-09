@@ -172,16 +172,32 @@ public final class Installer {
   }
 
   static File findUsableRuntime(File root, Settings settings) {
-    String configured = settings.javaPath().trim();
-    if (configured.length() > 0) {
-      File file = new File(configured);
-      if (javaMajor(file) >= 25) return file;
-    }
     File bundled = new File(root, "runtime/bin/javaw.exe");
     if (javaMajor(bundled) >= 25) return bundled;
     boolean windows = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
     File own = new File(System.getProperty("java.home"), "bin/" + (windows ? "javaw.exe" : "java"));
     return javaMajor(own) >= 25 ? own : null;
+  }
+
+  /** luka runs on one exact Java build, named in the signed update list. Anything else, older or the backup from an outage, is replaced here. */
+  private static void syncJava(File root, Map<String,Object> manifest, Progress p) throws Exception {
+    if (System.getProperty("luka.gameDir") != null) return; // a Prism instance runs on Prism's Java
+    Map<String,Object> java = obj(manifest.get("java"));
+    String version = str(java.get("version")), implementor = str(java.get("implementor")), link = str(java.get("url"));
+    String checksum = str(java.get("sha256")), file = str(java.get("file"));
+    if (version.isEmpty() || implementor.isEmpty() || link.isEmpty() || checksum.isEmpty() || file.isEmpty()) return;
+    File release = new File(root, "runtime/release");
+    if (release.isFile()) {
+      List<String> lines = Files.readAllLines(release.toPath(), StandardCharsets.UTF_8);
+      if (lines.contains("JAVA_RUNTIME_VERSION=\"" + version + "\"") && lines.contains("IMPLEMENTOR=\"" + implementor + "\"")) return;
+    }
+    p.update("Updating Java", .66);
+    try {
+      installRuntime(root, p, link, checksum, longValue(java.get("size")), safeName(file));
+    } catch (Exception failed) {
+      // a slow or broken download must not lock out someone who already has a working Java
+      if (findUsableRuntime(root, new Settings(new File(root, "launcher.properties"))) == null) throw failed;
+    }
   }
 
   static int parseJavaMajor(String output) {
@@ -422,6 +438,7 @@ public final class Installer {
   public static void syncMods(File root, boolean repair, Progress p) throws Exception {
     Settings settings = new Settings(new File(root, "launcher.properties"));
     Map<String,Object> manifest = manifest(root);
+    syncJava(root, manifest, p);
     File mods = new File(gameDir(root), "mods");
     List<ModFile> wanted = new ArrayList<ModFile>();
     for (Object o : arr(manifest.get("mods"))) wanted.add(new ModFile(obj(o), mods));

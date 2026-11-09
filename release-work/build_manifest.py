@@ -14,6 +14,7 @@ import os
 import shutil
 import subprocess
 import time
+import urllib.request
 import zipfile
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -65,6 +66,16 @@ def write_prism_instance(target, title, renderer, manifest_url):
         z.writestr(".minecraft/luka-readme.txt", note)
         for fn in ("LICENSE", "NOTICE"):
             z.write(os.path.join(ROOT, "release-work", fn), "luka/" + fn)
+
+
+def java_entry():
+    """The exact Java build every launcher must use, from Eclipse Adoptium's own list."""
+    url = "https://api.adoptium.net/v3/assets/latest/25/hotspot?architecture=x64&image_type=jre&os=windows&vendor=eclipse"
+    with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "luka-release/1.0"}), timeout=30) as r:
+        asset = json.load(r)[0]
+    package = asset["binary"]["package"]
+    return {"version": asset["version"]["openjdk_version"], "implementor": "Eclipse Adoptium", "url": package["link"],
+            "sha256": package["checksum"], "size": package["size"], "file": package["name"]}
 
 
 def read_changelog():
@@ -170,6 +181,7 @@ def main():
         **({"msClientId": a.ms_client_id} if a.ms_client_id else {}),
         "sequence": int(time.time()),
         "changelog": read_changelog(),
+        "java": java_entry(),
         "launcher": {"version": VERSION, "url": site + "/luka-launcher.jar", "sha512": sha512(jar)},
         "defaults": {"url": site + "/default-config.zip", "sha512": sha512(defaults)},
         "mods": mods,

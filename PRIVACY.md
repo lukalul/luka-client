@@ -13,4 +13,10 @@ luka has no analytics or tracking. It connects to these places, and only for the
 
 These are the downloads and connections luka needs to work, so there is no switch to turn them off. Your Microsoft sign-in stays on your PC and is sent only to Microsoft and Mojang.
 
+## Nvidia graphics cards
+
+On an Nvidia card, the launcher sets Nvidia's "Vulkan/OpenGL present method" to Prefer native in a driver profile named `luka`, for luka's own copy of Java only. No other program is affected. To undo it, untick **Optimize Nvidia settings** on the launcher's Settings page and press Play once, which deletes that profile.
+
+## Other services
+
 The friends, ranks and cosmetics service is not part of this release. If it is added later, this page will say what it sends, and you will be able to turn it off.
