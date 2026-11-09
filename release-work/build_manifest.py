@@ -157,6 +157,7 @@ def main():
 
     jar = os.path.join(ROOT, "luka-launcher", "dist", "luka-launcher.jar")
     shutil.copy(jar, luka_dir)
+    shutil.copytree(os.path.join(ROOT, "release-work", "site"), luka_dir, dirs_exist_ok=True)  # the website lives next to the files
     defaults = os.path.join(luka_dir, "default-config.zip")
     source = os.path.join(ROOT, "release-work", "default-config")
     with zipfile.ZipFile(defaults, "w", zipfile.ZIP_DEFLATED) as z:

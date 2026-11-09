@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>luka | Minecraft 1.8.9 client</title>
+  <meta name="description" content="A fast, open-source Minecraft 1.8.9 client for PvP and faction servers.">
+  <meta name="theme-color" content="#0c0910">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="luka client">
+  <meta property="og:description" content="A fast, open-source Minecraft 1.8.9 client for PvP and faction servers.">
+  <meta property="og:url" content="https://client.luka.wtf/">
+  <meta property="og:image" content="https://client.luka.wtf/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" type="image/png" href="/logo.png">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/site.js" defer></script>
+</head>
+<body>
+  <header class="nav wrap">
+    <a class="brand" href="/"><img src="/logo.png" alt="" width="32" height="32"><span>luka</span></a>
+    <nav>
+      <a href="#features">Features</a>
+      <a href="#performance">Performance</a>
+      <a href="https://github.com/lukalul/luka-client">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero wrap">
+      <img class="hero-logo" src="/logo.png" alt="" width="112" height="112">
+      <h1>The Minecraft 1.8.9 client built for&nbsp;PvP.</h1>
+      <p class="lead">Fast, open source, and ready for big fights. Choose the Normal or Vulkan renderer and play.</p>
+      <div class="actions">
+        <a class="button primary" href="https://github.com/lukalul/luka-client/releases/latest/download/Luka-Setup.exe">Download for Windows</a>
+        <a class="button" href="#prism">Use Prism Launcher</a>
+      </div>
+      <p class="small">Version 1.0.0. Free and open source.</p>
+    </section>
+
+    <section id="features" class="wrap">
+      <h2>Everything in one client</h2>
+      <div class="grid">
+        <article><h3>Two renderers</h3><p>Play on Normal (Argentum) or Vulkan. Switch between them from the launcher.</p></article>
+        <article><h3>Made for big fights</h3><p>Players and items hidden behind walls are skipped, so crowded fights stay smooth.</p></article>
+        <article><h3>Your HUD, your way</h3><p>Drag, resize and style every HUD module. Start clean with just FPS, CPS and the scoreboard.</p></article>
+        <article><h3>Replays</h3><p>Record your fights, fly around them with a free camera, and render video with real motion blur.</p></article>
+        <article><h3>Better chat</h3><p>Smooth messages, no background if you want, and a sound when someone says your name.</p></article>
+        <article><h3>Updates itself</h3><p>Every update is signed and arrives the next time you press Play.</p></article>
+      </div>
+    </section>
+
+    <section id="performance" class="wrap">
+      <h2>Performance</h2>
+      <p class="section-lead">Average FPS at 1080p on one gaming PC, with luka's full mod set. Yours will differ.</p>
+      <div class="table">
+        <table>
+          <thead><tr><th>Scene</th><th>Normal</th><th>Vulkan</th><th>Vulkan gain</th></tr></thead>
+          <tbody>
+            <tr><td>Empty scene</td><td>2,455</td><td>3,348</td><td class="gain">+36%</td></tr>
+            <tr><td>30 players on screen</td><td>1,341</td><td>2,274</td><td class="gain">+70%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="prism" class="wrap">
+      <h2>Prefer Prism Launcher?</h2>
+      <p class="section-lead">Click Add Instance, open the Import tab, then paste one of these links. It keeps itself up to date.</p>
+      <div class="links">
+        <div class="link"><span>Normal</span><code>https://github.com/lukalul/luka-client/releases/latest/download/luka-1.8.9-prism.zip</code><button type="button" data-copy="https://github.com/lukalul/luka-client/releases/latest/download/luka-1.8.9-prism.zip">Copy</button></div>
+        <div class="link"><span>Vulkan</span><code>https://github.com/lukalul/luka-client/releases/latest/download/luka-1.8.9-vulkan-prism.zip</code><button type="button" data-copy="https://github.com/lukalul/luka-client/releases/latest/download/luka-1.8.9-vulkan-prism.zip">Copy</button></div>
+      </div>
+    </section>
+
+    <section class="wrap notes">
+      <div>
+        <h3>Windows says "unknown publisher"?</h3>
+        <p>luka isn't code-signed yet, so Windows may warn you. Click <b>More info</b>, then <b>Run anyway</b>.</p>
+      </div>
+      <div>
+        <h3>Is it safe?</h3>
+        <p>You don't have to take our word for it. <a href="https://github.com/lukalul/luka-client">All of the code is public</a>, and every release is built from it. See <a href="https://github.com/lukalul/luka-client/blob/main/PRIVACY.md">what luka connects to</a>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    <span>luka is free software under the <a href="https://github.com/lukalul/luka-client/blob/main/LICENSE">GPL-3.0</a>.</span>
+    <span>Not affiliated with Mojang or Microsoft.</span>
+  </footer>
+</body>
+</html>
