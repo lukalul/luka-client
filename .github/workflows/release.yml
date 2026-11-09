@@ -51,7 +51,18 @@ jobs:
           JAVA_25: ${{ steps.java25.outputs.path }}
         run: |
           $env:Path = "C:\Program Files (x86)\NSIS;C:\Program Files (x86)\NSIS\Bin;$env:Path"
-          release-work\ci-build.ps1 -Repo $env:GITHUB_REPOSITORY -Tag $env:GITHUB_REF_NAME
+          release-work\ci-build.ps1
+
+      # Only for the maintainer, who signs the update list on their own PC and uploads the site files. Players never need these.
+      - name: Keep the maintainer files
+        uses: actions/upload-artifact@v4
+        with:
+          name: maintainer-files
+          retention-days: 30
+          path: |
+            release/online/update-body.json
+            release/online/client.luka.wtf.zip
+            release/online/DOWNLOADS.md
 
       # Code signing goes here once SignPath has accepted the project: sign Luka.exe before the installer is built, then sign the installer.
 
@@ -67,6 +78,5 @@ jobs:
             if ($inside) { $line }
           }
           $lines | Set-Content $notes
-          $files = @('release\online\Luka-Setup.exe', 'release\online\Luka.exe', 'release\online\client.luka.wtf.zip', 'release\online\update-body.json', 'release\online\DOWNLOADS.md')
-          $files += (Get-ChildItem release\online\github -File).FullName
+          $files = @('release\online\Luka-Setup.exe', 'release\online\Luka.exe', 'release\online\github\luka-1.8.9-prism.zip', 'release\online\github\luka-1.8.9-vulkan-prism.zip')
           gh release create $env:GITHUB_REF_NAME --draft --title "luka $($env:GITHUB_REF_NAME.TrimStart('v'))" --notes-file $notes @files

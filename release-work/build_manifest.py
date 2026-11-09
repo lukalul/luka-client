@@ -1,11 +1,11 @@
 """Builds what goes online for Luka.exe's Play button.
 
   release/online/client.luka.wtf/    upload to https://client.luka.wtf/ (the client mods, update.json, default settings, the launcher jar)
-  release/online/github/      attach to a GitHub release of the open-source repo (Vulkan renderer, sky and colour mods, SoundFix)
+  release/online/github/      attach to the GitHub release (the two Prism Launcher imports)
   release/online/DOWNLOADS.md the full list of what a player downloads and from where
 
-Usage: python release-work/build_manifest.py --github https://github.com/<you>/<repo>/releases/download/v1.0.0
-       add --local http://127.0.0.1:8099 to point every client.luka.wtf and GitHub file at a local test server instead.
+Usage: python release-work/build_manifest.py
+       add --local http://127.0.0.1:8099 to point every file at a local test server instead.
 """
 import argparse
 import hashlib
@@ -34,56 +34,7 @@ def sha512(path):
     return h.hexdigest()
 
 
-SOURCE_SKIP_DIRS = {"build", ".gradle", ".kotlin", ".git", ".idea", "run", "out", "local-maven"}
-SOURCE_SKIP_FILES = {"AGENTS.md"}  # working notes, not part of the program
-
-
-def write_source_zip(folder, target):
-    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as z:
-        for path, dirs, files in os.walk(folder):
-            dirs[:] = [d for d in dirs if d not in SOURCE_SKIP_DIRS]
-            for fn in files:
-                if fn in SOURCE_SKIP_FILES:
-                    continue
-                full = os.path.join(path, fn)
-                z.write(full, os.path.join(os.path.basename(folder), os.path.relpath(full, folder)).replace(os.sep, "/"))
-
-
-CLIENT_SOURCE_ITEMS = ("src", "gradle", "build.gradle", "settings.gradle", "gradle.properties", "gradlew", "gradlew.bat", ".gitignore", "LICENSE", "NOTICE")
-LAUNCHER_SOURCE_ITEMS = ("src", "test", "res", "build-launcher.ps1", "LICENSE", "NOTICE")
 PRISM_RAM_MB = 3072
-
-
-def add_tree(z, path, name):
-    """Only named items are added: working notes, git history, build caches and old art stay out."""
-    if os.path.isfile(path):
-        z.write(path, name)
-        return
-    for folder, _, files in os.walk(path):
-        for fn in files:
-            full = os.path.join(folder, fn)
-            z.write(full, os.path.join(name, os.path.relpath(full, path)).replace(os.sep, "/"))
-
-
-def write_client_source(target):
-    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as z:
-        for fn in ("LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "BUILDING.md", "README.md"):
-            z.write(os.path.join(ROOT, "release-work", fn), "luka/" + fn)
-        for m in CLOSED:
-            base = os.path.join(ROOT, m + "-ornithe")
-            for item in CLIENT_SOURCE_ITEMS:
-                full = os.path.join(base, item)
-                if os.path.exists(full):
-                    add_tree(z, full, "luka/%s-ornithe/%s" % (m, item))
-        base = os.path.join(ROOT, "luka-launcher")
-        for item in LAUNCHER_SOURCE_ITEMS:
-            full = os.path.join(base, item)
-            if os.path.exists(full):
-                add_tree(z, full, "luka/luka-launcher/" + item)
-        for fn in ("build-exe.ps1", "build-installer.ps1", "installer.nsi", "stub.cpp", "stub.rc", "stub.manifest", "resource.h"):
-            full = os.path.join(base, "exe", fn)
-            if os.path.exists(full):
-                z.write(full, "luka/luka-launcher/exe/" + fn)
 
 
 def write_prism_instance(target, title, renderer, manifest_url):
@@ -148,13 +99,11 @@ def size_mb(path):
 
 def main():
     args = argparse.ArgumentParser()
-    args.add_argument("--github", default="https://github.com/LukaLUL/luka-client/releases/download/v1.0.0")
     args.add_argument("--local", default="")
     args.add_argument("--unsigned", action="store_true", help="write update-body.json to sign later on the maintainer's PC")
     args.add_argument("--ms-client-id", default="", help="the Azure app ID for Microsoft sign-in; Mojang has to approve it first")
     a = args.parse_args()
     site = a.local + "/client.luka.wtf" if a.local else "https://client.luka.wtf"
-    github = a.local + "/github" if a.local else a.github
     shutil.rmtree(OUT, ignore_errors=True)
     luka_dir = os.path.join(OUT, "client.luka.wtf")
     git_dir = os.path.join(OUT, "github")
@@ -188,35 +137,23 @@ def main():
             dependencies.append(entry)
             report.append(("Modrinth", d["file"], mb, "both"))
 
-    # SoundFix is LGPL and has no public 1.8.9 build to point at, so it is hosted with the open-source parts
+    # SoundFix is LGPL and has no public 1.8.9 build to point at, so it is hosted with luka's own mods
     soundfix = os.path.join(ROOT, "release-work", "bundled", "soundfix-1.2.0+mc1.8.9.jar")
     if os.path.isfile(soundfix):
         name = os.path.basename(soundfix)
-        shutil.copy(soundfix, git_dir)
-        shutil.copy(soundfix, os.path.join(luka_dir, "mods", name.replace("+", ".")))
-        dependencies.append({"file": name, "url": github + "/" + name.replace("+", "."), "mirror": site + "/mods/" + name.replace("+", "."), "sha512": sha512(soundfix)})
-        os.replace(os.path.join(git_dir, name), os.path.join(git_dir, name.replace("+", ".")))
-        report.append(("GitHub (open source)", name, size_mb(soundfix), "both"))
+        asset = name.replace("+", ".")
+        shutil.copy(soundfix, os.path.join(luka_dir, "mods", asset))
+        dependencies.append({"file": name, "url": site + "/mods/" + asset, "sha512": sha512(soundfix)})
+        report.append(("client.luka.wtf (open source)", name, size_mb(soundfix), "both"))
 
     for src in (os.path.join(ROOT, "luka-vulkan", "build", "libs", "astatine-0.1.0+mc1.8.9.jar"),
                 os.path.join(ROOT, "customsky-ornithe", "build", "libs", "customsky-ornithe-0.1.0.jar"),
                 os.path.join(ROOT, "customcolors-ornithe", "build", "libs", "customcolors-ornithe-0.1.0.jar")):
         name = os.path.basename(src)
-        asset = name.replace("+", ".")  # GitHub rewrites + in asset names
-        shutil.copy(src, os.path.join(git_dir, asset))
-        shutil.copy(src, os.path.join(luka_dir, "mods", asset))  # GitHub being down must not stop Play
-        vulkan.append({"file": name, "url": github + "/" + asset, "mirror": site + "/mods/" + asset, "sha512": sha512(src)})
-        report.append(("GitHub (open source)", name, size_mb(src), "vulkan"))
-
-    # GPL, AGPL and LGPL: the source of exactly these builds goes up next to them
-    target = os.path.join(git_dir, "luka-client-source.zip")
-    write_client_source(target)
-    report.append(("GitHub (source, not downloaded by Play)", "luka-client-source.zip", size_mb(target), "-"))
-    for folder, title in (("luka-vulkan", "luka-vulkan-source.zip"), ("customsky-ornithe", "customsky-source.zip"),
-                          ("customcolors-ornithe", "customcolors-source.zip")):
-        target = os.path.join(git_dir, title)
-        write_source_zip(os.path.join(ROOT, folder), target)
-        report.append(("GitHub (source, not downloaded by Play)", title, size_mb(target), "-"))
+        asset = name.replace("+", ".")
+        shutil.copy(src, os.path.join(luka_dir, "mods", asset))
+        vulkan.append({"file": name, "url": site + "/mods/" + asset, "sha512": sha512(src)})
+        report.append(("client.luka.wtf (open source)", name, size_mb(src), "vulkan"))
 
     jar = os.path.join(ROOT, "luka-launcher", "dist", "luka-launcher.jar")
     shutil.copy(jar, luka_dir)
@@ -255,7 +192,7 @@ def main():
         for where, name, mb, used in sorted(report):
             f.write("| %s | %s | %.1f | %s |\n" % (where, name, mb, used))
         f.write("\nAlso, on first Play: Minecraft 1.8.9 client, libraries and assets from Mojang; Fabric/Ornithe libraries from their Maven "
-                "repositories; Java 25 from Adoptium, or Amazon Corretto if Adoptium is unreachable. Open-source files fall back to client.luka.wtf when GitHub is down.\n")
+                "repositories; Java 25 from Adoptium, or Amazon Corretto if Adoptium is unreachable.\n")
     print("wrote", OUT, "mods", len(mods), "deps", len(dependencies), "normal", len(normal), "vulkan", len(vulkan))
 
 

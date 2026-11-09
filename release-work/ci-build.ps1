@@ -1,7 +1,6 @@
 # Builds everything for a release. GitHub Actions runs this on every version tag, and it can be run by hand.
 # Needs JAVA_21 and JAVA_25 (JDK folders), the Vulkan SDK in VULKAN_SDK, Visual Studio 2022 C++ tools, CMake, Ninja and NSIS.
-# Usage: ci-build.ps1 -Repo <github user>/<repo name> -Tag v1.0.0
-param([Parameter(Mandatory)][string]$Repo, [Parameter(Mandatory)][string]$Tag)
+# Usage: ci-build.ps1
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 
@@ -30,7 +29,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Luka.exe failed to build' }
 & powershell -NoProfile -ExecutionPolicy Bypass -File "$root\luka-launcher\exe\build-installer.ps1"
 if ($LASTEXITCODE -ne 0) { throw 'The installer failed to build' }
 
-& python -I "$root\release-work\build_manifest.py" --github "https://github.com/$Repo/releases/download/$Tag" --unsigned
+& python -I "$root\release-work\build_manifest.py" --unsigned
 if ($LASTEXITCODE -ne 0) { throw 'The release files could not be written' }
 Copy-Item "$root\luka-launcher\exe\out\Luka.exe", "$root\luka-launcher\exe\out\Luka-Setup.exe" "$root\release\online\" -Force
 Compress-Archive -Path "$root\release\online\client.luka.wtf\*" -DestinationPath "$root\release\online\client.luka.wtf.zip" -Force
