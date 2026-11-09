@@ -719,6 +719,8 @@ public class ModuleMenu extends GuiScreen {
         y = drawChoiceRow(setting.name(), ((Setting.Choice) setting).get(), x, y, w, mx, my);
       else if (setting instanceof Setting.Text)
         y = drawTextRow(setting.name(), ((Setting.Text) setting).get(), x, y, w);
+      else if (setting instanceof Setting.Key)
+        y = drawChoiceRow(setting.name(), editing == setting ? "PRESS A KEY" : keyName(((Setting.Key) setting).code()), x, y, w, mx, my);
       if (changed(setting)) drawReset(x + 113, rowY, mx, my);
       hint(setting.tooltip(), mx, my, x, rowY, w, rowHeight(setting));
       y += groupAfter(list, i);
@@ -1291,6 +1293,12 @@ public class ModuleMenu extends GuiScreen {
   @Override
   protected void mouseClicked(int mx, int my, int button) {
     try {
+      if (button >= 2 && editing instanceof Setting.Key && editField == null) {
+        ((Setting.Key) editing).set(button - 100);
+        editing = null;
+        saveCurrent();
+        return;
+      }
       // a keybind waiting for its key: middle, back, forward and the other extra mouse buttons can be the key (stored as -100 + button, as in Controls)
       if (button >= 2 && editing instanceof ConfigSnapshot.Row && editField == null && ((ConfigSnapshot.Row) editing).kind == ConfigSnapshot.Kind.KEYBIND) {
         setKey((ConfigSnapshot.Row) editing, editOriginal, button - 100);
@@ -1529,6 +1537,11 @@ public class ModuleMenu extends GuiScreen {
         return -1;
       }
       if (hit(mx, my, x, y, w, 21)) {
+        if (setting instanceof Setting.Key) {
+          editing = setting;
+          editField = null;
+          return -1;
+        }
         if (setting instanceof Setting.Text) {
           beginNativeTextEdit((Setting.Text) setting, x + w - 110, y);
           return -1;
@@ -2026,6 +2039,12 @@ public class ModuleMenu extends GuiScreen {
           return;
         }
         profileField.textboxKeyTyped(c, key);
+        return;
+      }
+      if (editing instanceof Setting.Key && editField == null) {
+        ((Setting.Key) editing).set(key == Keyboard.KEY_ESCAPE ? 0 : key);
+        editing = null;
+        saveCurrent();
         return;
       }
       if (editing instanceof ConfigSnapshot.Row && editField == null) {

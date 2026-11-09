@@ -63,6 +63,9 @@ public final class FreelookModule extends FeatureModule {
   public final Setting.Toggle pitchLock = grouped("Pitch", add(new Setting.Toggle(
       "Pitch Lock", true, "Stops the camera at straight up and straight down (-90 to 90 degrees).")));
 
+  public final Setting.Key keySetting = grouped("Key", add(new Setting.Key(
+      "Freelook key", Keyboard.KEY_NONE, "Hold or press this key to look around. Click, then press a key. Escape clears it.")));
+
   private KeyBinding activationKey;
   private boolean running;
   private boolean keyHeldLastTick;
@@ -370,6 +373,14 @@ public final class FreelookModule extends FeatureModule {
       mc.gameSettings.keyBindings = after;
       KeyBinding.resetKeyBindingArrayAndHash();
       activationKey = key;
+      keySetting.bind(new Setting.Key.Binding() {
+        @Override public int get() { return key.getKeyCode(); }
+        @Override public void set(int code) {
+          key.setKeyCode(code);
+          KeyBinding.resetKeyBindingArrayAndHash();
+          mc.gameSettings.saveOptions();
+        }
+      });
     } catch (Throwable failure) {
       activationKey = null;
     }

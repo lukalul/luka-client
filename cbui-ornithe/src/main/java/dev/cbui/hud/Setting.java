@@ -33,6 +33,19 @@ public abstract class Setting<T> {
     public final String group() { return group; }
     public final void setGroup(String group) { this.group = group == null ? "" : group; }
 
+    /** A key the game itself saves in options.txt, edited from a mod's card. It is not stored in luka's config. */
+    public static final class Key extends Setting<Integer> {
+        public interface Binding {
+            int get();
+            void set(int key);
+        }
+        private Binding binding;
+        public Key(String name, int value, String tooltip) { super(name, value, tooltip); }
+        public void bind(Binding binding) { this.binding = binding; super.set(binding.get()); }
+        public int code() { return binding == null ? get() : binding.get(); }
+        @Override public void set(Integer key) { super.set(key); if (binding != null) binding.set(key); }
+    }
+
     public static final class Toggle extends Setting<Boolean> {
         public Toggle(String name, boolean value) { this(name, value, ""); }
         public Toggle(String name, boolean value, String tooltip) { super(name, value, tooltip); }
