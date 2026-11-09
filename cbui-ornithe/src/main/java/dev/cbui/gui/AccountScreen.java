@@ -186,7 +186,7 @@ public final class AccountScreen extends GuiScreen {
           deviceCode = code;
           deviceUrl = url;
           GuiScreen.setClipboardString(code);
-          openBrowser(url);
+          openBrowser(store.liveFlow() ? url + "?otc=" + code : url); // this flow puts the code in the link, so nothing has to be typed
         }, text -> { if (attempt == mine) message = text; }, () -> attempt != mine);
         if (attempt == mine) {
           AccountStore.Account account = store.addMicrosoft(session);
