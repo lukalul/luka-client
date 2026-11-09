@@ -21,6 +21,8 @@
 | Normal | `https://github.com/lukalul/luka-client/releases/latest/download/luka-1.8.9-prism.zip` |
 | Vulkan | `https://github.com/lukalul/luka-client/releases/latest/download/luka-1.8.9-vulkan-prism.zip` |
 
+**Code signing:** luka has applied for free code signing provided by [SignPath.io](https://signpath.io), with a certificate by [SignPath Foundation](https://signpath.org). Until that is in place, Windows may warn you about an unknown publisher: click More info, then Run anyway. See the [code signing policy](CODE_SIGNING_POLICY.md).
+
 ## Open source
 
 All of luka's code is here, and every release is built from it by GitHub Actions. See [what luka connects to](PRIVACY.md) and [how to build it](BUILDING.md).
