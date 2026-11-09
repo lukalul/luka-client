@@ -65,7 +65,7 @@ public final class VideoOptions {
     if (PACK_ROWS)
       for (String[] feature : PACK_FEATURES) add(list, "Quality", toggle(feature[0], !"false".equals(System.getProperty(feature[1])), true, feature[2]));
 
-    add(list, "Animations", choice("Particles", g.particleSetting, new String[] {"All", "Decreased", "Minimal"}, 0, "How many particles are spawned"));
+    add(list, "Particle types", choice("Particles", g.particleSetting, new String[] {"All", "Decreased", "Minimal"}, 0, "How many particles are spawned"));
     for (String key : ANIMATION_KEYS) add(list, "Animations", animationRow(key));
     for (EnumParticleTypes type : EnumParticleTypes.values())
       add(list, "Particle types", toggle(AnimationOptions.readable(type), GlobalOptions.animationEnabled(AnimationOptions.particleKey(type)), true, "Turn off to stop this particle from appearing"));
