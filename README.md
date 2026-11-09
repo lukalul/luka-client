@@ -1,36 +1,28 @@
-# luka
+<p align="center">
+  <img src=".github/banner.png" alt="luka" width="100%">
+</p>
 
-luka is an open-source Minecraft 1.8.9 client built for PvP and faction servers. It runs on Fabric (Ornithe), with a Normal (OpenGL) or Vulkan renderer.
+<p align="center">
+  <a href="https://github.com/lukalul/luka-client/releases"><img src="https://img.shields.io/github/downloads/lukalul/luka-client/total?style=for-the-badge&color=8942DA&label=downloads" alt="Downloads"></a>
+  <a href="https://github.com/lukalul/luka-client/releases/latest"><img src="https://img.shields.io/github/v/release/lukalul/luka-client?style=for-the-badge&color=8942DA&label=version" alt="Latest version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-8942DA?style=for-the-badge" alt="GPL-3.0"></a>
+</p>
 
-luka is an independent project. It is not affiliated with Mojang, Microsoft or any server.
+<p align="center"><b>A fast, open-source Minecraft 1.8.9 client for PvP and faction servers.</b></p>
 
 ## Download
 
-There are two ways to play. Pick one.
+**[Get the luka launcher](https://github.com/lukalul/luka-client/releases/latest/download/Luka-Setup.exe)** for Windows. Run it and press Play.
 
-### The luka launcher
+**Using Prism Launcher?** Click Add Instance, open the Import tab and paste a link:
 
-Download **[Luka-Setup.exe](https://github.com/LukaLUL/luka-client/releases/latest/download/Luka-Setup.exe)** and run it. It needs no administrator rights. Press Play and the launcher fetches the game, Java and the mods.
+| Renderer | Link |
+|---|---|
+| Normal | `https://github.com/lukalul/luka-client/releases/latest/download/luka-1.8.9-prism.zip` |
+| Vulkan | `https://github.com/lukalul/luka-client/releases/latest/download/luka-1.8.9-vulkan-prism.zip` |
 
-Prefer no installer? [Luka.exe](https://github.com/LukaLUL/luka-client/releases/latest/download/Luka.exe) runs on its own.
+## Open source
 
-### Prism Launcher
+All of luka's code is here, and every release is built from it by GitHub Actions. See [what luka connects to](PRIVACY.md) and [how to build it](BUILDING.md).
 
-In Prism, click **Add Instance**, open the **Import** tab, paste one of these links and click OK:
-
-- Normal renderer: `https://github.com/LukaLUL/luka-client/releases/latest/download/luka-1.8.9-prism.zip`
-- Vulkan renderer: `https://github.com/LukaLUL/luka-client/releases/latest/download/luka-1.8.9-vulkan-prism.zip`
-
-The instance needs Java 25. Each time you press Launch it updates luka's mods by itself, so you never have to import it again.
-
-## Is it safe?
-
-Don't take our word for it. All of luka's code is in this repository, and every release is built from it by GitHub Actions, so you can follow a download back to the exact code. The launcher checks a signature on every update, and a file hash on every download. See [what luka connects to](PRIVACY.md).
-
-## Building it yourself
-
-See [BUILDING.md](BUILDING.md).
-
-## Licence
-
-luka is free software under the GPL-3.0-or-later, with the additional terms in [NOTICE](NOTICE). The Vulkan renderer is AGPL-3.0, custom sky is MIT and custom colours is LGPL-3.0. Other parts keep their own licences: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Licensed under [GPL-3.0](LICENSE), with the terms in [NOTICE](NOTICE). Not affiliated with Mojang or Microsoft.

@@ -8,7 +8,7 @@ Windows programs in luka's releases are built from this repository by GitHub Act
 
 | Role | Who |
 |---|---|
-| Authors and committers | [LukaLUL/luka-client contributors](https://github.com/LukaLUL/luka-client/graphs/contributors) |
+| Authors and committers | [lukalul/luka-client contributors](https://github.com/lukalul/luka-client/graphs/contributors) |
 | Reviewers | The repository's maintainers |
 | Approvers | The repository's maintainers |
 
