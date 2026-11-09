@@ -1,0 +1,1 @@
+{"apollo_module":"combat","enable":true,"properties":{"disable-miss-penalty":true},"@type":"type.googleapis.com/lunarclient.apollo.configurable.v1.ConfigurableSettings"}

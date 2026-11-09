@@ -1,0 +1,7 @@
+{
+  "required": false,
+  "package": "dev.fullbright.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "client": ["EntityRendererMixin", "MinecraftMixin"],
+  "injectors": { "defaultRequire": 1 }
+}

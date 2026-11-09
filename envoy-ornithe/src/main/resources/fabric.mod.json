@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "envoy",
+  "version": "${version}",
+  "name": "Envoy",
+  "description": "Apollo protocol bridge for Minecraft 1.8.9.",
+  "authors": [
+    "Natsu / CrystallicDev",
+    "ported for luka"
+  ],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.envoy.Envoy"
+    ]
+  },
+  "mixins": [
+    "envoy.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.14.21",
+    "minecraft": "1.8.9"
+  },
+  "license": "GPL-3.0-or-later",
+  "icon": "assets/envoy/icon.png"
+}

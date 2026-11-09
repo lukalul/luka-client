@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "bakeplus",
+  "version": "0.1.0",
+  "name": "BakePlus",
+  "description": "Cheap, static renderers for expensive animated block entities.",
+  "authors": [
+    "luka contributors"
+  ],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.bakeplus.BakePlus"
+    ]
+  },
+  "mixins": [
+    "bakeplus.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.14.21",
+    "minecraft": "1.8.9"
+  },
+  "suggests": {
+    "argentum": "*"
+  },
+  "license": "GPL-3.0-or-later",
+  "icon": "assets/bakeplus/icon.png"
+}

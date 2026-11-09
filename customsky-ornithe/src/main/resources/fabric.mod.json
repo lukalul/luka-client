@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "customsky",
+  "version": "${version}",
+  "name": "Custom Sky",
+  "description": "MCPatcher and OptiFine resource pack skies for 1.8.9.",
+  "authors": [
+    "luka contributors"
+  ],
+  "environment": "client",
+  "mixins": [
+    "customsky.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.14.21",
+    "minecraft": "1.8.9"
+  },
+  "license": "MIT"
+}

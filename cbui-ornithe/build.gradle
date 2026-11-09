@@ -1,0 +1,128 @@
+plugins {
+    id 'fabric-loom' version "${loom_version}"
+    id 'ploceus' version "${loom_version}"
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+ploceus {
+    setGeneration(2)
+    disableLibraryUpgrades()
+}
+
+repositories {
+    maven {
+        url = layout.projectDirectory.dir('local-maven')
+        metadataSources { artifact() }
+    }
+    mavenCentral()
+    maven { url = 'https://maven.ornithemc.net/releases' }
+    maven { url = 'https://maven.ornithemc.net/snapshots' }
+    maven {
+        url = 'https://repo.polyfrost.org/releases'
+        metadataSources { artifact() }
+    }
+    exclusiveContent {
+        forRepository { maven { url = 'https://api.modrinth.com/maven' } }
+        filter { includeGroup 'maven.modrinth' }
+    }
+}
+
+// Third-party APIs cbui compiles against. Gradle fetches them at build time and none of them goes into the mod.
+configurations {
+    compileApis { transitive = false }
+    oneconfigMod { transitive = false }
+    argentumMod { transitive = false }
+    compileOnly.extendsFrom compileApis
+    testImplementation.extendsFrom compileApis
+}
+
+def compileLibs = layout.buildDirectory.dir('compile-libs')
+
+tasks.register('prepareCompileLibs') {
+    description = 'Takes the two compile-time APIs that are not published as plain jars out of the mods that carry them.'
+    def oneconfig = configurations.oneconfigMod
+    def argentum = configurations.argentumMod
+    inputs.files(oneconfig, argentum)
+    outputs.dir(compileLibs)
+    doLast {
+        def out = compileLibs.get().asFile
+        out.deleteDir()
+        out.mkdirs()
+        new java.util.zip.ZipFile(argentum.singleFile).withCloseable { zip ->
+            def jar = zip.entries().find { it.name ==~ /META-INF\/jars\/celeritas-common-.*\.jar/ }
+            new File(out, 'celeritas-common.jar').bytes = zip.getInputStream(jar).bytes
+        }
+        // OneConfig publishes LegacyHud for Java 25 only; its class-file version is lowered so JDK 21 can read it
+        new java.util.zip.ZipFile(oneconfig.singleFile).withCloseable { zip ->
+            def name = 'org/polyfrost/oneconfig/api/hud/v1/LegacyHud.class'
+            byte[] bytes = zip.getInputStream(zip.getEntry(name)).bytes
+            bytes[6] = 0
+            bytes[7] = 65
+            new java.util.zip.ZipOutputStream(new File(out, 'legacy-hud-java21.jar').newOutputStream()).withCloseable { z ->
+                z.putNextEntry(new java.util.zip.ZipEntry(name))
+                z.write(bytes)
+                z.closeEntry()
+            }
+        }
+    }
+}
+
+configurations.configureEach {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'org.lwjgl.lwjgl' &&
+                details.requested.version == '2.9.4+legacyfabric.15') {
+            details.useVersion '2.9.3'
+            details.because 'Use the Maven Central LWJGL 2 build; CBUI must not require legacy-lwjgl3'
+        }
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    // Keep the working Forge implementation's MCP source names while Ploceus remaps the
+    // output through Calamus gen2. See PORTING_NOTES.md.
+    mappings ploceus.mcpMappings('stable', project.minecraft_version, '22')
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    // OneConfig's config API (read and edit every mod's settings from our own screen); compile-only, never shipped
+    compileApis 'org.polyfrost.oneconfig:config:1.6.1'
+    compileApis 'org.polyfrost.oneconfig:config-impl:1.6.1'
+    compileApis 'org.polyfrost.oneconfig:hud:1.6.1'
+    compileApis 'org.jetbrains.kotlin:kotlin-stdlib:2.2.0'
+    oneconfigMod 'org.polyfrost.oneconfig:1.8.9-ornithe:1.6.1'
+    // Argentum 1.0.2: only the LGPL Celeritas API it embeds is read, and only at compile time
+    argentumMod 'maven.modrinth:QRMV06RW:RxzOYPTx'
+    compileOnly fileTree(dir: compileLibs, include: '*.jar', builtBy: ['prepareCompileLibs'])
+    testImplementation fileTree(dir: compileLibs, include: '*.jar', builtBy: ['prepareCompileLibs'])
+}
+
+tasks.register('plainJavaChecks', JavaExec) {
+    dependsOn testClasses
+    // The OneConfig jars remain compile-only for the shipped mod, but the synthetic-tree
+    // check deliberately executes against their public API.
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.cbui.CheckSuite'
+}
+test { failOnNoDiscoveredTests = false }
+check.dependsOn plainJavaChecks
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') {
+        expand 'version': project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 8
+}
+
+java {
+    withSourcesJar()
+}

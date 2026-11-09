@@ -1,0 +1,7 @@
+build/
+.gradle/
+.kotlin/
+dist/
+out/
+release/
+*.key

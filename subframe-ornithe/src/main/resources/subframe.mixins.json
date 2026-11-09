@@ -1,0 +1,25 @@
+{
+  "required": true,
+  "package": "dev.subframe.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "client": [
+    "MinecraftMixin",
+    "MinecraftAccessor",
+    "NetHandlerLoginClientMixin",
+    "NetworkManagerMixin",
+    "NetworkManagerAccessor",
+    "GuiMainMenuMixin",
+    "GuiScreenAccessor",
+    "RenderGlobalAccessor",
+    "EntityRendererAccessor",
+    "EntityAccessor",
+    "DataWatcherAccessor",
+    "GuiIngameMixin",
+    "WorldMixin",
+    "EntityRendererHandMixin",
+    "RenderPlayerFreecamMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "required": false,
+  "package": "dev.fastpacks.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "client": ["MinecraftMixin", "ResourcePackEntryInvoker", "FileResourcePackMixin", "ResourcePackRepositoryMixin", "ResourcePackEntryMixin"],
+  "injectors": { "defaultRequire": 1 }
+}

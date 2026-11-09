@@ -1,0 +1,25 @@
+{
+  "required": true,
+  "package": "dev.envoy.mixins",
+  "compatibilityLevel": "JAVA_8",
+  "minVersion": "0.7.11",
+  "client": [
+    "MixinMinecraft",
+    "MixinCombat",
+    "MixinEntityRenderer",
+    "MixinGuiIngame",
+    "MixinNetHandlerLoginClient",
+    "MixinNetworkManager",
+    "MixinRenderGlobal",
+    "MixinRendererLivingEntity",
+    "MixinRenderItem",
+    "MixinRenderFire",
+    "MixinModelPlayer",
+    "MixinLayerArmor",
+    "MixinGuiContainer",
+    "MixinGuiScreen",
+    "MixinFontRenderer",
+    "MixinS3EPacketTeams"
+  ],
+  "mixins": ["MixinEntity"]
+}

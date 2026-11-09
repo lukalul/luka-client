@@ -1,0 +1,97 @@
+[
+  {
+    "file": "Sarcio-1.1.1.jar",
+    "name": "Sarcio",
+    "version": "1.1.1",
+    "url": "https://cdn.modrinth.com/data/VIiRf1ei/versions/E6WmarzS/Sarcio-1.1.1.jar",
+    "sha512": "5a872f42aec45b211078026999f5712a5160fccaff5d310e3f8c478babbe392a205bc2bfa869ff3e91f44cfaf5235479625247f7a5bf0c24a7a0c4a239aba2eb",
+    "license": "LGPL-3.0-or-later",
+    "projectUrl": "https://modrinth.com/mod/sarcio"
+  },
+  {
+    "file": "argentum-1.0.2.jar",
+    "name": "Argentum",
+    "version": "1.0.2",
+    "url": "https://cdn.modrinth.com/data/QRMV06RW/versions/RxzOYPTx/argentum-1.0.2.jar",
+    "sha512": "dd6b514b5777acf503976792c06ff56f974ad4a7b95545ad011fb8c7d6af828332a505ea5727648ea6a4eac5b718a5297b398e48c83613647c4c72b827c0000d",
+    "license": "LicenseRef-All-Rights-Reserved",
+    "projectUrl": "https://modrinth.com/mod/argentum"
+  },
+  {
+    "file": "argentum-extras-1.0.2.jar",
+    "name": "Argentum Extras",
+    "version": "1.0.2",
+    "url": "https://cdn.modrinth.com/data/Tc8Lbsu7/versions/WXFecncJ/argentum-extras-1.0.2.jar",
+    "sha512": "f129c3acc4292936ab81b0e8578a72305df9db6539f7441a54b4625de8f175af86c7741d09820e8fa1e07bd028ac6ee244627005c73f3599880749f1aa087773",
+    "license": "LicenseRef-All-Rights-Reserved",
+    "projectUrl": "https://modrinth.com/mod/argentum-extras"
+  },
+  {
+    "file": "asynclogger-2.2.3+1.8.9-ornithe.jar",
+    "name": "Async Logger",
+    "version": "2.2.3+1.8.9-ornithe",
+    "url": "https://cdn.modrinth.com/data/zvNzKfGF/versions/LQj9vOzN/asynclogger-2.2.3%2B1.8.9-ornithe.jar",
+    "sha512": "95a4cd70e945acced55aa2261640889594d5923720a888ca192fc4f2301f3626b1ab4f58c7a5014c6a0d83db653542209aea4086f7652049a70034b2678e4c6d",
+    "license": "LGPL-3.0-only",
+    "projectUrl": "https://modrinth.com/mod/asynclogger"
+  },
+  {
+    "file": "cera-1.0.2.jar",
+    "name": "Cera",
+    "version": "1.0.2",
+    "url": "https://cdn.modrinth.com/data/z4ctq7MO/versions/aqSuvjyl/cera-1.0.2.jar",
+    "sha512": "727936ab8a962821e83ce181e20946dac7d217f130033fecd78316f84537ebc1edb47b10f73a5cd32981d7fac3c3c82020ba90bab2d5de66b4abaac1dc93c0ae",
+    "license": "LicenseRef-All-Rights-Reserved",
+    "projectUrl": "https://modrinth.com/mod/cera"
+  },
+  {
+    "file": "dynamic-fps-1.0.0.jar",
+    "name": "Legacy Dynamic FPS",
+    "version": "1.0.0",
+    "url": "https://cdn.modrinth.com/data/rCItxJku/versions/DpiAzkoT/dynamic-fps-1.0.0.jar",
+    "sha512": "cdb102401ef2700d6df415a03a18dec98ea2100f3ed53a931c718d208b7e301e8dea148a20697c576929484c3eee0a42af19be85d9424da73d62ab326a60eead",
+    "license": "MIT",
+    "projectUrl": "https://modrinth.com/mod/legacydynamicfps"
+  },
+  {
+    "file": "exploint-1.1.0+mc1.8.9.jar",
+    "name": "Exploint",
+    "version": "1.1.0+mc1.8.9",
+    "url": "https://cdn.modrinth.com/data/mL0gJygK/versions/tJQcfbYI/exploint-1.1.0%2Bmc1.8.9.jar",
+    "sha512": "0b373454ffd89c906e3f7882b331f310fcc14328910a4d0bad564fdfdcc427231750281133cf3ea70b0eff3d508b49555a20b7115fddeced418d17774066669f",
+    "license": "LGPL-3.0-only",
+    "projectUrl": "https://modrinth.com/mod/exploint"
+  },
+  {
+    "file": "legacy-lwjgl3-1.2.11+1.8.9.jar",
+    "name": "legacy-lwjgl3",
+    "version": "1.2.11+1.8.9",
+    "url": "https://cdn.modrinth.com/data/lpiIRiAZ/versions/WDgQjNmg/legacy-lwjgl3-1.2.11%2B1.8.9.jar",
+    "sha512": "7a4d7a7ee1dfb78d73d81434c499eb9e787cc85f671659833dfbbf86c9197da2b6f1c6470003d15ec5baecad424c33e683368ec1778a0e00a3cb55c2b9f81b49",
+    "license": "LGPL-2.1-only",
+    "projectUrl": "https://modrinth.com/mod/moehreag-legacy-lwjgl3"
+  },
+  {
+    "file": "ornithe-standard-libraries-0.23.1.jar",
+    "name": "Ornithe Standard Libraries",
+    "version": "0.23.1",
+    "url": "https://cdn.modrinth.com/data/EHGtwpJv/versions/840EtTTj/ornithe-standard-libraries-0.23.1.jar",
+    "sha512": "85210284ba82c90cefe06f0325cc3cac0497faf341cc5494843e4e1e6b272c5346e909b68021555e188fdbb61f7a4316e4e133388b0947b363c06029d7811bea",
+    "license": "Apache-2.0",
+    "projectUrl": "https://modrinth.com/mod/osl"
+  },
+  {
+    "file": "pylon-0.2.7.jar",
+    "name": "Pylon (Raw Input)",
+    "version": "0.2.7",
+    "url": "https://cdn.modrinth.com/data/wx17t6U9/versions/QPGKOis1/pylon-0.2.7.jar",
+    "sha512": "367840a56e57e85323e613b9c6615a977d763ed9aefa7a7fbb1bbce01727faa0f43d3c6876ae97e4be3550269d436f85bf3e559e1375dd9fabe4bf62438090e3",
+    "license": "LGPL-3.0-only",
+    "projectUrl": "https://modrinth.com/mod/pylon"
+  },
+  {
+    "file": "fabric-language-kotlin-1.14.2+kotlin.2.4.21.jar",
+    "url": "https://cdn.modrinth.com/data/Ha28R6CL/versions/SKW1BTL3/fabric-language-kotlin-1.14.2%2Bkotlin.2.4.21.jar",
+    "sha512": "7fb475c4a7e7bdf8d0aca4b5798a58a354c51443d5b1fbde3e8cf34dfbf7191ef4238b5f07d08ec9490ec180b371624523326c3ad45d4ed2b2be541de9407e5d"
+  }
+]

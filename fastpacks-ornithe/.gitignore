@@ -1,0 +1,15 @@
+build/
+.gradle*/
+.tmp/
+.tmp-javac/
+.tmp-verify/
+.qa-temp/
+.sandbox-tmp/
+.research/
+reference/
+brand-backup*/
+logs/
+run/
+*.class
+local-maven/
+libs-compile/
