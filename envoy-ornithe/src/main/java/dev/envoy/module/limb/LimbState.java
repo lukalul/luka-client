@@ -13,6 +13,7 @@ public final class LimbState {
     public static int bit(int bodyPart) { return 1 << bodyPart; }
     public static void hide(UUID player, int mask) { revise(player, mask, false, true); }
     public static void reset(UUID player, int mask) { revise(player, mask, false, false); }
+    public static void resetAll() { PLAYERS.clear(); }
     public static boolean isEmpty() {
         for (HiddenParts parts : PLAYERS.values()) if (parts.body != 0) return false;
         return true;

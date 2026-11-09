@@ -11,26 +11,46 @@ namespace at {
 
     Allocation MemoryAllocator::allocate(const VkMemoryRequirements &requirements, VkMemoryPropertyFlags required,
                                          VkMemoryPropertyFlags preferred, bool linear) {
-        u32 type = device.memoryType(requirements.memoryTypeBits, required, preferred);
+        u32 first = device.memoryType(requirements.memoryTypeBits, required, preferred);
         u64 size = requirements.size;
         u64 alignment = requirements.alignment;
-        if (size >= BLOCK_SIZE / 2) {
-            VkDeviceMemory memory = allocateMemory(type, size);
-            return Allocation{.block = nullptr, .memory = memory, .offset = 0, .size = size, .mapped = map(memory, type)};
-        }
-        for (auto &block: blocks) {
-            if (block->type != type || block->linear != linear) continue;
-            if (u64 offset = block->ranges.allocate(size, alignment); offset != RangeAllocator::FAILED) {
-                return Allocation{
-                    .block = block.get(), .memory = block->memory, .offset = offset, .size = size, .mapped = block->mapped ? block->mapped + offset : nullptr
-                };
+        bool whole = size >= BLOCK_SIZE / 2;
+        VkResult result = VK_ERROR_OUT_OF_DEVICE_MEMORY;
+        // The preferred type first, then every other type that meets `required`. One type can be full while the card is
+        // not: memory that is on the card and visible to the CPU is a 256 MB window on many cards, shared by every
+        // program, and a second game beside this one finds it taken. The second round asks the types that were skipped
+        // because they were full a moment ago.
+        for (int round = 0; round < 2; round++) {
+            for (u32 step = 0; step <= VK_MAX_MEMORY_TYPES; step++) {
+                u32 type = step == 0 ? first : step - 1;
+                if (step > 0 && (type == first || !device.memoryAllows(type, requirements.memoryTypeBits, required))) continue;
+                if (!whole) {
+                    for (auto &block: blocks) {
+                        if (block->type != type || block->linear != linear) continue;
+                        if (u64 offset = block->ranges.allocate(size, alignment); offset != RangeAllocator::FAILED) {
+                            return Allocation{
+                                .block = block.get(), .memory = block->memory, .offset = offset, .size = size,
+                                .mapped = block->mapped ? block->mapped + offset : nullptr
+                            };
+                        }
+                    }
+                }
+                VkDeviceMemory memory = VK_NULL_HANDLE;
+                result = allocateMemory(type, whole ? size : BLOCK_SIZE, memory);
+                if (result == VK_ERROR_OUT_OF_DEVICE_MEMORY || result == VK_ERROR_OUT_OF_HOST_MEMORY) continue;
+                check(result, "vkAllocateMemory");
+                if (whole) {
+                    return Allocation{.block = nullptr, .memory = memory, .offset = 0, .size = size, .mapped = map(memory, type)};
+                }
+                auto &block = blocks.emplace_back(
+                    std::make_unique<MemoryBlock>(memory, type, linear, BLOCK_SIZE, map(memory, type)));
+                u64 offset = block->ranges.allocate(size, alignment);
+                return Allocation{block.get(), block->memory, offset, size, block->mapped ? block->mapped + offset : nullptr};
             }
+            fullUntil.fill({});
         }
-        VkDeviceMemory memory = allocateMemory(type, BLOCK_SIZE);
-        auto &block = blocks.emplace_back(
-            std::make_unique<MemoryBlock>(memory, type, linear, BLOCK_SIZE, map(memory, type)));
-        u64 offset = block->ranges.allocate(size, alignment);
-        return Allocation{block.get(), block->memory, offset, size, block->mapped ? block->mapped + offset : nullptr};
+        check(result, "vkAllocateMemory");
+        return Allocation{};
     }
 
     void MemoryAllocator::release(const Allocation &allocation) {
@@ -51,13 +71,15 @@ namespace at {
         }
     }
 
-    VkDeviceMemory MemoryAllocator::allocateMemory(u32 type, u64 size) const {
+    VkResult MemoryAllocator::allocateMemory(u32 type, u64 size, VkDeviceMemory &memory) {
+        auto now = std::chrono::steady_clock::now();
+        if (now < fullUntil[type]) return VK_ERROR_OUT_OF_DEVICE_MEMORY;
         VkMemoryAllocateInfo info{.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
         info.allocationSize = size;
         info.memoryTypeIndex = type;
-        VkDeviceMemory memory;
-        check(vkAllocateMemory(device.handle, &info, nullptr, &memory), "vkAllocateMemory");
-        return memory;
+        VkResult result = vkAllocateMemory(device.handle, &info, nullptr, &memory);
+        if (result == VK_ERROR_OUT_OF_DEVICE_MEMORY || result == VK_ERROR_OUT_OF_HOST_MEMORY) fullUntil[type] = now + std::chrono::seconds(2);
+        return result;
     }
 
     u8 *MemoryAllocator::map(VkDeviceMemory memory, u32 type) const {

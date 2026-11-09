@@ -4,6 +4,8 @@
 #include "core/vk.h"
 #include "memory/range_allocator.h"
 
+#include <array>
+#include <chrono>
 #include <memory>
 #include <vector>
 
@@ -45,12 +47,14 @@ namespace at {
     private:
         static constexpr u64 BLOCK_SIZE = 64ull << 20;
 
-        [[nodiscard]] VkDeviceMemory allocateMemory(u32 type, u64 size) const;
+        [[nodiscard]] VkResult allocateMemory(u32 type, u64 size, VkDeviceMemory &memory);
 
         u8 *map(VkDeviceMemory memory, u32 type) const;
 
         const Device &device;
         std::vector<std::unique_ptr<MemoryBlock> > blocks;
+        // a memory type that was full is not asked again before this time, so a full type costs one failed call, not one per allocation
+        std::array<std::chrono::steady_clock::time_point, VK_MAX_MEMORY_TYPES> fullUntil{};
     };
 
     class GpuBuffer {

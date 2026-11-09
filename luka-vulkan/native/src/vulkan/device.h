@@ -22,6 +22,10 @@ namespace at {
         u32 memoryType(u32 typeBits, VkMemoryPropertyFlags required, VkMemoryPropertyFlags preferred = 0) const;
 
         VkMemoryPropertyFlags memoryFlags(u32 type) const { return memory.memoryTypes[type].propertyFlags; }
+
+        bool memoryAllows(u32 type, u32 typeBits, VkMemoryPropertyFlags required) const {
+            return type < memory.memoryTypeCount && (typeBits & (1u << type)) && (memoryFlags(type) & required) == required;
+        }
         void waitIdle() const { vkDeviceWaitIdle(handle); }
 
         VkPhysicalDevice physical = VK_NULL_HANDLE;

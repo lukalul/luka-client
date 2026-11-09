@@ -36,6 +36,11 @@ public class MixinNetworkManager {
     @Inject(method = "channelInactive", at = @At("HEAD"), require = 0)
     private void envoy$clearConnection(ChannelHandlerContext context, CallbackInfo callback) {
         Envoy.onDisconnect();
+        try {
+            ApolloNetwork.getInstance().onClosed((NetworkManager) (Object) this);
+        } catch (Throwable failure) {
+            Envoy.problem("connection end", failure);
+        }
     }
 
     @Inject(method = "sendPacket(Lnet/minecraft/network/Packet;)V", at = @At("HEAD"), cancellable = true, require = 0)
@@ -67,9 +72,13 @@ public class MixinNetworkManager {
             if (packet instanceof net.minecraft.network.play.server.S01PacketJoinGame) {
                 Envoy.onJoinGame((NetworkManager) (Object) this);
             }
+            if (packet instanceof net.minecraft.network.play.server.S07PacketRespawn) {
+                ApolloNetwork.getInstance().onRespawn();
+            }
             if (!(packet instanceof S3FPacketCustomPayload)) return;
             S3FPacketCustomPayload payload = (S3FPacketCustomPayload) packet;
             String channel = payload.getChannelName();
+            if (channel.equals("MC|Brand")) ApolloNetwork.getInstance().onServerName();
             logFirstPayload(channel, payload.getBufferData());
             PayloadKind kind = classify(channel);
             if (kind == PayloadKind.OTHER) return;

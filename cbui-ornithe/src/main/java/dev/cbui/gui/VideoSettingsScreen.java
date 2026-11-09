@@ -239,11 +239,18 @@ public final class VideoSettingsScreen extends GuiScreen {
     if (setting instanceof Setting.Toggle) value = ((Setting.Toggle) setting).get() ? "ON" : "OFF";
     else if (setting instanceof Setting.Slider) value = sliderValue(setting.name(), Math.round(((Setting.Slider) setting).get()));
     else value = String.valueOf(setting.get());
-    String tail = ": " + value, name = setting.name();
+    String tail = ": " + value, name = shortName(setting.name());
     int room = BUTTON - 6 - fontRendererObj.getStringWidth(tail);
     if (fontRendererObj.getStringWidth(name) > room)
       name = fontRendererObj.trimStringToWidth(name, room - fontRendererObj.getStringWidth("...")).trim() + "...";
     return name + tail;
+  }
+
+  /** A shorter name for the rows whose own name does not fit on a button. The row still acts on its full name. */
+  private static String shortName(String name) {
+    if (name.equals("Limit FPS when unfocused")) return "Unfocused FPS limit";
+    if (name.equals("Item / block break particles")) return "Break particles";
+    return name;
   }
 
   private static String sliderValue(String name, int value) {

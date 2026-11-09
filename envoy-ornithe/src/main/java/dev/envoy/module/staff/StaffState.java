@@ -50,7 +50,7 @@ public final class StaffState {
         apollo = false;
         tag = false;
         announced = false;
-        if (wasActive) Envoy.LOGGER.info("[Staff] cleared on disconnect");
+        if (wasActive) Envoy.LOGGER.info("[Staff] cleared, the server was left");
     }
 
     private static boolean hasPermission(String expected) {
