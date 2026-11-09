@@ -612,7 +612,7 @@ public class ModuleMenu extends GuiScreen {
           Draw.inside(mx, my, tabX(i), layout.panelY + TAB_Y, tabW(i), 16), i == settingsTab);
     int wheel = takeWheel();
     if (wheel != 0 && editField == null && paletteTarget == null) settingsTarget -= wheel / 6f;
-    int content = (int) rowsHeight(globalSettings) + 12 + (settingsTab == 1 ? 49 : 0);
+    int content = (int) rowsHeight(globalSettings) + 12 + (settingsTab == 1 ? 27 : 0);
     int viewport = layout.panelHeight - ROWS_Y - 4;
     settingsTarget = clamp(settingsTarget, 0, Math.max(0, content - viewport));
     settingsScroll += (settingsTarget - settingsScroll) * .32f;
@@ -627,10 +627,8 @@ public class ModuleMenu extends GuiScreen {
       drawSettingRows(globalSettings, x, layout.panelY + ROWS_Y - settingsScroll, w, mx, my);
       if (settingsTab == 1) {
         float by = layout.panelY + ROWS_Y - settingsScroll + rowsHeight(globalSettings) + 3;
-        UiWidgets.cbButton("PARTICLE TYPES...", x, by, w, 19,
+        UiWidgets.cbButton("RENDERER SETTINGS...", x, by, w, 19,
             Draw.inside(mx, my, x, by, w, 19), false);
-        UiWidgets.cbButton("RENDERER SETTINGS...", x, by + 22, w, 19,
-            Draw.inside(mx, my, x, by + 22, w, 19), false);
       }
     }
     UiWidgets.endClip();
@@ -1419,11 +1417,6 @@ public class ModuleMenu extends GuiScreen {
       if (settingsTab == 1) {
         float by = layout.panelY + ROWS_Y - settingsScroll + rowsHeight(globalSettings) + 3;
         if (hit(mx, my, layout.panelX + 12, by, layout.panelWidth - 24, 19)) {
-          dev.cbui.config.PerfOptions.flush();
-          mc.displayGuiScreen(new AnimationsScreen(this));
-          return;
-        }
-        if (hit(mx, my, layout.panelX + 12, by + 22, layout.panelWidth - 24, 19)) {
           dev.cbui.config.PerfOptions.flush();
           mc.displayGuiScreen(rendererSettings());
           return;

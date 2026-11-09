@@ -24,6 +24,10 @@ public final class GlobalOptions {
   public static volatile int anisotropy = 1;
   /** The Leaves row of the video tab: 0 follows Graphics, 1 fast, 2 fancy. */
   public static volatile int leavesMode;
+  /** Where distance fog starts and ends, in percent of the render distance. Vanilla is 75 and 100. */
+  public static volatile int fogStart = 75, fogEnd = 100;
+  /** Height of the clouds. Vanilla is 128. */
+  public static volatile int cloudHeight = 128;
   /** The dark screen edges on Fancy graphics. */
   public static volatile boolean vignette = true;
   /** Resource pack features switched in the video tab, by the system property that carries them. */

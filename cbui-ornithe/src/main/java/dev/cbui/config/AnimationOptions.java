@@ -13,6 +13,9 @@ public final class AnimationOptions {
 
   /** Set each frame by the fog hook: the distance fog row is off and the camera is not in a liquid. */
   public static volatile boolean distanceFogCleared;
+  /** Set by the same hook while the Fog start or Fog end rows differ from vanilla: the distances the terrain should use. */
+  public static volatile boolean fogAdjusted;
+  public static volatile float fogStartNow, fogEndNow;
 
   private AnimationOptions() {}
 

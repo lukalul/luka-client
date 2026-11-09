@@ -14,15 +14,18 @@ public abstract class AnimationsArgentumFogMixin {
   @Inject(method = "getFogEnd", at = @At("RETURN"), cancellable = true, require = 0)
   private void cbui$end(CallbackInfoReturnable<Float> cir) {
     if (AnimationOptions.distanceFogCleared) cir.setReturnValue(100001.0F);
+    else if (AnimationOptions.fogAdjusted) cir.setReturnValue(AnimationOptions.fogEndNow);
   }
 
   @Inject(method = "getFogStart", at = @At("RETURN"), cancellable = true, require = 0)
   private void cbui$start(CallbackInfoReturnable<Float> cir) {
     if (AnimationOptions.distanceFogCleared) cir.setReturnValue(100000.0F);
+    else if (AnimationOptions.fogAdjusted) cir.setReturnValue(AnimationOptions.fogStartNow);
   }
 
   @Inject(method = "getFogCutoff", at = @At("RETURN"), cancellable = true, require = 0)
   private void cbui$cutoff(CallbackInfoReturnable<Float> cir) {
     if (AnimationOptions.distanceFogCleared) cir.setReturnValue(100001.0F);
+    else if (AnimationOptions.fogAdjusted) cir.setReturnValue(AnimationOptions.fogEndNow);
   }
 }

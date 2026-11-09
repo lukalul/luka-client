@@ -80,6 +80,9 @@ public final class ConfigStore {
     options.addProperty("hideFoliage", GlobalOptions.hideFoliage);
     options.addProperty("highPriority", GlobalOptions.highPriority);
     options.addProperty("leavesMode", GlobalOptions.leavesMode);
+    options.addProperty("fogStart", GlobalOptions.fogStart);
+    options.addProperty("fogEnd", GlobalOptions.fogEnd);
+    options.addProperty("cloudHeight", GlobalOptions.cloudHeight);
     options.addProperty("anisotropy", GlobalOptions.anisotropy);
     options.addProperty("fxaa", GlobalOptions.fxaa);
     options.addProperty("betterGrass", GlobalOptions.betterGrass);
@@ -115,6 +118,9 @@ public final class ConfigStore {
       if (options.has("betterGrass")) GlobalOptions.betterGrass = options.get("betterGrass").getAsBoolean();
       if (options.has("fxaa")) GlobalOptions.fxaa = options.get("fxaa").getAsBoolean();
       if (options.has("anisotropy")) GlobalOptions.anisotropy = options.get("anisotropy").getAsInt();
+      if (options.has("fogStart")) GlobalOptions.fogStart = options.get("fogStart").getAsInt();
+      if (options.has("fogEnd")) GlobalOptions.fogEnd = options.get("fogEnd").getAsInt();
+      if (options.has("cloudHeight")) GlobalOptions.cloudHeight = options.get("cloudHeight").getAsInt();
       if (options.has("leavesMode")) GlobalOptions.leavesMode = options.get("leavesMode").getAsInt();
       if (options.has("vignette")) GlobalOptions.vignette = options.get("vignette").getAsBoolean();
       if (options.has("packFeatures"))

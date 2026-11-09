@@ -6,6 +6,7 @@ import java.util.List;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.GameSettings;
+import net.minecraft.util.EnumParticleTypes;
 
 /** The VIDEO tab: every picture setting in one list, on both renderers. Rows that only exist on the Vulkan renderer are left out on the other. */
 public final class VideoOptions {
@@ -17,7 +18,7 @@ public final class VideoOptions {
       {"Random mobs", "luka.randomMobs", "Alternate mob skins from the resource pack"},
       {"HD fonts", "luka.hdFonts", "High resolution font from the resource pack"},
   };
-  private static final String[] DETAIL_KEYS = {"rain_snow", "sky_clouds", "sun_moon", "stars", "terrain_fog", "fluid_fog"};
+  private static final String[] DETAIL_KEYS = {"rain_snow", "sun_moon", "stars"};
   private static final String[] ANIMATION_KEYS = {"water_animation", "lava_animation", "fire_animation", "portal_animation",
       "redstone_dust", "void_particles", "item_block_break", "damage_numbers"};
   private static final boolean PACK_ROWS = FabricLoader.getInstance().isModLoaded("astatine");
@@ -39,13 +40,21 @@ public final class VideoOptions {
 
     add(list, "Details", choice("Graphics", g.fancyGraphics ? 1 : 0, new String[] {"Fast", "Fancy"}, 1, "Fancy adds transparent leaves, entity shadows and the vignette"));
     add(list, "Details", choice("Smooth lighting", g.ambientOcclusion, new String[] {"Off", "Minimum", "Maximum"}, 2, "Soft shadows in block corners. Off is fastest"));
-    add(list, "Details", choice("Clouds", g.clouds, new String[] {"Off", "Fast", "Fancy"}, 2, "Off is fastest"));
     add(list, "Details", choice("Leaves", GlobalOptions.leavesMode, new String[] {"Follow graphics", "Fast", "Fancy"}, 0, "Solid or see-through leaves, separate from Graphics. Fast is much quicker in forests"));
     add(list, "Details", toggle("Entity shadows", g.entityShadows, true, "The round shadow under players, mobs and items"));
     add(list, "Details", toggle("Vignette", GlobalOptions.vignette && ArgentumExtrasBridge.on("vignette"), true, "The dark edges of the screen on Fancy graphics"));
     add(list, "Details", toggle("Held item names", g.heldItemTooltips, true, "The item name above the hotbar when you switch"));
     add(list, "Details", toggle("Block alternatives", g.allowBlockAlternatives, true, "Random rotated block variants from resource packs"));
     for (String key : DETAIL_KEYS) add(list, "Details", animationRow(key));
+
+    add(list, "Fog", animationRow("terrain_fog"));
+    add(list, "Fog", slider("Fog start", GlobalOptions.fogStart, 0, 100, 5, "How far away distance fog begins, as a percent of your render distance. Vanilla is 75"));
+    add(list, "Fog", slider("Fog end", GlobalOptions.fogEnd, 25, 200, 5, "Where distance fog becomes solid. Higher pushes it past your render distance. Vanilla is 100"));
+    add(list, "Fog", animationRow("fluid_fog"));
+
+    add(list, "Clouds", choice("Clouds", g.clouds, new String[] {"Off", "Fast", "Fancy"}, 2, "Off is fastest"));
+    add(list, "Clouds", slider("Cloud height", GlobalOptions.cloudHeight, 64, 256, 4, "How high the clouds sit. Vanilla is 128"));
+    add(list, "Clouds", animationRow("sky_clouds"));
 
     add(list, "Quality", toggle("FXAA", PACK_ROWS ? GlobalOptions.fxaa : ArgentumExtrasBridge.on("fxaa"), false, "Smooths jagged edges. Costs a little FPS and slightly softens text"));
     add(list, "Quality", slider("Mipmap levels", g.mipmapLevels, 0, 4, 1, "Smooths distant textures. 0 is sharpest and fastest"));
@@ -58,6 +67,8 @@ public final class VideoOptions {
 
     add(list, "Animations", choice("Particles", g.particleSetting, new String[] {"All", "Decreased", "Minimal"}, 0, "How many particles are spawned"));
     for (String key : ANIMATION_KEYS) add(list, "Animations", animationRow(key));
+    for (EnumParticleTypes type : EnumParticleTypes.values())
+      add(list, "Particle types", toggle(AnimationOptions.readable(type), GlobalOptions.animationEnabled(AnimationOptions.particleKey(type)), true, "Turn off to stop this particle from appearing"));
     return list;
   }
 
@@ -68,6 +79,18 @@ public final class VideoOptions {
       if (names[i].equals(s.name())) {
         GlobalOptions.animationEnabled(keys[i], (Boolean) s.get());
         ArgentumExtrasBridge.set(keys[i], (Boolean) s.get());
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** True when the row switches one particle type. Applies it if so. */
+  static boolean applyParticle(Setting<?> s) {
+    if (!(s instanceof Setting.Toggle) || !"Particle types".equals(s.group())) return false;
+    for (EnumParticleTypes type : EnumParticleTypes.values()) {
+      if (AnimationOptions.readable(type).equals(s.name())) {
+        GlobalOptions.animationEnabled(AnimationOptions.particleKey(type), (Boolean) s.get());
         return true;
       }
     }

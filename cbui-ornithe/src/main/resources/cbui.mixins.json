@@ -60,6 +60,7 @@
     "FreelookActiveRenderInfoMixin",
     "FreelookRenderGlobalMixin",
     "FreelookArgentumCameraMixin",
+    "VideoCloudHeightMixin",
     "KeepKeybindsMixin",
     "FreelookRenderManagerMixin",
     "FreelookNetworkMixin",

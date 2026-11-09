@@ -60,6 +60,7 @@ public final class PerfOptions {
     GameSettings g = mc.gameSettings;
     String n = s.name();
     if (VideoOptions.applyAnimation(s)) return;
+    if (VideoOptions.applyParticle(s)) return;
     if (VideoOptions.applyPackFeature(s)) { refreshResources = true; return; }
     save = true;
     if (n.equals("Max FPS")) g.limitFramerate = Math.round((Float) s.get());
@@ -112,6 +113,9 @@ public final class PerfOptions {
     else if (n.equals("Dropped item distance")) GlobalOptions.itemDistance = Math.round((Float) s.get());
     else if (n.equals("Entity detail distance")) GlobalOptions.layerDistance = Math.round((Float) s.get());
     else if (n.equals("Lazy chunk loading")) GlobalOptions.chunkPace = ((Setting.Choice) s).choices().indexOf(s.get());
+    else if (n.equals("Fog start")) GlobalOptions.fogStart = Math.round((Float) s.get());
+    else if (n.equals("Fog end")) GlobalOptions.fogEnd = Math.round((Float) s.get());
+    else if (n.equals("Cloud height")) GlobalOptions.cloudHeight = Math.round((Float) s.get());
     else if (n.equals("Clouds")) g.clouds = ((Setting.Choice) s).choices().indexOf(s.get());
     else if (n.equals("Graphics")) {
       g.fancyGraphics = "Fancy".equals(s.get());
