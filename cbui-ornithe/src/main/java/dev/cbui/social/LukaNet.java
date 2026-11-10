@@ -123,7 +123,7 @@ public final class LukaNet {
   }
 
   private static final Info NONE = new Info("", "", "", "");
-  private static final long FOUND_TTL = 60_000L, MISSING_TTL = 90_000L;
+  private static final long FOUND_TTL = 60_000L, MISSING_TTL = 180_000L;
 
   private static final Map<String, Info> known = new ConcurrentHashMap<String, Info>();
   private static final Map<String, Long> fetchedAt = new ConcurrentHashMap<String, Long>();
@@ -187,6 +187,8 @@ public final class LukaNet {
   private static volatile boolean capesLoaded, busyCapes;
 
   private static long nextSession, nextHeartbeat, nextFriends, nextScan, nextLookup;
+  /** How often the service wants to hear that this player is still online (it says so at sign-in). */
+  private static volatile long heartbeatMs = 30_000L;
   private static long backoff = 10_000L;
   private static volatile boolean signingIn, busyHeartbeat, busyFriends, busyLookup;
   private static volatile String presenceServer;
@@ -541,8 +543,8 @@ public final class LukaNet {
           @Override public void run() { refreshFriends(); }
         });
       }
-      tickPings(mc, module, now);
-      if (now >= nextMessages && !busyMessages && self != null) {
+      if (dev.cbui.Release.PINGS) tickPings(mc, module, now);
+      if (dev.cbui.Release.MESSAGES && now >= nextMessages && !busyMessages && self != null) {
         busyMessages = true;
         worker.execute(new Runnable() {
           @Override public void run() { refreshMessages(); }
@@ -615,11 +617,34 @@ public final class LukaNet {
 
   private static void signIn(String uuid, String name) {
     try {
+      // Verified sign-in: the service hands out a server id and the game joins it at Mojang's session server, as it does
+      // for an online-mode server; the service then asks Mojang whether this account joined it. The access token goes to
+      // Mojang only, never to luka. A service without this step (the local stand-in) answers 404 and is used as before.
+      String serverId = null;
+      JsonObject start = new JsonObject();
+      start.addProperty("uuid", uuid);
+      start.addProperty("name", name);
+      try {
+        JsonObject s = call("POST", "/v1/session/start", start);
+        if (s.has("serverId")) serverId = s.get("serverId").getAsString();
+      } catch (IOException noVerification) {
+        serverId = null;
+      }
+      if (serverId != null) {
+        Minecraft mc = Minecraft.getMinecraft();
+        try {
+          mc.getSessionService().joinServer(mc.getSession().getProfile(), mc.getSession().getToken(), serverId);
+        } catch (Exception notJoined) {
+          // an offline account cannot join; the service then refuses the sign-in (a local test service may let it through)
+        }
+      }
       JsonObject body = new JsonObject();
       body.addProperty("uuid", uuid);
       body.addProperty("name", name);
       body.addProperty("version", Cbui.VERSION);
+      if (serverId != null) body.addProperty("serverId", serverId);
       JsonObject reply = call("POST", "/v1/session", body);
+      if (reply.has("heartbeatSeconds")) heartbeatMs = Math.max(15, Math.min(300, reply.get("heartbeatSeconds").getAsInt())) * 1000L;
       JsonObject user = reply.getAsJsonObject("user");
       self = new Info(str(user, "uuid"), str(user, "name"), str(user, "rank"), str(user, "cape"));
       try {
@@ -651,7 +676,7 @@ public final class LukaNet {
       JsonObject body = new JsonObject();
       if (server != null) body.addProperty("server", server);
       call("POST", "/v1/presence", body);
-      nextHeartbeat = System.currentTimeMillis() + 30_000L;
+      nextHeartbeat = System.currentTimeMillis() + heartbeatMs;
       status = "Connected";
     } catch (Exception e) {
       nextHeartbeat = System.currentTimeMillis() + 15_000L;
@@ -670,7 +695,7 @@ public final class LukaNet {
     } catch (Exception ignored) {
       // shown again on the next refresh
     } finally {
-      nextFriends = System.currentTimeMillis() + (fastFriends ? 5_000L : 20_000L);
+      nextFriends = System.currentTimeMillis() + (fastFriends ? 5_000L : 60_000L);
       busyFriends = false;
     }
   }
@@ -862,6 +887,13 @@ public final class LukaNet {
   public static String debug() {
     Info me = self;
     return "status=" + status + " api=" + api0() + " self=" + (me == null ? "-" : me.name + "/" + me.rank + "/" + me.cape)
-        + " known=" + known.size() + " friends=" + friends.friends.size() + " incoming=" + friends.incoming.size();
+        + " known=" + known.size() + " friends=" + friends.friends.size() + " incoming=" + friends.incoming.size() + " luka=" + lukaPlayers();
+  }
+
+  /** The luka players seen around this player, name=rank, for the test bot. */
+  private static String lukaPlayers() {
+    StringBuilder out = new StringBuilder("[");
+    for (Info i : known.values()) if (i != null && i != NONE && i.name != null) out.append(i.name).append('=').append(i.rank).append(' ');
+    return out.toString().trim() + "]";
   }
 }

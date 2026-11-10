@@ -18,17 +18,20 @@ import net.minecraft.client.settings.KeyBinding;
  */
 public final class LukaOnlineModule extends FeatureModule implements dev.cbui.feature.Features.Synced {
   public final Setting.Toggle icons = add(new Setting.Toggle("Show luka icon on nametags", true, "A small luka mark beside the nametag of every other luka player, in the colour of their rank (owner, moderator, creator...)."));
-  public final Setting.Toggle capes = add(new Setting.Toggle("Show luka capes", true, "Show the capes luka players have earned (by rank or given to them). Your own is chosen in Cosmetics."));
+  public final Setting.Toggle capes = addIf(dev.cbui.Release.COSMETICS, new Setting.Toggle("Show luka capes", true, "Show the capes luka players have earned (by rank or given to them). Your own is chosen in Cosmetics."));
   public final Setting.Toggle alerts = add(new Setting.Toggle("Friend alerts in chat", true, "A chat line when a friend comes online or sends you a friend request."));
   public final Setting.Toggle share = add(new Setting.Toggle("Show friends my server", true, "Friends see which server you are on (and can join it). Off: they only see that you are online."));
 
-  public final Setting.Toggle pings = add(new Setting.Toggle("Show friend pings", true, "Places your friends mark with the Ping key show up as a waypoint (for a few minutes) while you are on the same server."));
+  public final Setting.Toggle pings = addIf(dev.cbui.Release.PINGS, new Setting.Toggle("Show friend pings", true, "Places your friends mark with the Ping key show up as a waypoint (for a few minutes) while you are on the same server."));
   public final Setting.Toggle streamer = add(new Setting.Toggle("Streamer mode", false, "For streaming and recording: friends cannot see your server, friend alerts stay out of the chat, and the server address box shows a placeholder."));
 
   private KeyBinding friendsKey, pingKey;
   private boolean keyInstalled;
 
   public LukaOnlineModule() { super("Luka Online", true); }
+
+  /** A setting for a part of Luka Online the service does not offer yet is kept (with its default) but not listed. */
+  private <T extends Setting<?>> T addIf(boolean shown, T setting) { return shown ? add(setting) : setting; }
 
   @Override public String category() { return "UTILITY"; }
 
@@ -84,11 +87,11 @@ public final class LukaOnlineModule extends FeatureModule implements dev.cbui.fe
     keyInstalled = true;
     try {
       KeyBinding friends = makeKey("Open friends");
-      KeyBinding ping = makeKey("Ping location");
+      KeyBinding ping = dev.cbui.Release.PINGS ? makeKey("Ping location") : null;
       List<KeyBinding> all = new ArrayList<KeyBinding>();
       for (KeyBinding existing : mc.gameSettings.keyBindings) all.add(existing);
       all.add(friends);
-      all.add(ping);
+      if (ping != null) all.add(ping);
       mc.gameSettings.keyBindings = all.toArray(new KeyBinding[all.size()]);
       KeyBinding.resetKeyBindingArrayAndHash();
       friendsKey = friends;

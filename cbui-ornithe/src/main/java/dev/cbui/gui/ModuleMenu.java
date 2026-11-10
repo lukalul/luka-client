@@ -540,7 +540,7 @@ public class ModuleMenu extends GuiScreen {
     return setting;
   }
 
-  private static final String[] SETTINGS_TABS = dev.cbui.Release.SOCIAL
+  private static final String[] SETTINGS_TABS = dev.cbui.Release.COSMETICS
       ? new String[] {"STYLE", "VIDEO", "PERFORMANCE", "GENERAL", "COSMETICS"}
       : new String[] {"STYLE", "VIDEO", "PERFORMANCE", "GENERAL"};
   private int settingsTab;
@@ -1815,7 +1815,7 @@ public class ModuleMenu extends GuiScreen {
     float by = hubY + 94;
     if (dev.cbui.Release.SOCIAL) iconButton(HUB_FRIENDS, (int) (cx - 50 - 4 - 28), (int) by, 28, mx, my, false);
     UiWidgets.cbButton("MODS", cx - 50, by, 100, 28, Draw.inside(mx, my, cx - 50, by, 100, 28), false);
-    if (dev.cbui.Release.SOCIAL) iconButton(HUB_SHIRT, (int) (cx + 50 + 4), (int) by, 28, mx, my, false);
+    if (dev.cbui.Release.COSMETICS) iconButton(HUB_SHIRT, (int) (cx + 50 + 4), (int) by, 28, mx, my, false);
     GlStateManager.popMatrix();
     String hint = "DRAG A HUD BOX TO MOVE IT  -  SCROLL OVER IT TO RESIZE  -  I HIDES  -  X DISABLES  -  ESC CLOSES";
     Fonts.regular().drawCentered(hint, cx, 12, 0x90FFFFFF);
@@ -1833,7 +1833,7 @@ public class ModuleMenu extends GuiScreen {
         filterCards();
         return;
       }
-      if (dev.cbui.Release.SOCIAL && Draw.inside(mx, my, cx + 50 + 4, by, 28, 28)) { mc.displayGuiScreen(new CosmeticsScreen(this)); return; }
+      if (dev.cbui.Release.COSMETICS && Draw.inside(mx, my, cx + 50 + 4, by, 28, 28)) { mc.displayGuiScreen(new CosmeticsScreen(this)); return; }
     }
     if (button != 0) return;
     if (!overPanel(mx, my) && boxButtonClick(Cbui.hud().editorElements(), (int) (mx * zoom), (int) (my * zoom))) return;

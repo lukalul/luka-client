@@ -85,7 +85,7 @@ public final class Cbui implements ClientModInitializer {
     public static void leftClick() { if (hud != null) try { hud.leftClick(); } catch(Throwable error) { reportOnce("CPS click", error); } }
     public static void guiBegin() { if (hud != null) hud.guiBegin(); }
     public static void guiEnd() { if (hud != null) hud.guiEnd(); }
-    public static void overlay(float partialTicks) { try { if (Release.SOCIAL) dev.cbui.cosmetics.Capes.tick(); dev.cbui.config.Borderless.tick(); } catch (Throwable ignored) { } Profiler.frame(); Profiler.indicator(); dev.cbui.render.Shapes.captureOverlayState(); if (hud != null) try { hud.render(partialTicks); } catch(Throwable error) { reportOnce("HUD overlay", error); } }
+    public static void overlay(float partialTicks) { try { if (Release.COSMETICS) dev.cbui.cosmetics.Capes.tick(); dev.cbui.config.Borderless.tick(); } catch (Throwable ignored) { } Profiler.frame(); Profiler.indicator(); dev.cbui.render.Shapes.captureOverlayState(); if (hud != null) try { hud.render(partialTicks); } catch(Throwable error) { reportOnce("HUD overlay", error); } }
     public static ConfigStore config(){return config;}
 
     public static GuiScreen replaceScreen(GuiScreen screen) {

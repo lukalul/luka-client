@@ -70,7 +70,7 @@ public final class LukaMainMenu extends GuiMainMenu {
             topButtons.add(new Button("MODULES", () -> mc.displayGuiScreen(new ModuleMenu(this))));
             topButtons.add(new Button("MODS", () -> mc.displayGuiScreen(new ModsScreen(this))));
             if (dev.cbui.Release.SOCIAL) {
-                topButtons.add(new Button("COSMETICS", () -> mc.displayGuiScreen(new CosmeticsScreen(this))));
+                if (dev.cbui.Release.COSMETICS) topButtons.add(new Button("COSMETICS", () -> mc.displayGuiScreen(new CosmeticsScreen(this))));
                 topButtons.add(new Button("FRIENDS", () -> mc.displayGuiScreen(new FriendsScreen(this))));
             }
             if (classExists("dev.subframe.ReplayManagerScreen")) topButtons.add(new Button("REPLAYS", () -> openScreen("dev.subframe.ReplayManagerScreen")));

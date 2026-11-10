@@ -178,7 +178,7 @@ public final class FriendsScreen extends GuiScreen {
         });
       }
       int unread = LukaNet.unread(p.uuid);
-      rowButton(unread > 0 ? "MSG " + unread : "MSG", right, rowY, 0, mx, my, unread > 0, new Runnable() {
+      if (dev.cbui.Release.MESSAGES) rowButton(unread > 0 ? "MSG " + unread : "MSG", right, rowY, 0, mx, my, unread > 0, new Runnable() {
         @Override public void run() { mc.displayGuiScreen(new MessageScreen(FriendsScreen.this, p)); }
       });
     }
