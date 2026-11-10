@@ -58,6 +58,7 @@ public final class VideoOptions {
 
     add(list, "Quality", toggle("FXAA", PACK_ROWS ? GlobalOptions.fxaa : ArgentumExtrasBridge.on("fxaa"), false, "Smooths jagged edges. Costs a little FPS and slightly softens text"));
     add(list, "Quality", slider("Mipmap levels", g.mipmapLevels, 0, 4, 1, "Smooths distant textures. 0 is sharpest and fastest"));
+    add(list, "Quality", choice("Clear glass", GlobalOptions.clearGlass, new String[] {"Off", "Regular", "All"}, 0, "Glass is not drawn, frame included, so you see straight through it. Regular: normal glass and panes. All: stained glass too"));
     if (PACK_ROWS)
       add(list, "Quality", toggle("Better grass", GlobalOptions.betterGrass, false, "The sides of grass blocks are fully green, like the top. Same speed"));
     if (PACK_ROWS)

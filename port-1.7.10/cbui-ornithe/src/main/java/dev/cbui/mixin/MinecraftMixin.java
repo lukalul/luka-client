@@ -29,6 +29,17 @@ public abstract class MinecraftMixin {
         if (dev.cbui.config.Borderless.userToggle()) ci.cancel();
     }
 
+    /**
+     * Vanilla 1.7.10 leaves fullscreen as soon as the window loses focus (a leftover from exclusive fullscreen; 1.8.9 dropped
+     * it). On the Vulkan window borderless is the game's own fullscreen, so alt-tab threw the player back into a normal window.
+     * With the Borderless setting on that toggle is skipped; F11 and the settings still switch as before.
+     */
+    @org.spongepowered.asm.mixin.injection.Redirect(method="runGameLoop", at=@At(value="INVOKE", target="Lnet/minecraft/client/Minecraft;toggleFullscreen()V"), require=0)
+    private void cbui$keepBorderlessOnFocusLoss(net.minecraft.client.Minecraft mc) {
+        if (dev.cbui.config.GlobalOptions.borderless) return;
+        mc.toggleFullscreen();
+    }
+
     /** Background window: 30 FPS instead of burning the GPU. */
     @org.spongepowered.asm.mixin.injection.Inject(method="getLimitFramerate", at=@At("RETURN"), cancellable=true, require=0)
     private void cbui$unfocusedLimit(org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Integer> cir) {

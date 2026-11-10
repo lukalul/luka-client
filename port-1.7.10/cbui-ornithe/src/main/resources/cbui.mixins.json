@@ -109,6 +109,7 @@
     "XRayBlockMixin",
     "XRayRenderGlobalMixin",
     "XRayRenderBlocksMixin",
+    "ClearGlassRenderBlocksMixin",
     "VideoCloudHeightMixin",
     "VideoSettingsRedirectMixin"
   ],

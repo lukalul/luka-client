@@ -79,6 +79,9 @@ public final class PerfOptions {
     else if (n.equals("Leaves")) {
       GlobalOptions.leavesMode = ((Setting.Choice) s).choices().indexOf(s.get());
       reload = true;
+    } else if (n.equals("Clear glass")) {
+      GlobalOptions.clearGlass = ((Setting.Choice) s).choices().indexOf(s.get());
+      reload = true;
     } else if (n.equals("Vignette")) VideoOptions.applyVignette((Boolean) s.get());
     else if (n.equals("Held item names")) g.heldItemTooltips = (Boolean) s.get();
     else if (n.equals("Entity culling")) {

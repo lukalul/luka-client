@@ -32,6 +32,8 @@ public final class HideBlocksModule extends FeatureModule implements Features.Sy
   };
   /** The in-game "Hide foliage" setting (Performance tab). */
   private static final String[] FOLIAGE = {"tallgrass", "deadbush", "yellow_flower", "red_flower", "double_plant", "brown_mushroom", "red_mushroom", "vine"};
+  private static final String[] GLASS_REGULAR = {"glass", "glass_pane"};
+  private static final String[] GLASS_ALL = {"glass", "glass_pane", "stained_glass", "stained_glass_pane"};
   private static final boolean[] DEFAULTS = {true, true, true, false, false, false, false, false, false};
 
   private static volatile boolean[] hidden = new boolean[4096];
@@ -67,7 +69,8 @@ public final class HideBlocksModule extends FeatureModule implements Features.Sy
       boolean on = enabled();
       boolean foliage = dev.cbui.config.GlobalOptions.hideFoliage;
       boolean singleplayer = mc.isSingleplayer();
-      StringBuilder key = new StringBuilder().append(on).append(singleplayer).append(foliage);
+      int glass = dev.cbui.config.GlobalOptions.clearGlass;
+      StringBuilder key = new StringBuilder().append(on).append(singleplayer).append(foliage).append(glass);
       for (Setting.Toggle toggle : toggles) key.append(toggle.get() ? '1' : '0');
       key.append(everything.get());
       File custom = new File(mc.mcDataDir, "config/luka-hidden-blocks.txt");
@@ -79,6 +82,9 @@ public final class HideBlocksModule extends FeatureModule implements Features.Sy
       boolean[] table = new boolean[4096];
       boolean solid = false;
       if (foliage) for (String name : FOLIAGE) mark(table, Block.getBlockFromName("minecraft:" + name), singleplayer);
+      // Clear glass (Video Settings, Quality): allowed everywhere, glass shows what is behind it anyway. Glass does not hide the
+      // faces next to it, so it is not counted as solid.
+      if (glass > 0) for (String name : glass > 1 ? GLASS_ALL : GLASS_REGULAR) mark(table, Block.getBlockFromName("minecraft:" + name), true);
       if (on) {
         for (int i = 0; i < GROUPS.length; i++) {
           if (!toggles.get(i).get()) continue;
