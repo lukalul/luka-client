@@ -1,0 +1,524 @@
+#pragma once
+
+#include <cstdlib>
+
+#include "core/common.h"
+#include "core/vk.h"
+#include "render/blocks.h"
+#include "render/primitives.h"
+#include "render/state.h"
+#include "render/vertex_layout.h"
+#include "vulkan/presenter.h"
+
+#include <atomic>
+#include <condition_variable>
+#include <deque>
+#include <functional>
+#include <mutex>
+#include <thread>
+#include <memory>
+#include <string>
+#include <unordered_set>
+#include <vector>
+
+namespace at {
+    class Instance;
+    class Device;
+    class MemoryAllocator;
+    class ShaderLibrary;
+    class Pipelines;
+    class Samplers;
+    class TextureTable;
+    class GeometryArena;
+    class FrameResources;
+    class FrameStream;
+    class GpuBuffer;
+    class GpuImage;
+    class RenderPassType;
+    class Swapchain;
+    class DrawTarget;
+    class Framebuffer;
+    class SurfaceTarget;
+
+    namespace terrain {
+        class Terrain;
+    }
+
+    struct Mesh;
+    struct GeometryPool;
+
+    struct Context {
+        std::unique_ptr<Device> device;
+        std::unique_ptr<MemoryAllocator> allocator;
+        std::unique_ptr<ShaderLibrary> shaders;
+        std::unique_ptr<Pipelines> pipelines;
+        std::unique_ptr<Samplers> samplers;
+        std::unique_ptr<TextureTable> textures;
+        std::unique_ptr<GeometryArena> geometry;
+
+        Context();
+
+        ~Context();
+    };
+
+    using WindowSizeFunction = bool (*)(void *window, int *width, int *height);
+
+    struct WindowSystem {
+        void *window;
+
+        const char *const* (*getInstanceExtensions)(u32 *count);
+
+        bool (*createSurface)(void *window, VkInstance instance, const VkAllocationCallbacks *allocator,
+                              VkSurfaceKHR *surface);
+
+        void (*destroySurface)(VkInstance instance, VkSurfaceKHR surface, const VkAllocationCallbacks *allocator);
+
+        PFN_vkGetInstanceProcAddr (*getInstanceProcAddr)();
+
+        WindowSizeFunction windowSize;
+        void *nativeWindow;
+    };
+
+    class Renderer {
+    public:
+        // Frames the CPU may have recorded and not yet seen finished by the GPU. luka: three, so a fast game is not
+        // held up by the GPU finishing the frame two back (7 to 12 % more frames while flying). See
+        // LOW_DELAY_NANOS for when the third one is not used. ASTATINE_FRAMES=2 is the old behaviour.
+        static inline const u32 FRAMES = [] {
+            const char *value = std::getenv("ASTATINE_FRAMES");
+            unsigned long frames = value ? std::strtoul(value, nullptr, 10) : 3;
+            return static_cast<u32>(frames < 2 ? 2 : frames > 4 ? 4 : frames);
+        }();
+        static constexpr u64 STREAM_SIZE = 32ull << 20;
+        static constexpr u64 RECORDS_PER_FRAME = 1ull << 16;
+        static constexpr u64 ENVIRONMENTS_PER_FRAME = 1ull << 13;
+        static constexpr u64 SECTIONS_PER_FRAME = 1ull << 19;
+        static constexpr u32 MAX_QUADS = 1u << 16;
+        static constexpr u32 BATCH_SIZE = 4096;
+        static constexpr u32 INDIRECT_STRIDE = 20;
+
+        static Renderer &get() { return *instance; }
+        static bool ready() { return instance != nullptr; }
+
+        static const Instance &vulkan();
+
+        static void initialize(const WindowSystem &system, bool validation, std::string cacheFile);
+
+        static void shutdown();
+
+        Renderer(VkSurfaceKHR surfaceHandle, const WindowSystem &system, std::string cacheFile);
+
+        ~Renderer();
+
+        Context &context() const { return *contextValue; }
+
+        void defer(std::function<void()> release);
+
+        void track(class Texture *texture);
+
+        void trackDepth(GpuImage *image);
+
+        void clear(i32 mask);
+
+        void draw(u32 layout, i32 mode, const u8 *source, u32 count);
+
+        void drawMesh(const Mesh *mesh, i32 mode);
+
+        Mesh *uploadMesh(u32 layout, const u8 *source, u32 count);
+
+        void releaseMesh(Mesh *mesh);
+
+        void allocateTexture(Texture *texture, u32 levels, u32 width, u32 height);
+
+        void uploadTexture(Texture *texture, u32 level, i32 x, i32 y, u32 width, u32 height, const u8 *source,
+                           u32 rowLength);
+
+        void copyFromTarget(Texture *texture, u32 level, i32 destinationX, i32 destinationY, i32 x, i32 y, u32 width,
+                            u32 height);
+
+        void read(const Texture *texture, u8 *destination);
+
+        // Asynchronous read-back: begin queues a copy into the command stream and returns a ticket; finish waits only for
+        // that copy and converts the pixels to a GL format. Both are called from the game thread.
+        u64 readbackBegin(const Texture *texture, i32 x, i32 y, i32 width, i32 height);
+
+        bool readbackFinish(u64 ticket, i32 format, i32 alignment, u8 *destination);
+
+        void recordReadback(u64 ticket, const Texture *texture, i32 x, i32 y, i32 width, i32 height);
+
+        Framebuffer *createFramebuffer(u32 width, u32 height, bool depth, bool floating = false);
+
+        void releaseFramebuffer(Framebuffer *framebuffer);
+
+        void bindTarget(DrawTarget *next);
+
+        void bindSurface();
+
+        void present();
+
+        bool blitToSurface(Framebuffer *source, u32 width, u32 height);
+
+        void flush();
+
+        void setVsync(bool enabled) const;
+
+        void drain();
+
+        void publish();
+
+        void waitIdle();
+
+        void beginCapture();
+
+        void endCapture();
+
+        void finishFrame();
+
+        void startThread();
+
+        void stopThread();
+
+        std::mutex texturesLock;
+
+        u8 *append(u32 code, u32 bytes);
+
+        template<typename T>
+        void command(u32 code, const T &header, const void *extra = nullptr, u32 extraBytes = 0) {
+            u8 *at = append(code, static_cast<u32>(sizeof(T)) + extraBytes);
+            std::memcpy(at, &header, sizeof(T));
+            if (extraBytes) std::memcpy(at + sizeof(T), extra, extraBytes);
+        }
+
+        u8 *streamCell() { return reinterpret_cast<u8 *>(&streamCellValue); }
+
+        [[nodiscard]] bool canBlitSurface() const;
+
+        bool prepare(u64 bytes, u64 sectionBytes = 0);
+
+        bool bindState(const VertexLayout &layout, u32 topology);
+
+        u32 record();
+
+        void flushBatch();
+
+        void bindQuadIndices(bool flat);
+
+        void bindIndexBuffer(VkBuffer buffer) { bindIndices(buffer, 0); }
+
+        void setVertexBuffers(VkBuffer first, u64 firstOffset, VkBuffer second, u64 secondOffset);
+
+        u8 *stage(u64 bytes, VkBuffer &buffer, u64 &offset);
+
+        VkCommandBuffer setupCommands();
+
+        VkCommandBuffer transferCommands();
+
+        void markSetupTransfers() { setupTransfers = true; }
+        VkCommandBuffer commands() const { return main; }
+        FrameStream &sectionStream() const { return *sections; }
+        FrameStream &recordStream() const { return *records; }
+        FrameStream &environmentStream() const { return *environments; }
+        [[nodiscard]] u32 currentFrame() const { return frameIndex; }
+        RenderPassType &offscreenPass(bool depth) const { return depth ? *offscreenDepthPass : *offscreenColorPass; }
+
+        void endCurrentPass() {
+            ensureRecording();
+            endPass();
+        }
+
+        void bindFramebufferTarget(Framebuffer *framebuffer);
+        void holdSurfaceClear();
+        void restoreSurfaceClear();
+        void switchTarget(DrawTarget *next);
+        void updateDirect();
+        void directResolve();
+        void directCopyBack();
+
+        void forgetBindings();
+
+        [[nodiscard]] u64 presentedFrames() {
+            std::lock_guard guard(queueLock);
+            return framesPresented;
+        }
+
+
+        i32 terrainLayer = -1;
+        bool externalPass = false;
+        FrameStream &dataStream() const { return *stream; }
+        DrawTarget &currentTarget() const { return *target; }
+
+        void ensureRecording();
+
+        static void imageBarrier(VkCommandBuffer commands, VkImage image, VkImageAspectFlags aspect, u32 levels,
+                                 VkImageLayout oldLayout,
+                                 VkImageLayout newLayout);
+
+        RenderState state;
+        VertexLayouts layouts;
+        std::unordered_set<class Texture *> textures;
+        std::unordered_set<Framebuffer *> framebuffers;
+        u64 serial = 0;
+        std::unique_ptr<terrain::Terrain> terrain;
+
+    private:
+        static constexpr u32 CLEAR_COLOR = 1;
+        static constexpr u32 CLEAR_DEPTH = 2;
+        static constexpr u32 CHUNK_SIZE = 4u << 20;
+
+        static Renderer *instance;
+
+        void beginRecording();
+
+        void submit(const SubmitSync &sync);
+
+        void finishSetup();
+
+        void reserve(u64 bytes, u64 sectionBytes = 0);
+
+        bool beginPass();
+
+        void endPass();
+
+        void clearAttachments(u32 attachments) const;
+
+        void clearMasked();
+
+        u64 writeIndices(u64 bytes) const;
+
+        void resolveTextures();
+
+        i32 allocateEnvironment(EnvironmentBlock *&block);
+
+        struct Packet {
+            VkPipeline pipeline;
+            VkBuffer buffers[2];
+            u64 offsets[2];
+            u32 indexCount;
+            u32 vertexOffset;
+            u32 record;
+            u32 dynamic;
+            bool flat;
+            bool ordered;
+        };
+
+        struct DynamicState {
+            VkViewport viewport;
+            VkRect2D scissor;
+            float lineWidth;
+            float biasUnits;
+            float biasFactor;
+        };
+
+        void capture(const VertexLayout &layout, u32 topology, VkBuffer first, u64 firstOffset, VkBuffer second,
+                     u64 secondOffset, u32 firstVertex, u32 vertices, bool flat);
+
+        DynamicState currentDynamicState() const;
+
+        void emitPackets();
+
+        void submitBatch();
+
+        bool capturing = false;
+        bool emitting = false;
+        std::vector<Packet> packets;
+        std::vector<DynamicState> dynamicStates;
+        std::vector<u32> packetOrder;
+
+        [[nodiscard]] VkRect2D currentScissor() const;
+
+        void bindPipeline(VkPipeline pipeline);
+
+        void bindFixedSets();
+
+
+        void useFixedSets();
+
+        bool fixedSetsBound = true;
+
+        void bindMesh(const GeometryPool *pool);
+
+        void bindIndices(VkBuffer buffer, u64 offset);
+
+        void issue(u32 record, u32 firstVertex, VkBuffer indexBuffer, u64 indexOffset);
+
+        void copyStaged(Texture *texture, u32 level, i32 x, i32 y, u32 width, u32 height, VkBuffer buffer, u64 offset);
+
+        void copyFromSurface(const GpuImage *image, u32 level, i32 destinationX, i32 destinationY, i32 x, i32 y, u32 width,
+                             u32 height) const;
+
+        void uploadQuadIndices();
+
+        void createFrameSet();
+
+        void writeEnvironment(EnvironmentBlock *block, bool flipY);
+
+        void writeRecord(DrawRecord *drawRecord, u32 flags, i32 texture0, i32 texture1);
+
+        void execute(const u8 *cursor, const u8 *end);
+
+        std::unique_ptr<Context> contextValue;
+        std::unique_ptr<RenderPassType> offscreenDepthPass;
+        std::unique_ptr<RenderPassType> offscreenColorPass;
+        std::unique_ptr<RenderPassType> offscreenFloatPass;
+        std::unique_ptr<RenderPassType> surfacePass;
+        std::unique_ptr<Presenter> presenter;
+        std::unique_ptr<SurfaceTarget> surface;
+        std::vector<std::unique_ptr<FrameResources> > frames;
+        std::unique_ptr<FrameStream> stream;
+        std::unique_ptr<FrameStream> records;
+        std::unique_ptr<FrameStream> sections;
+        std::unique_ptr<FrameStream> environments;
+        std::unique_ptr<GpuBuffer> quadIndices;
+        std::unique_ptr<class Texture> fallback;
+        class Texture *defaultNormals = nullptr;
+        class Texture *defaultSpecular = nullptr;
+
+        i32 companionHandle(class Texture *companion, class Texture *fallbackCompanion);
+        struct Chunk {
+            u8 *data = nullptr;
+            u32 capacity = 0;
+        };
+
+        void executeChunk(const Chunk &chunk);
+
+        void flushDedicated();
+
+        void enqueue(const Chunk &chunk);
+
+        Chunk takeChunk();
+
+        void recycle(const Chunk &chunk);
+
+        void threadLoop();
+
+        void rethrow();
+
+        void executeNative(u32 code, const u8 *data, u32 bytes);
+
+        Chunk writing;
+        Chunk pendingDedicated;
+        u64 streamCellValue = 0;
+
+        static constexpr u64 FRAMES_AHEAD = 1;
+        std::mutex queueLock;
+        std::condition_variable queueReady;
+        std::condition_variable queueIdle;
+        std::deque<Chunk> queue;
+        std::vector<Chunk> freeChunks;
+        bool executing = false;
+        bool stopping = false;
+        bool threaded = false;
+        u64 framesSubmitted = 0;
+        u64 framesPresented = 0;
+        std::string threadError;
+        std::thread renderThread;
+
+        FrameResources *frame = nullptr;
+        VkCommandBuffer setup = VK_NULL_HANDLE;
+        VkCommandBuffer main = VK_NULL_HANDLE;
+        DrawTarget *target = nullptr;
+        VkDescriptorPool framePool = VK_NULL_HANDLE;
+        VkDescriptorSet frameSet = VK_NULL_HANDLE;
+        u32 frameIndex = 0;
+        // luka: a frame further in flight is a frame of extra delay when the GPU is the slow side. While frames take
+        // longer than this, only two are allowed in flight (the frame two back is waited for).
+        static constexpr u64 LOW_DELAY_NANOS = 1'000'000;
+        u64 lastFrameEnd = 0;
+        u64 frameNanos = 0;
+        bool recording = false;
+
+        struct Readback {
+            std::shared_ptr<GpuBuffer> buffer;
+            u64 ticket = 0;
+            u64 submission = 0;
+            u32 frame = 0;
+            i32 width = 0;
+            u32 copiedWidth = 0, copiedHeight = 0, skipColumns = 0, skipRows = 0;
+        };
+
+        static constexpr u32 READBACK_SLOTS = 8;
+        Readback readbacks[READBACK_SLOTS];
+        u64 readbackTicket = 0;
+        u64 submissions = 0;
+        int zoneKind = 0; // luka profiler: kind of GPU work recorded since the last zone timestamp
+
+        void zone(int kind);
+        bool setupTransfers = false;
+        std::vector<class Texture *> pendingTextures;
+        std::vector<GpuImage *> pendingDepth;
+
+        bool passActive = false;
+        u32 pendingClear = 0;
+        // A clear of the window that the game left behind without drawing anything (see holdSurfaceClear)
+        u32 heldClear = 0;
+        float heldClearColor[4] = {};
+        float heldClearDepth = 1.0f;
+        // Drawing the game's own full-window picture straight into the window (see updateDirect)
+        Framebuffer *direct = nullptr;
+        Framebuffer *directNext = nullptr;
+        DrawTarget *requested = nullptr;
+        u32 directHold = 0;
+        u32 frameBlits = 0;
+        // When the picture was last brought up to date from the window, and how often that happens (see blitToSurface)
+        u64 directKeptAt = 0;
+        u64 directKeepNanos = 4'000'000;
+        bool directAllowed = true;
+
+    public:
+        // Set once raw handles of a framebuffer leave the renderer: its picture can then be used behind our back
+        std::atomic<bool> directBlocked{false};
+        // Whether a frame can end up drawn straight into the window (readers of the game's picture ask this)
+        [[nodiscard]] bool directPossible() const { return directAllowed && !directBlocked.load(std::memory_order_relaxed); }
+
+    private:
+        float clearColorValue[4] = {};
+        float clearDepthValue = 1.0f;
+
+        PrimitivePlan plan;
+        VkPipeline boundPipeline = VK_NULL_HANDLE;
+        i64 recordIndex = -1;
+        i32 recordBlend[4] = {0, 0, 0, 0};
+        bool irisFogOff = false;
+        bool irisFogDisabled = false;
+        i32 irisRenderStage = 0;
+        bool recordFogOff = false;
+        i32 recordStage = 0;
+        static constexpr u32 FOG_OFF_FLAG = 1u << 30;
+        i32 currentEnvironment = 0;
+        u32 textureFlags = 0;
+        u64 textureHandles[2] = {~0ull, ~0ull};
+        u64 boundSets[2] = {};
+        VkBuffer boundVertexBuffers[2] = {};
+        u64 boundVertexOffsets[2] = {};
+        VkBuffer boundIndexBuffer = VK_NULL_HANDLE;
+        u64 boundIndexOffset = ~0ull;
+
+        u32 batchCount = 0;
+        const void *batchSource = nullptr;
+
+        struct ImmediateRegion {
+            u32 layout = ~0u;
+            u64 serial = 0;
+            u64 positions = 0;
+            u64 attributes = 0;
+            u32 capacity = 0;
+            u32 used = 0;
+        };
+
+        static constexpr u32 REGION_MIN_VERTICES = 1024;
+        static constexpr u32 REGION_MAX_VERTICES = 65536;
+        static constexpr u32 REGION_SLOTS = 16;
+        ImmediateRegion regions[REGION_SLOTS];
+        u64 regionUses[REGION_SLOTS] = {};
+        u64 regionClock = 0;
+
+        bool drawBatched(const VertexLayout &layout, const u8 *source);
+        bool batchFlat = false;
+        u32 batchIndexCounts[BATCH_SIZE];
+        u32 batchVertexOffsets[BATCH_SIZE];
+        u32 batchRecords[BATCH_SIZE];
+
+        VkBuffer stagingBuffer = VK_NULL_HANDLE;
+        u64 stagingOffset = 0;
+    };
+} // namespace at

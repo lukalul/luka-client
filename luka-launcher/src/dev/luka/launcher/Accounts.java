@@ -150,13 +150,24 @@ final class Accounts {
     try {
       file.getParentFile().mkdirs();
       File temp = new File(file.getPath() + ".tmp");
+      if (temp.createNewFile() || temp.isFile()) ownerOnly(temp); // private before the logins go in
       try (OutputStream out = new FileOutputStream(temp)) {
         p.store(new java.io.OutputStreamWriter(out, StandardCharsets.UTF_8), "luka accounts (the refresh token is a login: keep this file private)");
       }
       java.nio.file.Files.move(temp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+      ownerOnly(file);
       loadedAt = file.lastModified();
     } catch (IOException ignored) {
       // accounts are re-added on the next sign in
+    }
+  }
+
+  /** On Linux and other POSIX systems the file holding the logins is readable by its owner only (Windows keeps the user folder's rights). */
+  private static void ownerOnly(File file) {
+    try {
+      java.nio.file.Files.setPosixFilePermissions(file.toPath(), java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"));
+    } catch (UnsupportedOperationException | IOException notPosix) {
+      // Windows
     }
   }
 }

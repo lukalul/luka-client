@@ -114,8 +114,41 @@ object TerrainRenderer {
         )
     }
 
+    private const val DIRTY_KEPT = 8
+    private val dirtyFrom = LongArray(DIRTY_KEPT) { Long.MIN_VALUE }
+    private val dirtyTo = LongArray(DIRTY_KEPT) { Long.MIN_VALUE }
+    private var dirtyNext = 0
+
+    private fun dirtyKey(x: Int, y: Int, z: Int, important: Boolean): Long =
+        (((x shr 4).toLong() and 0x3FFFFF) shl 30) or (((z shr 4).toLong() and 0x3FFFFF) shl 8) or
+            (((y shr 4).toLong() and 0x7F) shl 1) or (if (important) 1L else 0L)
+
+    /**
+     * Marks the sections a box of blocks touches as needing a rebuild. A burst of light or block changes names the same
+     * few sections over and over, so a box covering the same sections as one already sent since the last frame's
+     * scheduling is not sent again. Sections are only handed out for building in [setup], which forgets what was sent.
+     */
+    @JvmStatic
+    fun markDirty(minX: Int, minY: Int, minZ: Int, maxX: Int, maxY: Int, maxZ: Int, important: Boolean) {
+        val from = dirtyKey(minX, minY, minZ, important)
+        val to = dirtyKey(maxX, maxY, maxZ, important)
+        for (i in 0 until DIRTY_KEPT) {
+            if (dirtyFrom[i] == from && dirtyTo[i] == to) return
+        }
+        dirtyFrom[dirtyNext] = from
+        dirtyTo[dirtyNext] = to
+        dirtyNext = (dirtyNext + 1) % DIRTY_KEPT
+        Native.terrainMarkDirty(minX, minY, minZ, maxX, maxY, maxZ, important)
+    }
+
+    private fun forgetDirty() {
+        dirtyFrom.fill(Long.MIN_VALUE)
+        dirtyTo.fill(Long.MIN_VALUE)
+    }
+
     @JvmStatic
     fun clear() {
+        forgetDirty()
         settle()
         Native.terrainClear()
         blockEntities.clear()
@@ -135,6 +168,7 @@ object TerrainRenderer {
     @JvmStatic
     fun setup(camera: Entity, x: Double, y: Double, z: Double, tickDelta: Double, frame: Int, spectator: Boolean) {
         val world = world ?: return
+        forgetDirty()
         val now = System.nanoTime()
         if (lastFrameNanos != 0L) frameNanos += ((now - lastFrameNanos).coerceAtMost(100_000_000L) - frameNanos) * 0.05
         lastFrameNanos = now

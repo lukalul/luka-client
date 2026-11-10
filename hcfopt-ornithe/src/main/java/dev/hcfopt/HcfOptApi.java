@@ -19,6 +19,7 @@ public final class HcfOptApi {
         if ("tileRenderDistance".equals(key)) return c.tileRenderDistance;
         if ("itemRenderCap".equals(key)) return c.itemRenderCap;
         if ("particleCaps".equals(key)) return c.particleCaps;
+        if ("cloudMeshCache".equals(key)) return c.cloudMeshCache;
         throw new IllegalArgumentException("Unknown HCFOpt toggle: " + key);
     }
 
@@ -29,6 +30,7 @@ public final class HcfOptApi {
         else if ("tileRenderDistance".equals(key)) c.tileRenderDistance = enabled;
         else if ("itemRenderCap".equals(key)) c.itemRenderCap = enabled;
         else if ("particleCaps".equals(key)) c.particleCaps = enabled;
+        else if ("cloudMeshCache".equals(key)) c.cloudMeshCache = enabled;
         else throw new IllegalArgumentException("Unknown HCFOpt toggle: " + key);
     }
 
@@ -39,5 +41,6 @@ public final class HcfOptApi {
         c.tileRenderDistance = enabled;
         c.itemRenderCap = enabled;
         c.particleCaps = enabled;
+        c.cloudMeshCache = enabled;
     }
 }

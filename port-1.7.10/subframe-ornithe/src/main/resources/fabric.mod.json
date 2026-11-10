@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "subframe",
+  "version": "${version}",
+  "name": "SubFrame",
+  "description": "Records Minecraft gameplay and re-renders it with true subframe motion blur.",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.subframe.SubFrameMod"
+    ]
+  },
+  "mixins": [
+    "subframe.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.14.21",
+    "minecraft": "1.7.10"
+  },
+  "license": "GPL-3.0-or-later",
+  "authors": [
+    "luka contributors"
+  ],
+  "icon": "assets/subframe/icon.png"
+}

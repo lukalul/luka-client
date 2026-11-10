@@ -4,6 +4,13 @@
 #include "core/error.h"
 #include "vulkan/device.h"
 
+#if defined(_M_X64) || defined(__x86_64__) || defined(_M_IX86) || defined(__i386__)
+#include <immintrin.h>
+#define AT_SPIN_PAUSE() _mm_pause()
+#else
+#define AT_SPIN_PAUSE() ((void) 0)
+#endif
+
 namespace at {
     FrameResources::FrameResources(const Device &device) : device(device) {
         VkCommandPoolCreateInfo poolInfo{.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
@@ -65,6 +72,10 @@ namespace at {
     }
 
     void FrameResources::await() {
+        // A blocking wait costs a thread wake-up even when the frame is only microseconds from done, and at a few
+        // thousand frames per second that is most waits. So look at the fence for a short while first.
+        // (Looking at the fence for a while before blocking was tried and gained nothing: the wait is the GPU not
+        // being done with the frame two back, not a slow wake-up.)
         check(vkWaitForFences(device.handle, 1, &fence, VK_TRUE, ~0ull), "vkWaitForFences");
         if (prof::enabled && submitNanos) {
             prof::total[prof::SUBMIT_TO_DONE] += prof::now() - submitNanos;

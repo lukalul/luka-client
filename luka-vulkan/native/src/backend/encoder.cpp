@@ -21,6 +21,7 @@ namespace at::backend::encoder {
 
         void markExternal(Renderer &renderer, bool inside) {
             renderer.externalPass = inside;
+            if (inside) renderer.directBlocked.store(true, std::memory_order_relaxed);
             renderer.state.dirty |= RenderState::ENVIRONMENT | RenderState::VIEWPORT;
         }
     } // namespace

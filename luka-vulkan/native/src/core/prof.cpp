@@ -67,6 +67,10 @@ namespace at::prof {
         add("gpu.copies", ZONE + ZONE_COPIES);
         add("gpu.present", ZONE + ZONE_PRESENT);
         for (int code = 100; code < 100 + (ZONE - NATIVE); code++) add(nativeName(code), NATIVE + code - 100);
+        static const char *parts[PART_KINDS] = {"setup.recenter", "setup.cull", "setup.visible", "publish.copy", "publish.schedule",
+                                                "draw.prepare", "draw.walk", "draw.order", "draw.emit", "draw.bind", "draw.alloc",
+                                                "draw.record", "n.list", "n.visible", "n.ordered", "n.drawn", "n.ranges", "n.verts"};
+        for (int index = 0; index < PART_KINDS; index++) add(parts[index], PART + index);
         log::info("[prof] %s", line.c_str());
         std::memset(total, 0, sizeof(total));
         std::memset(calls, 0, sizeof(calls));

@@ -151,6 +151,7 @@ AT_GPU(jlong, framebufferColorView)(JNIEnv *env, jclass, jlong framebuffer) {
         Backend::get().waitIdle();
         auto *target = pointer<Framebuffer>(framebuffer);
         if (!target || !target->color) fail("the main framebuffer has no color image");
+        Renderer::get().directBlocked.store(true, std::memory_order_relaxed);
         GpuImage &color = *target->color;
         u32 usage = texture_usage::RENDER_ATTACHMENT | texture_usage::TEXTURE_BINDING | texture_usage::COPY_SRC |
                     texture_usage::COPY_DST;

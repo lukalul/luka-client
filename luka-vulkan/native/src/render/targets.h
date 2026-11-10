@@ -93,6 +93,7 @@ namespace at {
         bool acquireImage() { return imageIndex >= 0 || acquire(); }
 
         [[nodiscard]] bool blitTarget() const { return presenter.blitTarget; }
+        [[nodiscard]] bool readSource() const { return presenter.readSource; }
 
         void markWritten() { written = true; }
 

@@ -1,0 +1,29 @@
+{
+  "required": true,
+  "package": "dev.subframe.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "client": [
+    "MinecraftMixin",
+    "MinecraftAccessor",
+    "NetHandlerLoginClientMixin",
+    "NetworkManagerMixin",
+    "NetworkManagerAccessor",
+    "GuiMainMenuMixin",
+    "GuiScreenAccessor",
+    "RenderGlobalAccessor",
+    "EntityRendererAccessor",
+    "EntityAccessor",
+    "DataWatcherAccessor",
+    "GuiIngameMixin",
+    "WorldMixin",
+    "EntityRendererHandMixin",
+    "EffectRendererAccessor",
+    "EntityFXAccessor",
+    "EntityCrit2FXAccessor",
+    "S26PacketMapChunkBulkAccessor",
+    "MinecraftServerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

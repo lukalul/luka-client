@@ -433,7 +433,9 @@ namespace at {
                 case op::ACTIVE_TEXTURE: s.activeTexture(i(0));
                     slots = 1;
                     break;
-                case op::BIND_TEXTURE: s.bindTexture(reinterpret_cast<Texture *>(p(0)));
+                case op::BIND_TEXTURE:
+                    if (direct && reinterpret_cast<Texture *>(p(0)) == &direct->texture) directResolve();
+                    s.bindTexture(reinterpret_cast<Texture *>(p(0)));
                     slots = 2;
                     break;
                 case op::SHADE_MODEL: s.shadeModel(i(0));

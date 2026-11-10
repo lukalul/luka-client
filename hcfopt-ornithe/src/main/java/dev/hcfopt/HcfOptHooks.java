@@ -56,6 +56,7 @@ public final class HcfOptHooks {
             prepareItemAdmission();
             RenderCounters.beginFrame();
             BenchmarkController.onFrameStart();
+            LightQueue.drain();
         } catch (Throwable t) {
             admittedItemIds = new int[0];
             HcfOptMod.problemOnce("frame-start", t);

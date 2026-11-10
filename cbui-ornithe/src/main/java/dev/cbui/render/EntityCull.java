@@ -4,9 +4,11 @@ import dev.cbui.Cbui;
 import dev.cbui.config.GlobalOptions;
 import dev.cbui.feature.hideblocks.HideBlocksModule;
 import dev.cbui.feature.staff.XRayState;
+import java.util.Arrays;
 import java.util.List;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockLeavesBase;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.entity.Entity;
@@ -17,6 +19,7 @@ import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.MathHelper;
 import net.minecraft.world.World;
 import net.minecraft.world.chunk.Chunk;
+import net.minecraft.world.chunk.storage.ExtendedBlockStorage;
 
 /**
  * Finds living entities with solid blocks fully between them and the camera, so their bodies can be skipped. Names still draw.
@@ -49,8 +52,14 @@ public final class EntityCull {
   private static double checkedX, checkedY, checkedZ;
   private static boolean oddTick;
   private static World world;
-  private static Chunk chunk;
-  private static int chunkX, chunkZ;
+  private static Chunk chunk, farChunk;
+  private static int chunkX, chunkZ, farChunkX, farChunkZ;
+  /** Per block state id: 0 until the state turns up in this tick's walk (hidden blocks can change), then COVER or OPEN. */
+  private static final byte[] coverByState = new byte[65536];
+  private static final byte COVER = 1, OPEN = 2;
+  /** Which end of the ray found the last cover and after how many steps, see {@link #clear}. */
+  private static int hint;
+  private static final int LEAD_LIMIT = 12;
 
   private EntityCull() {}
 
@@ -74,6 +83,7 @@ public final class EntityCull {
     } finally {
       world = null;
       chunk = null;
+      farChunk = null;
     }
   }
 
@@ -85,6 +95,7 @@ public final class EntityCull {
         && !player.isSpectator() && !player.noClip;
     if (!active) return;
     world = mc.theWorld;
+    Arrays.fill(coverByState, (byte) 0);
     checkedFor = player;
     checkedX = player.posX;
     checkedY = player.posY;
@@ -131,10 +142,19 @@ public final class EntityCull {
     return true;
   }
 
-  /** Walks the block grid along the ray. The camera's own block and the end point's block never count as cover. */
+  /**
+   * Walks the block grid along the ray. The camera's own block and the end point's block never count as cover.
+   * The walk comes from both ends and stops at the first cover either side meets. Most hidden entities are hidden by
+   * blocks right next to them (a cave wall) or right next to the camera (the player's own walls); walking from the
+   * camera only would cross all the open air in between, for every ray of every mob in the caves below.
+   * The side that found the cover for the last ray goes first for the next one, as far as it had to go then.
+   */
   private static boolean clear(double fromX, double fromY, double fromZ, double toX, double toY, double toZ) {
     int x = MathHelper.floor_double(fromX), y = MathHelper.floor_double(fromY), z = MathHelper.floor_double(fromZ);
-    int endX = MathHelper.floor_double(toX), endY = MathHelper.floor_double(toY), endZ = MathHelper.floor_double(toZ);
+    int farX = MathHelper.floor_double(toX), farY = MathHelper.floor_double(toY), farZ = MathHelper.floor_double(toZ);
+    // blocks strictly between the two end blocks
+    int left = Math.abs(farX - x) + Math.abs(farY - y) + Math.abs(farZ - z) - 1;
+    if (left <= 0) return true;
     double dx = toX - fromX, dy = toY - fromY, dz = toZ - fromZ;
     int stepX = dx > 0 ? 1 : -1, stepY = dy > 0 ? 1 : -1, stepZ = dz > 0 ? 1 : -1;
     double deltaX = dx == 0 ? Double.POSITIVE_INFINITY : Math.abs(1 / dx);
@@ -143,23 +163,56 @@ public final class EntityCull {
     double nextX = dx == 0 ? Double.POSITIVE_INFINITY : (dx > 0 ? x + 1 - fromX : fromX - x) * deltaX;
     double nextY = dy == 0 ? Double.POSITIVE_INFINITY : (dy > 0 ? y + 1 - fromY : fromY - y) * deltaY;
     double nextZ = dz == 0 ? Double.POSITIVE_INFINITY : (dz > 0 ? z + 1 - fromZ : fromZ - z) * deltaZ;
-    int steps = Math.abs(endX - x) + Math.abs(endY - y) + Math.abs(endZ - z);
-    for (int i = 0; i < steps; i++) {
-      if (nextX <= nextY && nextX <= nextZ) {
-        x += stepX;
-        nextX += deltaX;
-      } else if (nextY <= nextZ) {
-        y += stepY;
-        nextY += deltaY;
-      } else {
-        z += stepZ;
-        nextZ += deltaZ;
+    // the same ray walked backwards from the end point
+    double farNextX = dx == 0 ? Double.POSITIVE_INFINITY : (dx > 0 ? toX - farX : farX + 1 - toX) * deltaX;
+    double farNextY = dy == 0 ? Double.POSITIVE_INFINITY : (dy > 0 ? toY - farY : farY + 1 - toY) * deltaY;
+    double farNextZ = dz == 0 ? Double.POSITIVE_INFINITY : (dz > 0 ? toZ - farZ : farZ + 1 - toZ) * deltaZ;
+    // lead > 0: that many steps from the entity's end alone before the camera's end joins in; lead < 0: the other way round
+    int lead = hint, farSteps = 0, nearSteps = 0;
+    while (true) {
+      if (lead >= 0) {
+        // ties in the reverse order of the camera's end (there x, then y, then z), so both ends walk the same blocks
+        if (farNextZ <= farNextY && farNextZ <= farNextX) {
+          farZ -= stepZ;
+          farNextZ += deltaZ;
+        } else if (farNextY <= farNextX) {
+          farY -= stepY;
+          farNextY += deltaY;
+        } else {
+          farX -= stepX;
+          farNextX += deltaX;
+        }
+        farSteps++;
+        if (solidFar(farX, farY, farZ)) {
+          hint = Math.min(farSteps - 1, LEAD_LIMIT);
+          return false;
+        }
+        if (--left == 0) return true;
       }
-      if (i < steps - 1 && solid(x, y, z)) return false;
+      if (lead <= 0) {
+        if (nextX <= nextY && nextX <= nextZ) {
+          x += stepX;
+          nextX += deltaX;
+        } else if (nextY <= nextZ) {
+          y += stepY;
+          nextY += deltaY;
+        } else {
+          z += stepZ;
+          nextZ += deltaZ;
+        }
+        nearSteps++;
+        if (solid(x, y, z)) {
+          hint = -Math.min(nearSteps, LEAD_LIMIT);
+          return false;
+        }
+        if (--left == 0) return true;
+      }
+      if (lead > 0) lead--;
+      else if (lead < 0) lead++;
     }
-    return true;
   }
 
+  /** Block lookups at the camera's end of a ray. Each end keeps its own chunk, or the two would evict each other every step. */
   private static boolean solid(int x, int y, int z) {
     if (y < 0 || y > 255) return false;
     int cx = x >> 4, cz = z >> 4;
@@ -168,7 +221,36 @@ public final class EntityCull {
       chunkX = cx;
       chunkZ = cz;
     }
-    Block block = chunk.getBlock(x, y, z);
+    return cover(chunk, x & 15, y, z & 15);
+  }
+
+  /** Block lookups at the entity's end of a ray. */
+  private static boolean solidFar(int x, int y, int z) {
+    if (y < 0 || y > 255) return false;
+    int cx = x >> 4, cz = z >> 4;
+    if (farChunk == null || cx != farChunkX || cz != farChunkZ) {
+      farChunk = world.getChunkFromChunkCoords(cx, cz);
+      farChunkX = cx;
+      farChunkZ = cz;
+    }
+    return cover(farChunk, x & 15, y, z & 15);
+  }
+
+  /** The block at chunk-local x and z. Reads the state id straight from the chunk section and judges each state once per tick. */
+  private static boolean cover(Chunk chunk, int x, int y, int z) {
+    ExtendedBlockStorage section = chunk.getBlockStorageArray()[y >> 4];
+    if (section == null) return false;
+    // the same lookup as ExtendedBlockStorage.get
+    int id = section.getData()[(y & 15) << 8 | z << 4 | x];
+    byte known = coverByState[id];
+    if (known == 0) coverByState[id] = known = cover(Block.BLOCK_STATE_IDS.getByValue(id)) ? COVER : OPEN;
+    return known == COVER;
+  }
+
+  private static boolean cover(IBlockState state) {
+    // an id without a state reads as air
+    if (state == null) return false;
+    Block block = state.getBlock();
     // leaves are see-through on Fancy and can be hidden; blocks the player chose to hide are not cover
     return block.isOpaqueCube() && !(block instanceof BlockLeavesBase) && !HideBlocksModule.hides(block);
   }

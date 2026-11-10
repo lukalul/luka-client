@@ -52,6 +52,9 @@ public final class AccountStore {
   public AccountStore(boolean keepFileSelection) {
     File gameDir = Minecraft.getMinecraft().mcDataDir;
     File launcherFile = new File(gameDir.getAbsoluteFile().getParentFile(), "accounts.properties");
+    // the launcher names its accounts file when it starts the game (1.7.10 and Linux keep it elsewhere)
+    String given = System.getProperty("luka.accounts");
+    if (given != null && new File(given).isFile()) launcherFile = new File(given);
     File jar = AccountLauncher.jar();
     if (!launcherFile.isFile() && jar != null) launcherFile = new File(new File(jar.getParentFile(), "luka"), "accounts.properties");
     // inside the luka launcher the game folder is luka/game and the shared file sits one level up

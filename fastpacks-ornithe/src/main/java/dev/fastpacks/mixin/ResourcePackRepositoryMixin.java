@@ -1,6 +1,7 @@
 package dev.fastpacks.mixin;
 
 import dev.fastpacks.FastPacks;
+import dev.fastpacks.pack.ExtraPacks;
 import dev.fastpacks.pack.NestedPacks;
 import java.io.File;
 import java.util.ArrayList;
@@ -19,7 +20,10 @@ public abstract class ResourcePackRepositoryMixin {
     private void fastpacks$nested(CallbackInfoReturnable<List<File>> cir) {
         try {
             List<File> files = new ArrayList<File>(cir.getReturnValue());
-            NestedPacks.collect(new File(Minecraft.getMinecraft().mcDataDir, "resourcepacks"), files);
+            File root = new File(Minecraft.getMinecraft().mcDataDir, "resourcepacks");
+            NestedPacks.collect(root, files);
+            // the standard launcher's packs too (read only), so a pack chosen from there is found again at startup
+            ExtraPacks.collect(root, files);
             cir.setReturnValue(files);
         } catch (Throwable t) {
             FastPacks.reportOnce("nested pack listing", t);

@@ -139,6 +139,7 @@ AT_EXPORT(void, externalPass)(JNIEnv *env, jclass, jboolean inside) {
     jvm::handled(env, [&] {
         Renderer &renderer = Renderer::get();
         renderer.externalPass = inside;
+        if (inside) renderer.directBlocked.store(true, std::memory_order_relaxed);
         renderer.state.dirty |= RenderState::ENVIRONMENT | RenderState::VIEWPORT;
     });
 }
@@ -400,6 +401,10 @@ AT_EXPORT(void, framebufferRelease)(JNIEnv *env, jclass, jlong framebuffer) {
     });
 }
 
+AT_EXPORT(jboolean, directPossible)(JNIEnv *env, jclass) {
+    return jvm::handled(env, [&]() -> jboolean { return static_cast<jboolean>(Renderer::get().directPossible()); });
+}
+
 AT_EXPORT(jboolean, framebufferBlit)(JNIEnv *env, jclass, jlong framebuffer, jint width, jint height) {
     return jvm::handled(env, [&]() -> jboolean {
         Renderer &renderer = Renderer::get();
@@ -421,6 +426,7 @@ AT_EXPORT(jlongArray, framebufferImages)(JNIEnv *env, jclass, jlong framebuffer)
     return jvm::handled(env, [&]() -> jlongArray {
         auto *target = pointer<Framebuffer>(framebuffer);
         if (!target || !target->color) return nullptr;
+        Renderer::get().directBlocked.store(true, std::memory_order_relaxed);
         GpuImage &color = *target->color;
         return longs(env, {
                          reinterpret_cast<jlong>(color.handle), reinterpret_cast<jlong>(color.view),

@@ -184,7 +184,7 @@ final class LauncherFrame extends JFrame {
     done();
   }
 
-  /** Opens the sign-in page with the code already in it; Desktop first, Windows' own handler if that fails. */
+  /** Opens the sign-in page with the code already in it; Desktop first, the system's own opener if that fails. */
   private void openBrowser(String address) {
     MicrosoftAuth.log.accept("opening " + address);
     try {
@@ -194,9 +194,10 @@ final class LauncherFrame extends JFrame {
       MicrosoftAuth.log.accept("Desktop.browse failed: " + first);
     }
     try {
-      new ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", address).start();
+      if (Platform.windows()) new ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", address).start();
+      else new ProcessBuilder("xdg-open", address).start();
     } catch (Throwable second) {
-      MicrosoftAuth.log.accept("rundll32 failed: " + second);
+      MicrosoftAuth.log.accept((Platform.windows() ? "rundll32" : "xdg-open") + " failed: " + second);
     }
   }
 
@@ -268,16 +269,17 @@ final class LauncherFrame extends JFrame {
                     appendLog("Update check failed: " + offline.getMessage()); // Installer.syncMods decides whether luka may still start
                   }
                 }
-                Installer.retireMods(root);
+                GameVersion version = settings.version();
+                Installer.retireMods(root, version);
                 if ("vulkan".equals(settings.renderer()) && !vulkanDriverPresent()) {
                   settings.set("renderer", "normal");
                   settings.save();
                   appendLog("This PC has no Vulkan driver, using the Normal renderer");
                 }
-                if (!Installer.isInstalled(root)) {
-                  Installer.install(root, this::setStatus);
+                if (!Installer.isInstalled(root, version)) {
+                  Installer.install(root, version, this::setStatus);
                 } else {
-                  Installer.syncMods(root, false, this::setStatus);
+                  Installer.syncMods(root, version, false, this::setStatus);
                 }
                 GameRunner.Identity id = new GameRunner.Identity();
                 id.name = account.name;
@@ -333,7 +335,7 @@ final class LauncherFrame extends JFrame {
   /** The texture atlas is built after the window exists, so seeing it means Vulkan started and any later failure is something else. */
   private boolean gameGotGoing() {
     try {
-      java.io.File log = new java.io.File(root, "game/logs/latest.log");
+      java.io.File log = new java.io.File(settings.version().home(root), "game/logs/latest.log");
       return log.isFile() && new String(java.nio.file.Files.readAllBytes(log.toPath()), java.nio.charset.StandardCharsets.ISO_8859_1).contains("Created: ");
     } catch (Exception unreadable) {
       return true;
@@ -341,8 +343,35 @@ final class LauncherFrame extends JFrame {
   }
 
   private static boolean vulkanDriverPresent() {
-    String windows = System.getenv("SystemRoot");
-    return windows == null || new File(windows, "System32/vulkan-1.dll").isFile();
+    if (Platform.windows()) {
+      String windows = System.getenv("SystemRoot");
+      return windows == null || new File(windows, "System32/vulkan-1.dll").isFile();
+    }
+    // the Vulkan loader, where the common distributions put it; an unknown layout is not held against the player
+    String[] folders = {"/usr/lib/x86_64-linux-gnu", "/usr/lib64", "/usr/lib", "/lib/x86_64-linux-gnu", "/lib64", "/run/opengl-driver/lib"};
+    boolean anyFolder = false;
+    for (String folder : folders) {
+      File dir = new File(folder);
+      if (!dir.isDirectory()) continue;
+      anyFolder = true;
+      if (new File(dir, "libvulkan.so.1").exists()) return true;
+    }
+    return !anyFolder;
+  }
+
+  /** 1.8.9 or 1.7.10. The other version's files stay where they are, so switching back needs no download. */
+  private void chooseVersion(GameVersion value) {
+    if (running || value == settings.version()) return;
+    // offered by the last list seen (fetched now or saved earlier), or already installed from an earlier run
+    if (!Manifests.offers(value, root) && !new File(value.home(root), "installed.json").isFile()) {
+      status = "luka for Minecraft " + value.id + " is not out yet.";
+      fraction = 0;
+      return;
+    }
+    settings.set("mcVersion", value.id);
+    settings.save();
+    status = "Minecraft " + value.id + " selected. Press PLAY to use it.";
+    fraction = 0;
   }
 
   private void chooseRenderer(String value) {
@@ -359,7 +388,7 @@ final class LauncherFrame extends JFrame {
     logArea.setText("");
     new Thread(() -> {
       try {
-        Installer.repair(root, this::setStatus);
+        Installer.repair(root, settings.version(), this::setStatus);
       } catch (Throwable t) {
         appendLog("ERROR: " + t);
         setStatus("Repair failed: " + t.getMessage(), 0);
@@ -430,7 +459,7 @@ final class LauncherFrame extends JFrame {
     String app = System.getProperty("luka.app");
     File dist = app == null ? root.getParentFile() : new File(app);
     List<String> command = new ArrayList<>();
-    command.add(new File(System.getProperty("java.home"), "bin/javaw.exe").getPath());
+    command.add(Platform.javaw(new File(System.getProperty("java.home"))).getPath());
     command.add("-Dluka.updated=1");
     command.add("-Dsun.java2d.d3d=false");
     command.add("-Dluka.home=" + root.getAbsolutePath());
@@ -706,7 +735,7 @@ final class LauncherFrame extends JFrame {
       g.drawString(title, tx, y + 35);
       g.setFont(regular.deriveFont(12f));
       fm = g.getFontMetrics();
-      String sub = "Minecraft 1.8.9  -  " + ("vulkan".equals(settings.renderer()) ? "Vulkan" : "Normal");
+      String sub = "Minecraft " + settings.version().id + "  -  " + ("vulkan".equals(settings.renderer()) ? "Vulkan" : "Normal");
       g.setColor(new Color(255, 255, 255, 170));
       g.drawString(sub, x + (w - fm.stringWidth(sub)) / 2, y + 54);
       // progress
@@ -727,25 +756,26 @@ final class LauncherFrame extends JFrame {
       }
     }
 
-    /** Normal or Vulkan. Only what the chosen one needs is downloaded, the next time Play is pressed. */
+    /** Version and renderer: Normal or Vulkan. Only what the chosen ones need is downloaded, the next time Play is pressed. */
     private void drawRenderer(Graphics2D g) {
       int x = FRIENDS_X, y = LAUNCH_Y, w = QUICK_X + QUICK_W - FRIENDS_X, h = LAUNCH_H;
       panel(g, x, y, w, h);
+      int half = (w - 32 - 16) / 2, segW = (half - 6) / 2, segY = y + 28, segH = 30;
+      int left = x + 16, right = left + half + 16;
       g.setFont(bold.deriveFont(11f));
       g.setColor(MUTED);
-      g.drawString("RENDERER", x + 16, y + 19);
+      g.drawString("VERSION", left, y + 19);
+      g.drawString("RENDERER", right, y + 19);
+      GameVersion version = settings.version();
       boolean vulkan = "vulkan".equals(settings.renderer());
-      g.setFont(regular.deriveFont(11f));
-      g.setColor(FAINT);
-      String hint = vulkan ? "Highest FPS, needs a Vulkan graphics driver" : "OpenGL, works on every PC";
-      g.drawString(hint, x + w - 16 - g.getFontMetrics().stringWidth(hint), y + 19);
-      int segX = x + 16, segY = y + 28, segW = (w - 32 - 8) / 2, segH = 30;
-      rendererButton(g, segX, segY, segW, segH, "normal", "NORMAL", !vulkan);
-      rendererButton(g, segX + segW + 8, segY, segW, segH, "vulkan", "VULKAN", vulkan);
+      segmentButton(g, left, segY, segW, segH, "1.8.9", version == GameVersion.V1_8_9, () -> chooseVersion(GameVersion.V1_8_9));
+      segmentButton(g, left + segW + 6, segY, segW, segH, "1.7.10", version == GameVersion.V1_7_10, () -> chooseVersion(GameVersion.V1_7_10));
+      segmentButton(g, right, segY, segW, segH, "NORMAL", !vulkan, () -> chooseRenderer("normal"));
+      segmentButton(g, right + segW + 6, segY, segW, segH, "VULKAN", vulkan, () -> chooseRenderer("vulkan"));
     }
 
-    private void rendererButton(Graphics2D g, int x, int y, int w, int h, String value, String label, boolean on) {
-      int id = area(x, y, w, h, () -> chooseRenderer(value));
+    private void segmentButton(Graphics2D g, int x, int y, int w, int h, String label, boolean on, Runnable action) {
+      int id = area(x, y, w, h, action);
       if (on) {
         g.setPaint(new GradientPaint(x, y, new Color(0xA45BE6), x, y + h, new Color(0x6C36A9)));
       } else {
@@ -808,7 +838,7 @@ final class LauncherFrame extends JFrame {
       g.drawString("luka", x + 40, y + 43);
       g.setFont(regular.deriveFont(11f));
       g.setColor(MUTED);
-      g.drawString("Minecraft 1.8.9  -  client " + VERSION, x + 40, y + 57);
+      g.drawString("Minecraft " + settings.version().id + "  -  client " + VERSION, x + 40, y + 57);
       g.setColor(PANEL_LINE);
       g.fillRect(x, y + 72, CENTER_W - 48, 1);
       g.setFont(regular.deriveFont(13f));
@@ -974,7 +1004,7 @@ final class LauncherFrame extends JFrame {
           g,
           "luka launcher starts the luka client for Minecraft 1.8.9 on Fabric (Ornithe). The first press of PLAY downloads Minecraft "
               + "from Mojang, Java from Adoptium, luka's mods from client.luka.wtf, and open-source parts from GitHub and Modrinth. Your game, mods "
-              + "and settings stay in your Windows user folder. Sign in with Microsoft or an offline name. luka is free software "
+              + "and settings stay in your own user folder. Sign in with Microsoft or an offline name. luka is free software "
               + "under the GPL-3.0 licence, and its source code is published with every release.",
           x + 24, y + 52, CENTER_W - 48 - 48, 20);
       g.setFont(bold.deriveFont(12f));
@@ -985,7 +1015,7 @@ final class LauncherFrame extends JFrame {
       g.setColor(new Color(0xA5A5B5));
       g.drawString(VERSION + "  (newest)", x + 140, y + 150);
       g.drawString(java.util.Locale.getDefault().toLanguageTag(), x + 140, y + 176);
-      linkButton(g, x + 430, y + 134, 240, "OPEN GAME FOLDER", () -> open(new File(root, "game")));
+      linkButton(g, x + 430, y + 134, 240, "OPEN GAME FOLDER", () -> open(new File(settings.version().home(root), "game")));
       linkButton(g, x + 430, y + 172, 240, "OPEN LAUNCHER FOLDER", () -> open(root));
       if (!Manifests.changelog().isEmpty()) linkButton(g, x + 430, y + 210, 240, "WHAT'S NEW", () -> overlay = 3);
     }
@@ -1003,10 +1033,10 @@ final class LauncherFrame extends JFrame {
       panel(g, FRIENDS_X, CENTER_Y, FRIENDS_W, CENTER_H);
       header(g, FRIENDS_X + 16, CENTER_Y + 18, "YOUR GAME");
       boolean vulkan = "vulkan".equals(settings.renderer());
-      boolean installed = new File(root, "installed.json").isFile();
+      boolean installed = new File(settings.version().home(root), "installed.json").isFile();
       sideRow(g, CENTER_Y + 62, "Renderer", vulkan ? "Vulkan" : "Normal");
       sideRow(g, CENTER_Y + 96, "Memory", String.format("%.1f GB", settings.ramMb() / 1024.0));
-      sideRow(g, CENTER_Y + 130, "Version", "1.8.9");
+      sideRow(g, CENTER_Y + 130, "Version", settings.version().id);
       sideRow(g, CENTER_Y + 164, "Status", installed ? "Installed" : "Not installed");
       g.setFont(regular.deriveFont(11f));
       g.setColor(FAINT);
@@ -1213,6 +1243,10 @@ final class LauncherFrame extends JFrame {
   }
 
   private static void loadHardware() {
+    if (!Platform.windows()) {
+      loadHardwareLinux();
+      return;
+    }
     try {
       Process p = new ProcessBuilder("reg", "query", "HKLM\\HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", "/v", "ProcessorNameString").redirectErrorStream(true).start();
       String out = readAll(p.getInputStream());
@@ -1235,6 +1269,35 @@ final class LauncherFrame extends JFrame {
       }
     } catch (Throwable ignored) {
       // no graphics line
+    }
+  }
+
+  /** Linux: the processor from /proc/cpuinfo, the graphics card from lspci when it is installed. */
+  private static void loadHardwareLinux() {
+    try {
+      for (String line : java.nio.file.Files.readAllLines(new File("/proc/cpuinfo").toPath(), java.nio.charset.StandardCharsets.UTF_8)) {
+        if (line.startsWith("model name")) {
+          int colon = line.indexOf(':');
+          if (colon > 0) hardware[0] = line.substring(colon + 1).trim().replaceAll("\\s+", " ");
+          break;
+        }
+      }
+    } catch (Throwable ignored) {
+      // the raw processor id is shown instead
+    }
+    try {
+      Process p = new ProcessBuilder("lspci").redirectErrorStream(true).start();
+      String out = readAll(p.getInputStream());
+      p.waitFor();
+      for (String line : out.split("\n")) {
+        if (!line.contains("VGA compatible controller") && !line.contains("3D controller") && !line.contains("Display controller")) continue;
+        int colon = line.indexOf(": ");
+        if (colon < 0) continue;
+        String n = line.substring(colon + 2).trim();
+        if (!n.isEmpty() && !n.toLowerCase().contains("virtual")) { hardware[1] = n; break; }
+      }
+    } catch (Throwable ignored) {
+      // lspci is not installed: no graphics line
     }
   }
 

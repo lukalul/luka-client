@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdlib>
+
 #include "core/common.h"
 #include "core/vk.h"
 #include "render/blocks.h"
@@ -79,7 +81,14 @@ namespace at {
 
     class Renderer {
     public:
-        static constexpr u32 FRAMES = 2;
+        // Frames the CPU may have recorded and not yet seen finished by the GPU. luka: three, so a fast game is not
+        // held up by the GPU finishing the frame two back (7 to 12 % more frames while flying). See
+        // LOW_DELAY_NANOS for when the third one is not used. ASTATINE_FRAMES=2 is the old behaviour.
+        static inline const u32 FRAMES = [] {
+            const char *value = std::getenv("ASTATINE_FRAMES");
+            unsigned long frames = value ? std::strtoul(value, nullptr, 10) : 3;
+            return static_cast<u32>(frames < 2 ? 2 : frames > 4 ? 4 : frames);
+        }();
         static constexpr u64 STREAM_SIZE = 32ull << 20;
         static constexpr u64 RECORDS_PER_FRAME = 1ull << 16;
         static constexpr u64 ENVIRONMENTS_PER_FRAME = 1ull << 13;
@@ -218,6 +227,12 @@ namespace at {
         }
 
         void bindFramebufferTarget(Framebuffer *framebuffer);
+        void holdSurfaceClear();
+        void restoreSurfaceClear();
+        void switchTarget(DrawTarget *next);
+        void updateDirect();
+        void directResolve();
+        void directCopyBack();
 
         void forgetBindings();
 
@@ -405,6 +420,11 @@ namespace at {
         VkDescriptorPool framePool = VK_NULL_HANDLE;
         VkDescriptorSet frameSet = VK_NULL_HANDLE;
         u32 frameIndex = 0;
+        // luka: a frame further in flight is a frame of extra delay when the GPU is the slow side. While frames take
+        // longer than this, only two are allowed in flight (the frame two back is waited for).
+        static constexpr u64 LOW_DELAY_NANOS = 1'000'000;
+        u64 lastFrameEnd = 0;
+        u64 frameNanos = 0;
         bool recording = false;
 
         struct Readback {
@@ -429,6 +449,28 @@ namespace at {
 
         bool passActive = false;
         u32 pendingClear = 0;
+        // A clear of the window that the game left behind without drawing anything (see holdSurfaceClear)
+        u32 heldClear = 0;
+        float heldClearColor[4] = {};
+        float heldClearDepth = 1.0f;
+        // Drawing the game's own full-window picture straight into the window (see updateDirect)
+        Framebuffer *direct = nullptr;
+        Framebuffer *directNext = nullptr;
+        DrawTarget *requested = nullptr;
+        u32 directHold = 0;
+        u32 frameBlits = 0;
+        // When the picture was last brought up to date from the window, and how often that happens (see blitToSurface)
+        u64 directKeptAt = 0;
+        u64 directKeepNanos = 4'000'000;
+        bool directAllowed = true;
+
+    public:
+        // Set once raw handles of a framebuffer leave the renderer: its picture can then be used behind our back
+        std::atomic<bool> directBlocked{false};
+        // Whether a frame can end up drawn straight into the window (readers of the game's picture ask this)
+        [[nodiscard]] bool directPossible() const { return directAllowed && !directBlocked.load(std::memory_order_relaxed); }
+
+    private:
         float clearColorValue[4] = {};
         float clearDepthValue = 1.0f;
 

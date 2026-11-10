@@ -1,0 +1,12 @@
+{
+  "required": false,
+  "package": "dev.customcolors.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "client": [
+    "AbstractResourcePackAccessor", "FontRendererSpaceMixin", "RenderMixin", "RenderManagerMixin", "BlockLiquidMixin", "BiomeGenSwampMixin", "BlockLilyPadMixin", "BlockOldLeafMixin", "RenderBlocksRedstoneMixin",
+    "BlockStemMixin", "EntityAuraFXMixin", "EntityDropParticleFXMixin", "EntityRainFXMixin", "EntityRendererMixin",
+    "FontRendererMixin", "ItemMonsterPlacerMixin", "MinecraftMixin", "PotionHelperAccessor", "PotionHelperMixin", "PotionMixin",
+    "RenderXPOrbMixin", "WorldMixin", "WorldProviderMixin"
+  ],
+  "injectors": { "defaultRequire": 1 }
+}

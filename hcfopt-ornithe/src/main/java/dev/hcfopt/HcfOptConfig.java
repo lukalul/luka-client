@@ -38,6 +38,9 @@ public final class HcfOptConfig {
     public double particleNearExemptionDistance = 32.0;
     public double particleMaxDistance = 96.0;
 
+    /** Fancy clouds drawn from a cached mesh instead of being tessellated every frame. */
+    public boolean cloudMeshCache = true;
+
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     static HcfOptConfig load() {

@@ -1,6 +1,7 @@
 package dev.fastpacks.mixin;
 
 import dev.fastpacks.FastPacks;
+import dev.fastpacks.pack.ExtraPacks;
 import dev.fastpacks.pack.NestedPacks;
 import java.io.File;
 import net.minecraft.client.Minecraft;
@@ -21,7 +22,10 @@ public abstract class ResourcePackEntryMixin {
     @Shadow @Final private File resourcePackFile;
 
     private String fastpacks$nestedName() {
-        return NestedPacks.nestedName(new File(Minecraft.getMinecraft().mcDataDir, "resourcepacks"), resourcePackFile);
+        File root = new File(Minecraft.getMinecraft().mcDataDir, "resourcepacks");
+        // a pack from the standard launcher's folder is known as ".minecraft/<path>"
+        String extra = ExtraPacks.nameOf(root, resourcePackFile);
+        return extra != null ? extra : NestedPacks.nestedName(root, resourcePackFile);
     }
 
     @Inject(method = "getResourcePackName", at = @At("RETURN"), cancellable = true, require = 0)

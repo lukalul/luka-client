@@ -20,7 +20,7 @@ $sources = Get-ChildItem "$here\src" -Recurse -Filter *.java | ForEach-Object Fu
 if ($LASTEXITCODE -ne 0) { throw 'compile failed' }
 Copy-Item "$here\res\*" $out -Force
 "Main-Class: dev.luka.launcher.Main`r`n" | Set-Content "$out\manifest.txt" -Encoding ascii
-& "$jdk\bin\jar.exe" cfm "$dist\luka-launcher.jar" "$out\manifest.txt" -C $out dev -C $out logo.png -C $out logo_inner.png -C $out header.png -C $out Roboto-Regular.ttf -C $out Roboto-Bold.ttf -C $out classpath.txt -C $out jvmargs.txt
+& "$jdk\bin\jar.exe" cfm "$dist\luka-launcher.jar" "$out\manifest.txt" -C $out dev -C $out logo.png -C $out logo_inner.png -C $out header.png -C $out Roboto-Regular.ttf -C $out Roboto-Bold.ttf -C $out classpath.txt -C $out jvmargs.txt -C $out classpath-1.7.10.txt -C $out jvmargs-1.7.10.txt
 if ($LASTEXITCODE -ne 0) { throw 'jar failed' }
 # Luka.exe's entry point: its own tiny jar (see Boot.java), so the launcher jar itself can be replaced by an update
 $bootDir = "$here\build-boot"
@@ -31,6 +31,10 @@ Copy-Item "$out\dev\luka\launcher\Boot.class" "$bootDir\dev\luka\launcher\" -For
 & "$jdk\bin\jar.exe" cfm "$dist\luka-boot.jar" "$bootDir\manifest.txt" -C $bootDir dev
 if ($LASTEXITCODE -ne 0) { throw 'boot jar failed' }
 Remove-Item $bootDir -Recurse -Force
+# Linux: the same two jars with luka.sh and a menu entry, as luka-launcher-linux.tar.gz (see linux\make_tar.py)
+$python = Get-Command python -ErrorAction SilentlyContinue
+if ($python) { & $python.Source -I "$here\linux\make_tar.py" $dist "$here\res\logo.png"; if ($LASTEXITCODE -ne 0) { throw 'linux package failed' } }
+else { Write-Warning 'python not found: no Linux package' }
 $batch = @'
 @echo off
 if exist "%~dp0luka-launcher.jar.new" move /Y "%~dp0luka-launcher.jar.new" "%~dp0luka-launcher.jar" >nul

@@ -68,9 +68,9 @@ def write_prism_instance(target, title, renderer, manifest_url):
             z.write(os.path.join(ROOT, "release-work", fn), "luka/" + fn)
 
 
-def java_entry():
-    """The exact Java build every launcher must use, from Eclipse Adoptium's own list."""
-    url = "https://api.adoptium.net/v3/assets/latest/25/hotspot?architecture=x64&image_type=jre&os=windows&vendor=eclipse"
+def java_entry(os_name="windows"):
+    """The exact Java build every launcher must use, from Eclipse Adoptium's own list ("java" is the Windows one)."""
+    url = "https://api.adoptium.net/v3/assets/latest/25/hotspot?architecture=x64&image_type=jre&os=" + os_name + "&vendor=eclipse"
     with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "luka-release/1.0"}), timeout=30) as r:
         asset = json.load(r)[0]
     package = asset["binary"]["package"]
@@ -182,6 +182,7 @@ def main():
         "sequence": int(time.time()),
         "changelog": read_changelog(),
         "java": java_entry(),
+        "javaByOs": {"windows-x64": java_entry("windows"), "linux-x64": java_entry("linux")},
         "launcher": {"version": VERSION, "url": site + "/luka-launcher.jar", "sha512": sha512(jar)},
         "defaults": {"url": site + "/default-config.zip", "sha512": sha512(defaults)},
         "mods": mods,

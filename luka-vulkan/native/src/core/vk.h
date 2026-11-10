@@ -82,6 +82,7 @@
     X(vkDestroyFence) \
     X(vkResetFences) \
     X(vkWaitForFences) \
+    X(vkGetFenceStatus) \
     X(vkCreateSemaphore) \
     X(vkDestroySemaphore) \
     X(vkCmdBindPipeline) \

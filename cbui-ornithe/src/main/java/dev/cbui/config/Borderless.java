@@ -121,10 +121,25 @@ public final class Borderless {
         int h = (Integer) mode.getClass().getMethod("height").invoke(mode);
         if (saved == null) saved = windowRect(glfw, window);
         attrib.invoke(null, window, 0x20005, 0); // GLFW_DECORATED
-        // 1 px taller than the monitor and shifted up 1 px. It still covers the taskbar,
-        // but is not an exact monitor match, so Windows/Discord do not treat it as exclusive fullscreen.
-        setPos.invoke(null, window, 0, -1);
-        setSize.invoke(null, window, w, h + 1);
+        if (System.getProperty("os.name", "").toLowerCase().contains("win")) {
+          // 1 px taller than the monitor and shifted up 1 px. It still covers the taskbar,
+          // but is not an exact monitor match, so Windows/Discord do not treat it as exclusive fullscreen.
+          setPos.invoke(null, window, 0, -1);
+          setSize.invoke(null, window, w, h + 1);
+        } else {
+          // Linux has no exclusive fullscreen to avoid: cover the monitor exactly (on Wayland the position is
+          // left to the compositor and only the size applies)
+          // left to the compositor and only the size applies). The primary monitor need not start at 0,0.
+          int[] mx = new int[1], my = new int[1];
+          try {
+            glfw.getMethod("glfwGetMonitorPos", long.class, int[].class, int[].class).invoke(null, monitor, mx, my);
+          } catch (Throwable ignored) {
+            mx[0] = 0;
+            my[0] = 0;
+          }
+          setPos.invoke(null, window, mx[0], my[0]);
+          setSize.invoke(null, window, w, h);
+        }
       } else {
         attrib.invoke(null, window, 0x20005, 1);
         int[] r = saved != null ? saved : new int[] {100, 100, 1280, 720};

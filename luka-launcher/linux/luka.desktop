@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=luka
+Comment=luka client for Minecraft
+Exec="@APP@/luka.sh"
+Icon=@APP@/luka.png
+Terminal=false
+Categories=Game;
+StartupWMClass=dev-luka-launcher-Boot

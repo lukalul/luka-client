@@ -1,0 +1,88 @@
+plugins {
+    id 'fabric-loom' version "${loom_version}"
+    id 'ploceus' version "${loom_version}"
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+ploceus {
+    setGeneration(2)
+    disableLibraryUpgrades()
+}
+
+repositories {
+    maven {
+        url = layout.projectDirectory.dir('local-maven')
+        metadataSources { artifact() }
+    }
+    mavenCentral()
+    maven { url = 'https://maven.ornithemc.net/releases' }
+    maven { url = 'https://maven.ornithemc.net/snapshots' }
+}
+
+configurations.configureEach {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'org.lwjgl.lwjgl' &&
+                details.requested.version == '2.9.4+legacyfabric.15') {
+            details.useVersion '2.9.3'
+            details.because 'Use the Maven Central LWJGL 2 build; MotionBlur must not require legacy-lwjgl3'
+        }
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    // Keep the working Forge implementation's MCP source names while Ploceus remaps the
+    // output through Calamus gen2. See PORTING_NOTES.md.
+    mappings ploceus.mcpMappings('stable', project.minecraft_version, '12')
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    compileOnly files(fileTree('libs-compile') { include '*.jar' })
+}
+
+// config-impl references these OneConfig UI types, but the deliberately minimal
+// libs-compile set does not ship the UI jar. Compile signatures live in a separate
+// source set and are never included in the mod jar.
+sourceSets {
+    oneconfigStubs
+    main.compileClasspath += oneconfigStubs.output
+}
+
+tasks.named('compileJava') {
+    dependsOn tasks.named('compileOneconfigStubsJava')
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') {
+        expand 'version': project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 8
+    options.compilerArgs += ['-Xmaxerrs', '100000']
+}
+
+java {
+    withSourcesJar()
+}
+
+tasks.register('plainJavaChecks', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.motionblur.MotionBlurChecks'
+}
+
+tasks.named('check') {
+    dependsOn plainJavaChecks
+}
+
+tasks.named('test') {
+    failOnNoDiscoveredTests = false
+}

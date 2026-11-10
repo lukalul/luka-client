@@ -164,6 +164,9 @@ object Native {
     external fun framebufferBlit(framebuffer: Long, width: Int, height: Int): Boolean
 
     @JvmStatic
+    external fun directPossible(): Boolean
+
+    @JvmStatic
     external fun framebufferTexture(framebuffer: Long): Long
 
     @JvmStatic

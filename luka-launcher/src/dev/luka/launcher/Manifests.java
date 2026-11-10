@@ -12,8 +12,10 @@ import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** Opens the signed update list. A list that was changed, unsigned, or older than one already seen is refused. */
 final class Manifests {
@@ -21,6 +23,7 @@ final class Manifests {
   private static final String PUBLIC_KEY = "MCowBQYDK2VwAyEAHPyd06dCDCobjc1fNfbHnunJtLszznHCY+fi7PJu18o=";
 
   private static volatile List<List<String>> changelog = Collections.emptyList();
+  private static volatile Set<String> versions = Collections.emptySet();
 
   private Manifests() {}
 
@@ -34,7 +37,33 @@ final class Manifests {
       if (sequence(body) < known) throw new IOException("The update list is older than the one this launcher already has");
     }
     readChangelog(body);
+    readVersions(body);
     return body;
+  }
+
+  /** True when the last accepted list has mods for this Minecraft version (1.8.9 always does). */
+  static boolean offers(GameVersion v) { return v.primary() || versions.contains(v.id); }
+
+  /**
+   * The same, also when no list was fetched this run (offline, or updates off): then the copy saved by the last
+   * successful check ({@code <root>/manifest.json}, signature checked again) answers.
+   */
+  static boolean offers(GameVersion v, File root) {
+    if (offers(v)) return true;
+    File cached = new File(root, "manifest.json");
+    if (!cached.isFile()) return false;
+    try {
+      readVersions(verify(new String(Files.readAllBytes(cached.toPath()), StandardCharsets.UTF_8)));
+    } catch (IOException unreadable) {
+      return false;
+    }
+    return offers(v);
+  }
+
+  private static void readVersions(String body) throws IOException {
+    Set<String> out = new HashSet<String>();
+    out.addAll(map(map(Installer.Json.parse(body)).get("versions")).keySet());
+    versions = out;
   }
 
   /** Newest release first; each entry is the version followed by its notes. */

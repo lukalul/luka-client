@@ -164,7 +164,7 @@ public abstract class WorldRendererMixin {
 	 */
 	@Overwrite
 	private void markDirty(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
-		Native.terrainMarkDirty(minX, minY, minZ, maxX, maxY, maxZ, false);
+		TerrainRenderer.markDirty(minX, minY, minZ, maxX, maxY, maxZ, false);
 	}
 
 	/**
@@ -176,7 +176,7 @@ public abstract class WorldRendererMixin {
 		int x = pos.getX();
 		int y = pos.getY();
 		int z = pos.getZ();
-		Native.terrainMarkDirty(x - 1, y - 1, z - 1, x + 1, y + 1, z + 1, true);
+		TerrainRenderer.markDirty(x - 1, y - 1, z - 1, x + 1, y + 1, z + 1, true);
 		TerrainRenderer.markImportant(x, y, z);
 	}
 

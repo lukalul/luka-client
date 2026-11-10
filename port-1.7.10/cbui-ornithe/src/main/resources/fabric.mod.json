@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "cbui",
+  "version": "${version}",
+  "name": "luka",
+  "description": "luka: a private, cosmetic-free client UI for Ornithe 1.7.10.",
+  "authors": [
+    "luka client"
+  ],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.cbui.Cbui"
+    ]
+  },
+  "mixins": [
+    "cbui.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.20.1",
+    "minecraft": "1.7.10"
+  },
+  "license": "GPL-3.0-or-later",
+  "icon": "assets/cbui/icon.png"
+}

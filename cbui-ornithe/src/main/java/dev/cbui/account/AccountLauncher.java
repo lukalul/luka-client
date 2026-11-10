@@ -18,6 +18,9 @@ public final class AccountLauncher {
 
   /** The launcher jar: the one this game was started from, else the default install. Null when there is none. */
   public static File jar() {
+    // the launcher names itself when it starts the game (any version, any system)
+    String given = System.getProperty("luka.launcher");
+    if (given != null && new File(given).isFile()) return new File(given);
     File gameDir = Minecraft.getMinecraft().mcDataDir.getAbsoluteFile();
     // started by the launcher: game folder is <dist>/luka/game
     File fromLauncher = new File(gameDir.getParentFile() == null || gameDir.getParentFile().getParentFile() == null
@@ -45,10 +48,19 @@ public final class AccountLauncher {
     status = "Waiting for the launcher...";
     Thread thread = new Thread(() -> {
       try {
-        File java = new File(System.getProperty("java.home"), "bin" + File.separator + "javaw.exe");
-        String exe = java.isFile() ? java.getPath() : "javaw";
-        Process process = new ProcessBuilder(exe, "-Djava.awt.headless=false", "-jar", jar.getPath(), "--accounts")
-            .directory(jar.getParentFile()).redirectErrorStream(true).start();
+        boolean windows = System.getProperty("os.name", "").toLowerCase().contains("win");
+        File java = new File(System.getProperty("java.home"), "bin" + File.separator + (windows ? "javaw.exe" : "java"));
+        String exe = java.isFile() ? java.getPath() : (windows ? "javaw" : "java");
+        java.util.List<String> command = new java.util.ArrayList<>();
+        command.add(exe);
+        command.add("-Djava.awt.headless=false");
+        // the launcher's own folder, so it opens the same accounts and settings it started the game with
+        String home = System.getProperty("luka.home");
+        if (home != null && !home.isEmpty()) command.add("-Dluka.home=" + home);
+        command.add("-jar");
+        command.add(jar.getPath());
+        command.add("--accounts");
+        Process process = new ProcessBuilder(command).directory(jar.getParentFile()).redirectErrorStream(true).start();
         process.getInputStream().close();
         process.waitFor();
         applyChoice();

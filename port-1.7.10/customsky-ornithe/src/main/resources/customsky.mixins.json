@@ -1,0 +1,7 @@
+{
+  "required": false,
+  "package": "dev.customsky.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "client": ["MinecraftMixin", "RenderGlobalMixin"],
+  "injectors": { "defaultRequire": 1 }
+}

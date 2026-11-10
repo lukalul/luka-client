@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "motionblur",
+  "version": "${version}",
+  "name": "Motion Blur",
+  "description": "A tiny frame-rate-independent phosphor-style motion blur for Ornithe 1.7.10.",
+  "authors": [
+    "luka contributors",
+    "smoothing adapted from framejob by Z1xus (MIT)"
+  ],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.motionblur.MotionBlur"
+    ]
+  },
+  "mixins": [
+    "motionblur.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.20.1",
+    "minecraft": "1.7.10"
+  },
+  "license": "GPL-3.0-or-later",
+  "icon": "assets/motionblur/icon.png"
+}

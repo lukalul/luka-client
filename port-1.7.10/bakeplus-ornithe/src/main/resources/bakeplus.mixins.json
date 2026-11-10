@@ -1,0 +1,14 @@
+{
+  "required": false,
+  "package": "dev.bakeplus.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "client": [
+    "TileEntityEndPortalRendererMixin",
+    "TileEntityBeaconRendererMixin",
+    "TileEntityEnchantmentTableRendererMixin",
+    "TileEntityMobSpawnerRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

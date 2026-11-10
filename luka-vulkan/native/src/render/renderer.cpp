@@ -70,9 +70,11 @@ namespace at {
     static std::unique_ptr<Presenter> createPresenter(const Device &device, VkSurfaceKHR surface,
                                                       const WindowSystem &system) {
 #ifdef _WIN32
-        // The plain Vulkan swapchain is the default: the DXGI path (render in Vulkan, hand the image to D3D12 through
-        // shared fences, copy, present, wait on the frame-latency object) costs a fixed ~0.8 ms per frame, which capped
-        // the game at ~1,250 FPS on an RTX 3070. ASTATINE_PRESENTER=dxgi brings the DXGI path back.
+        // The plain Vulkan swapchain is the default. ASTATINE_PRESENTER=dxgi presents through a DXGI flip swapchain
+        // instead, which is what Windows needs to give a borderless window its own overlay plane. That path used to
+        // copy every frame and cost a fixed ~0.8 ms (a cap of ~1,250 FPS on an RTX 3070). It now draws straight into
+        // the back buffers and presents on its own thread; what is left is the DXGI Present call itself (~0.27 ms on
+        // that thread), a cap of ~2,900 FPS against ~5,000 for the plain swapchain on the same scene.
         const char *presenterChoice = std::getenv("ASTATINE_PRESENTER");
         bool useDxgi = presenterChoice && std::strcmp(presenterChoice, "dxgi") == 0;
         if (useDxgi && device.interop && system.nativeWindow) {
@@ -140,6 +142,12 @@ namespace at {
         surface = std::make_unique<SurfaceTarget>(device, *context.allocator, system.window, system.windowSize,
                                                   *surfacePass, *presenter);
         target = surface.get();
+        requested = target;
+        const char *directChoice = std::getenv("ASTATINE_DIRECT");
+        directAllowed = !directChoice || std::strcmp(directChoice, "0") != 0;
+        if (const char *keep = std::getenv("ASTATINE_DIRECT_KEEP_MS")) {
+            directKeepNanos = static_cast<u64>(std::strtoull(keep, nullptr, 10)) * 1'000'000;
+        }
         RenderPassType *passes[3] = {offscreenDepthPass.get(), offscreenColorPass.get(), surfacePass.get()};
         context.pipelines->prewarm(layouts, passes);
         createFrameSet();
@@ -223,12 +231,106 @@ namespace at {
         pendingDepth.push_back(image);
     }
 
+    // The game clears the window at the start of every frame, then draws the whole frame into its own picture and
+    // copies that over the window. Starting a pass only to clear the window cost a full-screen colour and depth
+    // clear per frame for nothing, so a clear that nothing was drawn after is held back until the window is bound
+    // again, and dropped when the copy replaces the window anyway.
+    void Renderer::holdSurfaceClear() {
+        if (target != surface.get() || passActive || externalPass || pendingClear == 0 || !surface->blitTarget()) return;
+        heldClear |= pendingClear;
+        std::memcpy(heldClearColor, clearColorValue, sizeof(heldClearColor));
+        heldClearDepth = clearDepthValue;
+        pendingClear = 0;
+    }
+
+    void Renderer::restoreSurfaceClear() {
+        if (target != surface.get() || heldClear == 0) return;
+        pendingClear |= heldClear;
+        std::memcpy(clearColorValue, heldClearColor, sizeof(heldClearColor));
+        clearDepthValue = heldClearDepth;
+        heldClear = 0;
+    }
+
     void Renderer::bindTarget(DrawTarget *next) {
+        requested = next;
+        switchTarget(next == direct ? surface.get() : next);
+    }
+
+    // The game draws every frame into its own picture and then copies that over the whole window. At a few
+    // thousand frames a second that copy is a sixth of the GPU's frame, so while the picture is the size of the
+    // window and nobody reads it, the game's drawing goes straight into the window and the copy is dropped.
+    // Decided once per frame, here, from what the frame that just ended did.
+    void Renderer::updateDirect() {
+        Framebuffer *next = directNext;
+        directNext = nullptr;
+        // More than one full-window copy in a frame means the pictures are layered: keep copying then
+        if (frameBlits != 1) next = nullptr;
+        frameBlits = 0;
+        if (directHold) {
+            directHold--;
+            next = nullptr;
+        }
+        if (!directAllowed || externalPass || directBlocked.load(std::memory_order_relaxed)) next = nullptr;
+        if (next && (next->width() != surface->width() || next->height() != surface->height())) next = nullptr;
+        // A picture that is still bound as a texture can be sampled without being bound again
+        for (int unit = 0; next && unit < RenderState::UNITS; unit++) {
+            if (state.boundTexture(unit) == &next->texture) next = nullptr;
+        }
+        if (next == direct) return;
+        direct = next;
+        DrawTarget *wanted = requested == direct ? surface.get() : requested;
+        if (wanted != target) {
+            target = wanted;
+            state.dirty |= RenderState::VIEWPORT | RenderState::ENVIRONMENT;
+        }
+    }
+
+    // Something is about to read the picture that is being drawn straight into the window. Copy what the window
+    // holds so far into it, and go back to copying for a while: readers tend to come every frame.
+    void Renderer::directResolve() {
+        directHold = 240;
+        directCopyBack();
+    }
+
+    // Copies what the window holds so far into the picture that is drawn straight into it. Only possible while
+    // the frame is being drawn: between frames the window's image belongs to the screen.
+    void Renderer::directCopyBack() {
+        if (!direct || !direct->color) return;
+        ensureRecording();
+        endPass();
+        if (surface->imageIndex < 0) return;
+        // a mid-frame resize: the picture still has the old size and the copy would run past its edge. Skip it; the
+        // next frame's updateDirect drops direct drawing for a picture that does not match the window.
+        if (direct->width() != surface->width() || direct->height() != surface->height()) return;
+        VkImage source = surface->image();
+        VkImage image = direct->color->handle;
+        auto width = static_cast<i32>(surface->width()), height = static_cast<i32>(surface->height());
+        imageBarrier(main, source, VK_IMAGE_ASPECT_COLOR_BIT, 1, surface->layout(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        imageBarrier(main, image, VK_IMAGE_ASPECT_COLOR_BIT, 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        VkImageBlit region{};
+        region.srcSubresource = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .mipLevel = 0, .baseArrayLayer = 0, .layerCount = 1};
+        region.srcOffsets[0] = {.x = 0, .y = height, .z = 0};
+        region.srcOffsets[1] = {.x = width, .y = 0, .z = 1};
+        region.dstSubresource = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .mipLevel = 0, .baseArrayLayer = 0, .layerCount = 1};
+        region.dstOffsets[0] = {.x = 0, .y = 0, .z = 0};
+        region.dstOffsets[1] = {.x = width, .y = height, .z = 1};
+        vkCmdBlitImage(main, source, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                       &region, VK_FILTER_NEAREST);
+        imageBarrier(main, source, VK_IMAGE_ASPECT_COLOR_BIT, 1, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, surface->layout());
+        imageBarrier(main, image, VK_IMAGE_ASPECT_COLOR_BIT, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        directKeptAt = prof::now();
+    }
+
+    void Renderer::switchTarget(DrawTarget *next) {
         if (next == target) return;
         ensureRecording();
+        holdSurfaceClear();
         endPass();
         if (next->pass.flipY() != target->pass.flipY()) state.dirty |= RenderState::ENVIRONMENT;
         target = next;
+        restoreSurfaceClear();
         state.dirty |= RenderState::VIEWPORT;
     }
 
@@ -246,6 +348,9 @@ namespace at {
     }
 
     void Renderer::releaseFramebuffer(Framebuffer *framebuffer) {
+        if (direct == framebuffer) direct = nullptr;
+        if (directNext == framebuffer) directNext = nullptr;
+        if (requested == framebuffer) requested = target;
         if (target == framebuffer) {
             endPass();
             pendingClear = 0;
@@ -591,6 +696,7 @@ namespace at {
     void Renderer::read(const Texture *texture, u8 *destination) {
         GpuImage *image = texture->image;
         if (!image) return;
+        if (direct && texture == &direct->texture) directResolve();
         Context &context = *contextValue;
         u64 bytes = static_cast<u64>(image->width) * image->height * 4;
         GpuBuffer readback(*context.device, *context.allocator, bytes, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -621,6 +727,7 @@ namespace at {
     void Renderer::recordReadback(u64 ticket, const Texture *texture, i32 x, i32 y, i32 width, i32 height) {
         Readback &slot = readbacks[ticket % READBACK_SLOTS];
         slot.ticket = 0;
+        if (direct && texture == &direct->texture) directResolve();
         GpuImage *image = texture->image;
         if (!image || image->format == VK_FORMAT_R16G16B16A16_SFLOAT) return;
         i32 left = clamp(x, 0, static_cast<i32>(image->width));
@@ -727,8 +834,21 @@ namespace at {
     }
 
     bool Renderer::blitToSurface(Framebuffer *source, u32 width, u32 height) {
+        frameBlits++;
+        if (source && source == direct) {
+            // Already drawn into the window
+            directNext = source;
+            // A reader that comes between frames (a one-shot screenshot, a test tool) cannot get the window back:
+            // its image already belongs to the screen. So the picture is brought up to date at the end of a frame
+            // whenever it is older than ASTATINE_DIRECT_KEEP_MS (4 ms by default). Below 250 FPS that is every
+            // frame; at thousands of frames a second it is one frame in many and costs little.
+            if (prof::now() - directKeptAt >= directKeepNanos) directCopyBack();
+            return true;
+        }
         if (target != surface.get() || !source || !source->color || !surface->blitTarget()) return false;
         ensureRecording();
+        // The copy replaces the whole window, so a colour clear that is still waiting has nothing left to clear
+        if (!passActive && !externalPass) pendingClear &= ~CLEAR_COLOR;
         endPass();
         if (!surface->acquireImage()) return true;
         width = surface->width();
@@ -755,6 +875,7 @@ namespace at {
         imageBarrier(main, destination, VK_IMAGE_ASPECT_COLOR_BIT, 1, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                      surface->layout());
         surface->markWritten();
+        if (!scaled && surface->readSource() && &source->pass == offscreenDepthPass.get()) directNext = source;
         return true;
     }
 
@@ -783,6 +904,9 @@ namespace at {
 
     void Renderer::present() {
         ensureRecording();
+        // The window's depth does not live past the frame, so clearing it now would be a pass for nothing
+        if (target == surface.get() && !passActive && !externalPass) pendingClear &= ~CLEAR_DEPTH;
+        heldClear = 0;
         endPass();
         bool acquired = surface->imageIndex >= 0;
         SubmitSync sync;
@@ -793,7 +917,11 @@ namespace at {
             surface->present();
         }
         surface->endFrame();
+        updateDirect();
         frameIndex = (frameIndex + 1) % FRAMES;
+        const u64 ended = prof::now();
+        if (lastFrameEnd) frameNanos = (frameNanos * 7 + (ended - lastFrameEnd)) / 8;
+        lastFrameEnd = ended;
     }
 
     void Renderer::flush() {
@@ -834,6 +962,13 @@ namespace at {
         {
             prof::Scope timed(prof::FENCE_WAIT);
             frame->await();
+            // luka: slow frames keep the old two-in-flight pacing (see LOW_DELAY_NANOS). The slots after this one
+            // hold the frames three back, two back, ... one back; all but the newest are waited for.
+            if (frameNanos > LOW_DELAY_NANOS)
+                for (u32 ahead = 1; ahead + 1 < FRAMES; ahead++)
+                    check(vkWaitForFences(contextValue->device->handle, 1,
+                                          &frames[(frameIndex + ahead) % FRAMES]->fence, VK_TRUE, ~0ull),
+                          "vkWaitForFences");
         }
         frame->reset();
         stream->begin(frameIndex);
@@ -1121,8 +1256,10 @@ namespace at {
     void Renderer::bindFramebufferTarget(Framebuffer *framebuffer) {
         DrawTarget *next = framebuffer ? static_cast<DrawTarget *>(framebuffer) : surface.get();
         if (next == target) return;
+        holdSurfaceClear();
         endPass();
         target = next;
+        restoreSurfaceClear();
         state.dirty |= RenderState::VIEWPORT | RenderState::ENVIRONMENT;
     }
 

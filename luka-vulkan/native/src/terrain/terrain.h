@@ -96,7 +96,6 @@ namespace at {
             std::unique_ptr<OpaqueMask> opaque;
             SectionLayer layers[LAYERS];
             u32 frame = 0;
-            u32 drawnFrame = 0;
             u64 dirtySequence = 0;
         };
 
@@ -192,7 +191,13 @@ namespace at {
 
             const std::vector<u32> *candidates(i32 originX, i32 originY, i32 originZ) const;
 
-            void releaseGeometry(Section &section) const;
+            void releaseGeometry(Section &section);
+
+            void refresh(const Section &section);
+
+            void forget(u32 layerIndex, u32 buffer, u32 first, u32 slot);
+
+            void settle(u32 layerIndex);
 
             bool frustumVisible(const Section &section) const;
 
@@ -266,7 +271,7 @@ namespace at {
             float planes[6][4] = {};
             u32 frame = 0;
 
-            std::vector<Section *> visible;
+            std::vector<Section *> visible; // no longer filled; visibleSlots is the list
             std::vector<Section *> layerVisible[LAYERS];
             std::vector<Section *> shadowLayers[LAYERS];
             bool shadowView = false;
@@ -286,6 +291,35 @@ namespace at {
             };
             static constexpr u32 BRIDGE_VERTICES = 1024;
             std::vector<DrawRange> drawRanges;
+
+            // What the per-frame passes read about a section, kept apart from Section so those passes stay in cache.
+            struct Hot {
+                i32 x = 0, z = 0;
+                u32 drawnFrame = 0; // the setup pass (Terrain::frame) that last found this section visible
+                u8 y = 0;
+                u8 valid = 0;
+                u8 layers = 0; // bit per layer that has vertices
+                u8 pending = 0; // dirty and not being built: the scheduler should take it
+            };
+
+            // One opaque layer of one section, in vertex buffer order, so draws come out already sorted.
+            struct Ordered {
+                u32 buffer;
+                u32 first;
+                u32 slot; // DEAD once the geometry was released
+                u32 quads[BUCKETS];
+            };
+
+            static constexpr u32 DEAD = ~0u;
+            static constexpr std::size_t SETTLE_TAIL = 48;
+            static constexpr u32 SETTLE_DEAD = 256;
+            std::vector<Hot> hot;
+            std::vector<u32> visibleSlots;
+            std::vector<Ordered> ordered[LAYERS]; // sorted up to orderedSorted, then recent uploads in any order
+            std::vector<Ordered> orderedScratch;
+            std::size_t orderedSorted[LAYERS] = {};
+            u32 orderedDead[LAYERS] = {};
+            bool scheduleStale = true;
             std::atomic<i32> buildSize{0};
             const std::vector<u32> *activeList = nullptr;
             float lastClip[16] = {};

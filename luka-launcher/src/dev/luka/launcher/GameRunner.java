@@ -30,9 +30,6 @@ import java.util.zip.ZipInputStream;
  */
 final class GameRunner {
   static final String MAIN_CLASS = "net.fabricmc.loader.impl.launch.knot.KnotClient";
-  private static final String ASSET_INDEX = "1.8";
-  private static final String ASSET_INDEX_URL =
-      "https://piston-meta.mojang.com/v1/packages/f6ad102bcaa53b1a58358f16e376d548d44933ec/1.8.json";
   private static final Pattern ASSET_ENTRY = Pattern.compile("\"([^\"]+)\"\\s*:\\s*\\{\\s*\"hash\"\\s*:\\s*\"([0-9a-f]{40})\"");
 
   /** The identity the game starts with. */
@@ -42,6 +39,8 @@ final class GameRunner {
   }
 
   private final File root; // the luka folder next to the launcher
+  private final GameVersion version;
+  private final File home; // this version's own files (the luka folder itself for 1.8.9)
   private Identity identity;
   private final Settings settings;
   private final Consumer<String> log;
@@ -56,19 +55,21 @@ final class GameRunner {
     this.root = root;
     this.identity = identity;
     this.settings = settings;
+    this.version = settings.version();
+    this.home = version.home(root);
     this.log = log;
     this.progress = progress;
   }
 
   File gameDir() {
-    return new File(root, "game");
+    return new File(home, "game");
   }
 
   boolean isGameRunning() { return process != null && process.isAlive(); }
 
   /** Runs the whole sequence and waits for the game to close. Returns the game's exit code. */
   int play() throws Exception {
-    File libs = new File(root, "libs");
+    File libs = new File(home, "libs");
     if (!libs.isDirectory()) throw new IOException("Missing the game files (" + libs + "). Run build-launcher.ps1 first.");
     progress.update("Checking game files", 0.02);
     File assets = new File(root, "assets");
@@ -95,15 +96,24 @@ final class GameRunner {
   private List<String> command(File libs, File assets, File natives) throws Exception {
     List<String> command = new ArrayList<>();
     command.add(javaExecutable());
-    for (String arg : lines(new File(root, "jvmargs.txt"))) command.add(arg);
+    for (String arg : lines(new File(home, "jvmargs.txt"))) {
+      // the Windows toolkit package only exists on Windows; opening it elsewhere only prints a warning
+      if (!Platform.windows() && arg.contains("sun.awt.windows")) continue;
+      command.add(arg);
+    }
     int ram = Math.max(1024, settings.ramMb());
     command.add("-Xms" + ram + "m");
     command.add("-Xmx" + ram + "m");
     command.add("-Djava.library.path=" + natives.getAbsolutePath());
-    File renderer = new File(root, "renderers/" + settings.renderer());
+    // where the game's account screen finds this launcher, its home folder and the shared account list
+    File launcherJar = Main.launcherJar();
+    if (launcherJar != null) command.add("-Dluka.launcher=" + launcherJar.getAbsolutePath());
+    command.add("-Dluka.home=" + root.getAbsolutePath());
+    command.add("-Dluka.accounts=" + new File(root, "accounts.properties").getAbsolutePath());
+    File renderer = new File(home, "renderers/" + settings.renderer());
     if (renderer.isDirectory()) command.add("-Dfabric.addMods=" + renderer.getAbsolutePath());
     StringBuilder classpath = new StringBuilder();
-    for (String entry : lines(new File(root, "classpath.txt"))) {
+    for (String entry : lines(new File(home, "classpath.txt"))) {
       if (classpath.length() > 0) classpath.append(File.pathSeparatorChar);
       classpath.append(new File(libs, entry).getAbsolutePath());
     }
@@ -119,7 +129,7 @@ final class GameRunner {
     command.add("--assetsDir");
     command.add(assets.getAbsolutePath());
     command.add("--assetIndex");
-    command.add(ASSET_INDEX);
+    command.add(version.assetIndex);
     command.add("--uuid");
     command.add(identity.uuid);
     command.add("--accessToken");
@@ -162,9 +172,9 @@ final class GameRunner {
 
   /** Unpacks the platform libraries of natives/*.jar into a fresh folder. */
   private File unpackNatives() throws IOException {
-    File target = new File(root, "natives-unpacked");
+    File target = new File(home, "natives-unpacked");
     target.mkdirs();
-    File[] jars = new File(root, "natives").listFiles();
+    File[] jars = new File(home, "natives").listFiles();
     if (jars == null) return target;
     for (File jar : jars) {
       if (!jar.getName().endsWith(".jar")) continue;
@@ -189,10 +199,10 @@ final class GameRunner {
   // ---- Minecraft assets (sounds, language files) ----
 
   private void ensureAssets(File assets) throws Exception {
-    File index = new File(assets, "indexes/" + ASSET_INDEX + ".json");
+    File index = new File(assets, "indexes/" + version.assetIndex + ".json");
     if (!index.isFile()) {
       progress.update("Downloading asset index", 0.03);
-      download(ASSET_INDEX_URL, index);
+      download(version.assetIndexUrl, index);
     }
     String json = new String(Files.readAllBytes(index.toPath()), StandardCharsets.UTF_8);
     List<String> hashes = new ArrayList<>();

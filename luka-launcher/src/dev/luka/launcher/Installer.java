@@ -22,68 +22,90 @@ public final class Installer {
   private static final String[] REPOS = {"https://libraries.minecraft.net/", "https://maven.fabricmc.net/",
       "https://maven.ornithemc.net/releases/", "https://maven.legacyfabric.net/releases/",
       "https://maven.legacyfabric.net/", "https://repo1.maven.org/maven2/"};
-  private static final String CLIENT = "com/mojang/minecraft/1.8.9/minecraft-1.8.9-client.jar";
-  private static final String TEMURIN = "https://api.adoptium.net/v3/assets/latest/25/hotspot?architecture=x64&image_type=jre&os=windows&vendor=eclipse";
+  private static String temurin() {
+    return "https://api.adoptium.net/v3/assets/latest/25/hotspot?architecture=x64&image_type=jre&os=" + Platform.vendorOs() + "&vendor=eclipse";
+  }
   // Adoptium's files live on GitHub, so when GitHub is down the first run needs Java from somewhere else
-  private static final String CORRETTO = "https://corretto.aws/downloads/latest/amazon-corretto-25-x64-windows-jdk.zip";
-  private static final String CORRETTO_SHA256 = "https://corretto.aws/downloads/latest_sha256/amazon-corretto-25-x64-windows-jdk.zip";
+  private static String correttoFile() { return "amazon-corretto-25-x64-" + Platform.vendorOs() + "-jdk." + Platform.runtimeArchive(); }
+  private static String corretto() { return "https://corretto.aws/downloads/latest/" + correttoFile(); }
+  private static String correttoSha256() { return "https://corretto.aws/downloads/latest_sha256/" + correttoFile(); }
   private static final int ATTEMPTS = 4;
   private static final Pattern JAVA_VERSION = Pattern.compile("(?:openjdk|java) version \\\"([^\\\"]+)\\\"");
-  private static final String[] NATIVES = {
-      "org/lwjgl/lwjgl/lwjgl-platform/2.9.4+legacyfabric.15/lwjgl-platform-2.9.4+legacyfabric.15-natives-windows.jar",
-      "net/java/jinput/jinput-platform/2.0.5/jinput-platform-2.0.5-natives-windows.jar"};
+  /** LWJGL 2's and jinput's native libraries for this system. */
+  static String[] natives() {
+    String c = Platform.nativesClassifier();
+    return new String[] {
+        "org/lwjgl/lwjgl/lwjgl-platform/2.9.4+legacyfabric.15/lwjgl-platform-2.9.4+legacyfabric.15-" + c + ".jar",
+        "net/java/jinput/jinput-platform/2.0.5/jinput-platform-2.0.5-" + c + ".jar"};
+  }
 
   public interface Progress { void update(String status, double fraction); }
   private Installer() {}
 
-  public static void install(File root, Progress progress) throws Exception { install(root, progress, false); }
+  public static void install(File root, Progress progress) throws Exception { install(root, GameVersion.V1_8_9, progress, false); }
+  public static void install(File root, GameVersion v, Progress progress) throws Exception { install(root, v, progress, false); }
   /** Repair performs the same installation but hashes every file for which an authoritative hash is available. */
-  public static void repair(File root, Progress progress) throws Exception { install(root, progress, true); }
+  public static void repair(File root, Progress progress) throws Exception { install(root, GameVersion.V1_8_9, progress, true); }
+  public static void repair(File root, GameVersion v, Progress progress) throws Exception { install(root, v, progress, true); }
 
-  private static void install(File root, Progress p, boolean repair) throws Exception {
+  private static void install(File root, GameVersion v, Progress p, boolean repair) throws Exception {
+    File home = v.home(root);
     root.mkdirs();
+    home.mkdirs();
     ensureRuntime(root, p);
-    ensureClasspath(root);
-    ensureOptionalResource(root, "jvmargs.txt");
-    p.update(repair ? "Repairing Minecraft 1.8.9 and mods" : "Installing Minecraft 1.8.9 and mods (first run only)", .01);
-    Map<String,Object> version = versionJson();
+    // a version the update list has no mods for would be a plain game: say so before downloading it
+    if (!v.primary()) section(manifest(root), v);
+    ensureClasspath(root, v);
+    ensureOptionalResource(home, "jvmargs.txt", v.jvmargsResource);
+    p.update(repair ? "Repairing Minecraft " + v.id + " and mods" : "Installing Minecraft " + v.id + " and mods (first run only)", .01);
+    Map<String,Object> version = versionJson(v.id);
     Map<String,String> known = new HashMap<String,String>();
     List<Job> jobs = new ArrayList<Job>();
     Map<String,Object> downloads = obj(version.get("downloads"));
     Map<String,Object> client = obj(downloads.get("client"));
-    jobs.add(new Job(str(client.get("url")), new File(root, "libs/" + CLIENT), str(client.get("sha1")), true));
-    known.put(CLIENT, str(client.get("sha1")));
+    jobs.add(new Job(str(client.get("url")), new File(home, "libs/" + v.clientPath()), str(client.get("sha1")), true));
+    known.put(v.clientPath(), str(client.get("sha1")));
     // only the libraries this client actually runs with (classpath.txt): Mojang's version json also lists its own LWJGL, which Legacy Fabric's replaces
-    final Set<String> wanted = new HashSet<String>(lines(new File(root, "classpath.txt")));
+    final Set<String> wanted = new HashSet<String>(lines(new File(home, "classpath.txt")));
     for (Object value : arr(version.get("libraries"))) {
       Map<String,Object> lib = obj(value);
       if (!applies(arr(lib.get("rules")))) continue;
       Map<String,Object> d = obj(lib.get("downloads"));
       Map<String,Object> artifact = obj(d.get("artifact"));
-      if (wanted.contains(str(artifact.get("path")))) addArtifact(jobs, known, root, artifact);
+      if (wanted.contains(str(artifact.get("path")))) addArtifact(jobs, known, home, artifact);
     }
     final Set<String> paths = new HashSet<String>();
-    for (Job j : jobs) paths.add(relative(new File(root, "libs"), j.file));
-    for (String entry : lines(new File(root, "classpath.txt"))) {
-      if (!paths.contains(entry)) jobs.add(new Job(null, new File(root, "libs/" + entry), null, true, entry));
+    for (Job j : jobs) paths.add(relative(new File(home, "libs"), j.file));
+    for (String entry : lines(new File(home, "classpath.txt"))) {
+      if (!paths.contains(entry)) jobs.add(new Job(null, new File(home, "libs/" + entry), null, true, entry));
     }
     runJobs(jobs, repair, p, .03, .62, "Downloading libraries");
-    downloadNatives(root, repair, p);
+    downloadNatives(home, repair, p);
     installAssetIndex(root, version, repair);
-    syncMods(root, repair, p);
-    String stamp = "{\n  \"minecraft\": \"1.8.9\",\n  \"launcher\": \"1.0\",\n  \"installedAt\": \"" +
+    syncMods(root, v, repair, p);
+    String stamp = "{\n  \"minecraft\": \"" + v.id + "\",\n  \"launcher\": \"1.0\",\n  \"installedAt\": \"" +
         new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX").format(new Date()) + "\"\n}\n";
-    writeAtomic(new File(root, "installed.json"), stamp.getBytes(StandardCharsets.UTF_8));
+    writeAtomic(new File(home, "installed.json"), stamp.getBytes(StandardCharsets.UTF_8));
     p.update(repair ? "Repair complete" : "Installation complete", 1);
+  }
+
+  /** The part of the update list for one version: the list itself for 1.8.9, its entry under "versions" for the others. */
+  static Map<String,Object> section(Map<String,Object> manifest, GameVersion v) throws IOException {
+    if (v.primary()) return manifest;
+    Map<String,Object> set = obj(obj(manifest.get("versions")).get(v.id));
+    if (set.isEmpty()) throw new IOException("luka for Minecraft " + v.id + " is not out yet. Pick 1.8.9 to play.");
+    return set;
   }
 
   /** Mods luka no longer ships; an install that still has one of these jars gets it removed before the game starts. */
   private static final String[] RETIRED_MOD_PREFIXES = { "modmenu-" };
 
   /** Deletes retired mod jars (the Fabric mod-list screen) from the game folder. Returns how many were removed. */
-  public static int retireMods(File root) {
+  public static int retireMods(File root) { return retireMods(root, GameVersion.V1_8_9); }
+
+  public static int retireMods(File root, GameVersion v) {
     int removed = 0;
-    File[] jars = new File(root, "game/mods").listFiles((d, n) -> n.toLowerCase(Locale.ROOT).endsWith(".jar"));
+    File[] jars = new File(v.home(root), "game/mods").listFiles((d, n) -> n.toLowerCase(Locale.ROOT).endsWith(".jar"));
     if (jars == null) return 0;
     for (File jar : jars) {
       String name = jar.getName().toLowerCase(Locale.ROOT);
@@ -92,21 +114,24 @@ public final class Installer {
     return removed;
   }
 
-  public static boolean isInstalled(File root) {
+  public static boolean isInstalled(File root) { return isInstalled(root, GameVersion.V1_8_9); }
+
+  public static boolean isInstalled(File root, GameVersion v) {
     try {
       if (findUsableRuntime(root, new Settings(new File(root, "launcher.properties"))) == null) return false;
-      File client = new File(root, "libs/" + CLIENT);
+      File home = v.home(root);
+      File client = new File(home, "libs/" + v.clientPath());
       if (!validJar(client)) return false;
-      List<String> cp = lines(new File(root, "classpath.txt"));
+      List<String> cp = lines(new File(home, "classpath.txt"));
       if (cp.isEmpty()) return false;
-      for (String s : cp) if (!validJar(new File(root, "libs/" + s))) return false;
-      for (String path : NATIVES) if (!validJar(new File(root, "natives/" + path.substring(path.lastIndexOf('/') + 1)))) return false;
-      if (!new File(root, "jvmargs.txt").isFile() || !new File(root, "assets/indexes/1.8.json").isFile()) return false;
-      return new File(root, "installed.json").isFile();
+      for (String s : cp) if (!validJar(new File(home, "libs/" + s))) return false;
+      for (String path : natives()) if (!validJar(new File(home, "natives/" + path.substring(path.lastIndexOf('/') + 1)))) return false;
+      if (!new File(home, "jvmargs.txt").isFile() || !new File(root, "assets/indexes/" + v.assetIndex + ".json").isFile()) return false;
+      return new File(home, "installed.json").isFile();
     } catch (Exception e) { return false; }
   }
 
-  /** Selects an existing Java 25+ runtime, or installs the current Temurin 25 Windows x64 JRE. */
+  /** Selects an existing Java 25+ runtime, or installs the current Temurin 25 x64 JRE for this system. */
   public static File ensureRuntime(File root, Progress p) throws Exception {
     Settings settings = new Settings(new File(root, "launcher.properties"));
     File selected = findUsableRuntime(root, settings);
@@ -117,9 +142,9 @@ public final class Installer {
       return installTemurin(root, p);
     } catch (Exception temurin) { // an answer it cannot read counts too, not only a failed connection
       try {
-        String checksum = getText(CORRETTO_SHA256).trim();
+        String checksum = getText(correttoSha256()).trim();
         if (!checksum.matches("[0-9a-fA-F]{64}")) throw new IOException("Corretto returned no usable checksum");
-        return installRuntime(root, p, CORRETTO, checksum, -1, "corretto-25.zip");
+        return installRuntime(root, p, corretto(), checksum, -1, "corretto-25." + Platform.runtimeArchive());
       } catch (IOException corretto) {
         temurin.addSuppressed(corretto);
         throw temurin;
@@ -128,8 +153,8 @@ public final class Installer {
   }
 
   private static File installTemurin(File root, Progress p) throws Exception {
-    List<Object> assets = arr(Json.parse(getText(TEMURIN)));
-    if (assets.isEmpty()) throw new IOException("Adoptium returned no Temurin 25 Windows x64 JRE");
+    List<Object> assets = arr(Json.parse(getText(temurin())));
+    if (assets.isEmpty()) throw new IOException("Adoptium returned no Temurin 25 x64 JRE for " + Platform.vendorOs());
     Map<String,Object> binary = obj(obj(assets.get(0)).get("binary"));
     Map<String,Object> pack = obj(binary.get("package"));
     String link = str(pack.get("link"));
@@ -147,9 +172,10 @@ public final class Installer {
       downloadRuntime(link, archive, checksum, size, p);
       File staging = new File(root, "runtime.installing");
       deleteTree(staging);
-      extractRuntimeZip(archive, staging);
-      File java = new File(staging, "bin/java.exe");
-      File javaw = new File(staging, "bin/javaw.exe");
+      if (name.endsWith(".tar.gz") || name.endsWith(".tgz")) extractRuntimeTarGz(archive, staging);
+      else extractRuntimeZip(archive, staging);
+      File java = Platform.javaCli(staging);
+      File javaw = Platform.javaw(staging);
       if (!javaw.isFile() || javaMajor(java) < 25)
         throw new IOException("Downloaded Java runtime is incomplete or is not Java 25+");
       File runtime = new File(root, "runtime");
@@ -162,8 +188,8 @@ public final class Installer {
         throw e;
       }
       deleteTree(backup);
-      File installed = new File(runtime, "bin/javaw.exe");
-      if (javaMajor(new File(runtime, "bin/java.exe")) < 25) throw new IOException("Installed Java failed its version check");
+      File installed = Platform.javaw(runtime);
+      if (javaMajor(Platform.javaCli(runtime)) < 25) throw new IOException("Installed Java failed its version check");
       p.update("Java 25 ready", 1);
       return installed;
     } finally {
@@ -172,17 +198,16 @@ public final class Installer {
   }
 
   static File findUsableRuntime(File root, Settings settings) {
-    File bundled = new File(root, "runtime/bin/javaw.exe");
+    File bundled = Platform.javaw(new File(root, "runtime"));
     if (javaMajor(bundled) >= 25) return bundled;
-    boolean windows = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
-    File own = new File(System.getProperty("java.home"), "bin/" + (windows ? "javaw.exe" : "java"));
+    File own = Platform.javaw(new File(System.getProperty("java.home")));
     return javaMajor(own) >= 25 ? own : null;
   }
 
   /** luka runs on one exact Java build, named in the signed update list. Anything else, older or the backup from an outage, is replaced here. */
   private static void syncJava(File root, Map<String,Object> manifest, Progress p) throws Exception {
     if (System.getProperty("luka.gameDir") != null) return; // a Prism instance runs on Prism's Java
-    Map<String,Object> java = obj(manifest.get("java"));
+    Map<String,Object> java = javaEntry(manifest);
     String version = str(java.get("version")), implementor = str(java.get("implementor")), link = str(java.get("url"));
     String checksum = str(java.get("sha256")), file = str(java.get("file"));
     if (version.isEmpty() || implementor.isEmpty() || link.isEmpty() || checksum.isEmpty() || file.isEmpty()) return;
@@ -198,6 +223,16 @@ public final class Installer {
       // a slow or broken download must not lock out someone who already has a working Java
       if (findUsableRuntime(root, new Settings(new File(root, "launcher.properties"))) == null) throw failed;
     }
+  }
+
+  /**
+   * The Java build for this system. "javaByOs" holds one per system; "java" is the Windows one, the only key
+   * launchers before Linux support read, so it stays as it was. A system with no entry keeps the Java it has.
+   */
+  static Map<String,Object> javaEntry(Map<String,Object> manifest) {
+    Map<String,Object> mine = obj(obj(manifest.get("javaByOs")).get(Platform.id()));
+    if (!mine.isEmpty()) return mine;
+    return Platform.windows() ? obj(manifest.get("java")) : Collections.<String,Object>emptyMap();
   }
 
   static int parseJavaMajor(String output) {
@@ -248,6 +283,135 @@ public final class Installer {
         }
       }
     }
+  }
+
+  /**
+   * Linux runtimes come as tar.gz. Plain files, folders and symbolic links (the licence folder has some) are
+   * unpacked; the executable bits are kept, so bin/java and lib/jspawnhelper can run. Like the zip, the archive's
+   * single top-level folder is dropped and nothing may land outside the target.
+   */
+  static void extractRuntimeTarGz(File archive, File target) throws IOException {
+    target.mkdirs();
+    String rootPath = target.getCanonicalPath() + File.separator;
+    try (InputStream in = new java.util.zip.GZIPInputStream(new BufferedInputStream(new FileInputStream(archive)), 65536)) {
+      byte[] header = new byte[512];
+      String longName = null, paxPath = null;
+      while (true) {
+        if (!readFully(in, header)) throw new IOException("Java archive ends early");
+        boolean empty = true;
+        for (byte b : header) if (b != 0) { empty = false; break; }
+        if (empty) break;
+        String name = tarString(header, 0, 100);
+        String prefix = tarString(header, 345, 155);
+        if (!prefix.isEmpty() && "ustar".equals(tarString(header, 257, 5))) name = prefix + "/" + name;
+        int mode = (int) tarNumber(header, 100, 8);
+        long size = tarNumber(header, 124, 12);
+        char type = (char) header[156];
+        String link = tarString(header, 157, 100);
+        if (type == 'L' || type == 'x' || type == 'g') { // a long name or a pax header for the next entry
+          byte[] data = readBytes(in, size);
+          skip(in, pad(size));
+          if (type == 'L') longName = new String(data, StandardCharsets.UTF_8).replace("\0", "").trim();
+          else if (type == 'x') paxPath = paxValue(data, "path");
+          continue;
+        }
+        if (longName != null) { name = longName; longName = null; }
+        if (paxPath != null) { name = paxPath; paxPath = null; }
+        name = name.replace('\\', '/');
+        while (name.startsWith("./")) name = name.substring(2);
+        int slash = name.indexOf('/');
+        String inner = slash < 0 ? "" : name.substring(slash + 1);
+        if (inner.endsWith("/")) inner = inner.substring(0, inner.length() - 1);
+        boolean file = type == '0' || type == 0 || type == '7';
+        if (inner.isEmpty()) { skip(in, (file ? size : 0) + (file ? pad(size) : 0)); continue; }
+        File out = new File(target, inner);
+        String outPath = out.getCanonicalPath();
+        if (!outPath.startsWith(rootPath)) throw new IOException("Unsafe path in Java archive: " + name);
+        if (type == '5') { out.mkdirs(); continue; }
+        File parent = out.getParentFile();
+        if (!parent.isDirectory() && !parent.mkdirs()) throw new IOException("Could not create " + parent);
+        if (type == '2') { // symbolic link: never created; a copy of the file it names, when that file was unpacked
+          // already and lies inside the runtime (in Temurin's archives only licence texts are links)
+          if (link.isEmpty() || link.startsWith("/") || link.startsWith("\\") || link.contains(":")) continue;
+          File resolved = new File(parent, link);
+          if (resolved.getCanonicalPath().startsWith(rootPath) && resolved.isFile())
+            Files.copy(resolved.toPath(), out.toPath(), StandardCopyOption.REPLACE_EXISTING);
+          continue;
+        }
+        if (type == '1') { // hard link to a file unpacked before, named from the archive root
+          if (link.isEmpty() || link.startsWith("/") || link.contains("..") || link.contains(":")) continue;
+          File source = new File(target, link.indexOf('/') < 0 ? link : link.substring(link.indexOf('/') + 1));
+          if (source.getCanonicalPath().startsWith(rootPath) && source.isFile())
+            Files.copy(source.toPath(), out.toPath(), StandardCopyOption.REPLACE_EXISTING);
+          continue;
+        }
+        if (!file) { skip(in, size + pad(size)); continue; }
+        try (OutputStream stream = new BufferedOutputStream(new FileOutputStream(out))) {
+          byte[] buffer = new byte[32768];
+          long left = size;
+          while (left > 0) {
+            int n = in.read(buffer, 0, (int) Math.min(buffer.length, left));
+            if (n < 0) throw new IOException("Java archive ends early");
+            stream.write(buffer, 0, n);
+            left -= n;
+          }
+        }
+        skip(in, pad(size));
+        if ((mode & 0111) != 0) out.setExecutable(true, false);
+      }
+    }
+  }
+
+  private static boolean readFully(InputStream in, byte[] buffer) throws IOException {
+    int at = 0;
+    while (at < buffer.length) {
+      int n = in.read(buffer, at, buffer.length - at);
+      if (n < 0) return false;
+      at += n;
+    }
+    return true;
+  }
+
+  private static byte[] readBytes(InputStream in, long size) throws IOException {
+    if (size < 0 || size > (1 << 20)) throw new IOException("Unexpected header size in Java archive");
+    byte[] data = new byte[(int) size];
+    if (!readFully(in, data)) throw new IOException("Java archive ends early");
+    return data;
+  }
+
+  private static void skip(InputStream in, long count) throws IOException {
+    byte[] buffer = new byte[8192];
+    while (count > 0) {
+      int n = in.read(buffer, 0, (int) Math.min(buffer.length, count));
+      if (n < 0) throw new IOException("Java archive ends early");
+      count -= n;
+    }
+  }
+
+  private static long pad(long size) { return (512 - size % 512) % 512; }
+
+  private static String tarString(byte[] header, int at, int length) {
+    int end = at;
+    while (end < at + length && header[end] != 0) end++;
+    return new String(header, at, end - at, StandardCharsets.UTF_8);
+  }
+
+  private static long tarNumber(byte[] header, int at, int length) {
+    if ((header[at] & 0x80) != 0) { // base-256 for big sizes
+      long value = 0;
+      for (int k = at + 1; k < at + length; k++) value = value << 8 | (header[k] & 0xFF);
+      return value;
+    }
+    String s = tarString(header, at, length).trim();
+    return s.isEmpty() ? 0 : Long.parseLong(s, 8);
+  }
+
+  private static String paxValue(byte[] data, String key) {
+    for (String record : new String(data, StandardCharsets.UTF_8).split("\n")) {
+      int space = record.indexOf(' '), equals = record.indexOf('=');
+      if (space > 0 && equals > space && record.substring(space + 1, equals).equals(key)) return record.substring(equals + 1);
+    }
+    return null;
   }
 
   private static void downloadRuntime(String url, File target, String checksum, long expectedSize, Progress p) throws IOException {
@@ -301,13 +465,13 @@ public final class Installer {
     catch (IOException e) { return false; }
   }
 
-  private static Map<String,Object> versionJson() throws Exception {
+  private static Map<String,Object> versionJson(String id) throws Exception {
     Map<String,Object> manifest = obj(Json.parse(getText(MANIFEST)));
     for (Object v : arr(manifest.get("versions"))) {
       Map<String,Object> version = obj(v);
-      if ("1.8.9".equals(str(version.get("id")))) return obj(Json.parse(getText(str(version.get("url")))));
+      if (id.equals(str(version.get("id")))) return obj(Json.parse(getText(str(version.get("url")))));
     }
-    throw new IOException("Minecraft 1.8.9 is absent from Mojang's version manifest");
+    throw new IOException("Minecraft " + id + " is absent from Mojang's version manifest");
   }
 
   private static void addArtifact(List<Job> jobs, Map<String,String> known, File root, Map<String,Object> a) {
@@ -334,7 +498,7 @@ public final class Installer {
       catch (java.util.regex.PatternSyntaxException e) { versionMatches = false; }
       boolean featuresMatch = true;
       for (Object desired : features.values()) if (Boolean.TRUE.equals(desired)) featuresMatch = false; // launcher enables no optional Mojang features
-      boolean matches = (name.length() == 0 || "windows".equals(name)) && archMatches && versionMatches && featuresMatch;
+      boolean matches = (name.length() == 0 || Platform.ruleName().equals(name)) && archMatches && versionMatches && featuresMatch;
       if (matches) allowed = "allow".equals(str(rule.get("action")));
     }
     return allowed;
@@ -386,9 +550,9 @@ public final class Installer {
     return order;
   }
 
-  private static void downloadNatives(File root, boolean repair, Progress p) throws Exception {
+  private static void downloadNatives(File home, boolean repair, Progress p) throws Exception {
     List<Job> jobs = new ArrayList<Job>();
-    for (String path : NATIVES) jobs.add(new Job(null, new File(root, "natives/" + path.substring(path.lastIndexOf('/') + 1)), null, true, path));
+    for (String path : natives()) jobs.add(new Job(null, new File(home, "natives/" + path.substring(path.lastIndexOf('/') + 1)), null, true, path));
     runJobs(jobs, repair, p, .62, .69, "Downloading native libraries");
   }
 
@@ -435,21 +599,25 @@ public final class Installer {
   }
 
   /** Brings every mod to what the manifest says for the chosen renderer. Called on every Play, so updates arrive by themselves. */
-  public static void syncMods(File root, boolean repair, Progress p) throws Exception {
+  public static void syncMods(File root, boolean repair, Progress p) throws Exception { syncMods(root, GameVersion.V1_8_9, repair, p); }
+
+  public static void syncMods(File root, GameVersion v, boolean repair, Progress p) throws Exception {
     Settings settings = new Settings(new File(root, "launcher.properties"));
     Map<String,Object> manifest = manifest(root);
     syncJava(root, manifest, p);
-    File mods = new File(gameDir(root), "mods");
+    Map<String,Object> set = section(manifest, v);
+    File home = v.home(root);
+    File mods = new File(gameDir(home), "mods");
     List<ModFile> wanted = new ArrayList<ModFile>();
-    for (Object o : arr(manifest.get("mods"))) wanted.add(new ModFile(obj(o), mods));
-    for (Object o : arr(manifest.get("dependencies"))) wanted.add(new ModFile(obj(o), mods));
-    Map<String,Object> renderers = obj(manifest.get("renderers"));
-    File rendererDir = new File(root, "renderers/" + settings.renderer());
+    for (Object o : arr(set.get("mods"))) wanted.add(new ModFile(obj(o), mods));
+    for (Object o : arr(set.get("dependencies"))) wanted.add(new ModFile(obj(o), mods));
+    Map<String,Object> renderers = obj(set.get("renderers"));
+    File rendererDir = new File(home, "renderers/" + settings.renderer());
     for (Object o : arr(renderers.get(settings.renderer()))) wanted.add(new ModFile(obj(o), rendererDir));
-    removeRetired(root, mods, rendererDir, wanted);
+    removeRetired(home, mods, rendererDir, wanted);
     // a renderer jar left in the shared folder would load on both paths
-    for (Map.Entry<String,Object> set : renderers.entrySet())
-      for (Object o : arr(set.getValue())) Files.deleteIfExists(new File(mods, safeName(str(obj(o).get("file")))).toPath());
+    for (Map.Entry<String,Object> group : renderers.entrySet())
+      for (Object o : arr(group.getValue())) Files.deleteIfExists(new File(mods, safeName(str(obj(o).get("file")))).toPath());
     ExecutorService pool = Executors.newFixedThreadPool(8);
     List<Throwable> errors = Collections.synchronizedList(new ArrayList<Throwable>());
     AtomicInteger done = new AtomicInteger();
@@ -463,13 +631,13 @@ public final class Installer {
     pool.shutdown();
     if (!pool.awaitTermination(30, TimeUnit.MINUTES)) pool.shutdownNow();
     if (!errors.isEmpty()) throw new IOException(errors.size() + " download(s) failed: " + errors.get(0).getMessage(), errors.get(0));
-    installDefaults(root, manifest);
-    writeFirstRunOptions(root);
+    installDefaults(home, set);
+    writeFirstRunOptions(home);
   }
 
   /** Vanilla starts a new player at 120 FPS with VSync on; this client should not. Never touches an options file that already exists. */
-  private static void writeFirstRunOptions(File root) throws IOException {
-    File options = new File(gameDir(root), "options.txt");
+  private static void writeFirstRunOptions(File home) throws IOException {
+    File options = new File(gameDir(home), "options.txt");
     if (!options.exists()) writeAtomic(options, String.join(System.lineSeparator(), "maxFps:260", "enableVsync:false", "").getBytes(StandardCharsets.UTF_8));
   }
 
@@ -482,14 +650,14 @@ public final class Installer {
   }
 
   /** Deletes what an earlier release installed and this one no longer lists. Mods the player added themselves are left alone. */
-  private static void removeRetired(File root, File mods, File rendererDir, List<ModFile> wanted) throws IOException {
+  private static void removeRetired(File home, File mods, File rendererDir, List<ModFile> wanted) throws IOException {
     Set<String> names = new HashSet<String>();
     StringBuilder managed = new StringBuilder();
     for (ModFile mod : wanted) {
       names.add(mod.file);
       if (mod.target.getParentFile().equals(mods)) managed.append(mod.file).append('\n');
     }
-    File list = new File(root, "managed-mods.txt");
+    File list = new File(home, "managed-mods.txt");
     for (String old : lines(list)) if (!names.contains(old)) Files.deleteIfExists(new File(mods, safeName(old)).toPath());
     writeAtomic(list, managed.toString().getBytes(StandardCharsets.UTF_8));
     File[] installed = rendererDir.listFiles((d, n) -> n.toLowerCase(Locale.ROOT).endsWith(".jar"));
@@ -497,13 +665,13 @@ public final class Installer {
   }
 
   /** The default settings zip fills in only what the player does not already have. */
-  private static void installDefaults(File root, Map<String,Object> manifest) throws IOException {
+  private static void installDefaults(File home, Map<String,Object> manifest) throws IOException {
     Map<String,Object> defaults = obj(manifest.get("defaults"));
     String url = str(defaults.get("url")), sha = str(defaults.get("sha512"));
-    if (url.length() == 0 || new File(gameDir(root), "config/.luka-defaults").isFile()) return;
-    File zip = new File(root, "defaults.zip.download");
+    if (url.length() == 0 || new File(gameDir(home), "config/.luka-defaults").isFile()) return;
+    File zip = new File(home, "defaults.zip.download");
     download(url, zip, sha, true, "SHA-512");
-    File config = new File(gameDir(root), "config");
+    File config = new File(gameDir(home), "config");
     String base = config.getCanonicalPath() + File.separator;
     try (ZipInputStream in = new ZipInputStream(new BufferedInputStream(new FileInputStream(zip)))) {
       for (ZipEntry entry; (entry = in.getNextEntry()) != null; ) {
@@ -520,19 +688,19 @@ public final class Installer {
     new File(config, ".luka-defaults").createNewFile();
   }
 
-  private static void ensureClasspath(File root) throws IOException {
-    File target = new File(root, "classpath.txt"); if (target.isFile()) return;
+  private static void ensureClasspath(File root, GameVersion v) throws IOException {
+    File target = new File(v.home(root), "classpath.txt"); if (target.isFile()) return;
     File external = new File(distributionDir(root), "classpath.txt");
-    if (external.isFile()) { copy(external, target, false); return; }
-    try (InputStream in = Installer.class.getResourceAsStream("/classpath.txt")) {
-      if (in == null) throw new IOException("Missing embedded classpath.txt");
+    if (v.primary() && external.isFile()) { copy(external, target, false); return; }
+    try (InputStream in = Installer.class.getResourceAsStream("/" + v.classpathResource)) {
+      if (in == null) throw new IOException("Missing embedded " + v.classpathResource);
       writeAtomic(target, bytes(in));
     }
   }
 
-  private static void ensureOptionalResource(File root, String name) throws IOException {
-    File target = new File(root, name); if (target.exists()) return;
-    try (InputStream in = Installer.class.getResourceAsStream("/" + name)) {
+  private static void ensureOptionalResource(File home, String name, String resource) throws IOException {
+    File target = new File(home, name); if (target.exists()) return;
+    try (InputStream in = Installer.class.getResourceAsStream("/" + resource)) {
       if (in != null) writeAtomic(target, bytes(in));
     }
   }
@@ -593,9 +761,9 @@ public final class Installer {
 
   /** Minimal standards-compliant JSON reader for Mojang metadata and dependencies.json. */
   /** Prism instances keep the game in their own folder; the launcher keeps it next to its files. */
-  private static File gameDir(File root) {
+  private static File gameDir(File home) {
     String override = System.getProperty("luka.gameDir");
-    return override != null ? new File(override) : new File(root, "game");
+    return override != null ? new File(override) : new File(home, "game");
   }
 
   static final class Json {

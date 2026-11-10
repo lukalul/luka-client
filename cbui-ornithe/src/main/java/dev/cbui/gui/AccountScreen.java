@@ -203,10 +203,13 @@ public final class AccountScreen extends GuiScreen {
     }, "luka-ms-login").start();
   }
 
-  /** The JVM is headless, so java.awt.Desktop is not available: ask Windows to open the address. */
+  /** The JVM is headless, so java.awt.Desktop is not available: ask the system to open the address. */
   private static void openBrowser(String url) {
     try {
-      new ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", url).start();
+      String os = System.getProperty("os.name", "").toLowerCase();
+      if (os.contains("win")) new ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", url).start();
+      else if (os.contains("mac")) new ProcessBuilder("open", url).start();
+      else new ProcessBuilder("xdg-open", url).start();
     } catch (Throwable ignored) {
       // the address is on screen
     }

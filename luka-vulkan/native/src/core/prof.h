@@ -19,12 +19,19 @@ namespace at::prof {
         SUBMIT_TO_DONE = 46, // CPU time from vkQueueSubmit until the fence wait returned
         GPU = 44,           // GPU time of one frame (timestamp at the start of setup to the end of main)
         ZONE = 24,          // ZONE + kind: GPU time per kind of work (see Zone), from timestamps between kinds
-        COUNT = 48
+        PART = 48,          // PART + n: pieces of the terrain commands (see Part), each inside its command's bucket
+        COUNT = 72
     };
 
     // What the GPU is doing between two zone timestamps.
     enum Zone : int { ZONE_OTHER = 0, ZONE_TERRAIN = 1, ZONE_MESHES = 2, ZONE_IMMEDIATE = 3, ZONE_COPIES = 4, ZONE_PRESENT = 5,
                       ZONE_TERRAIN_CUTOUT = 6, ZONE_TERRAIN_TRANSLUCENT = 7, ZONE_KINDS = 8 };
+
+    // Pieces of TERRAIN_SETUP and TERRAIN_DRAW, to see which of them a change has to make faster.
+    enum Part : int { SETUP_RECENTER = 0, SETUP_CULL = 1, SETUP_VISIBLE = 2, PUBLISH_COPY = 3, PUBLISH_SCHEDULE = 4,
+                      DRAW_PREPARE = 5, DRAW_WALK = 6, DRAW_ORDER = 7, DRAW_EMIT = 8, DRAW_BIND = 9, DRAW_ALLOC = 10, DRAW_RECORD = 11,
+                      // counts, not times: entries per frame (shown in the place of microseconds)
+                      N_LIST = 12, N_VISIBLE = 13, N_ORDERED = 14, N_DRAWN = 15, N_RANGES = 16, N_VERTS = 17, PART_KINDS = 18 };
 
     extern bool enabled;
     extern std::uint64_t total[COUNT];
@@ -49,6 +56,33 @@ namespace at::prof {
         Scope &operator=(const Scope &) = delete;
     };
 
+    // Times consecutive pieces of one function: part(n) closes the running piece and starts piece n.
+    struct Lap {
+        int bucket = -1;
+        std::uint64_t start = 0;
+        void part(int next) {
+            if (!enabled) return;
+            std::uint64_t t = now();
+            if (bucket >= 0) {
+                total[bucket] += t - start;
+                calls[bucket]++;
+            }
+            bucket = next;
+            start = t;
+        }
+        void stop() { part(-1); }
+        Lap() = default;
+        ~Lap() { stop(); }
+        Lap(const Lap &) = delete;
+        Lap &operator=(const Lap &) = delete;
+    };
+
+    // Adds a count to a piece that shows numbers of things instead of time.
+    inline void count(int bucket, std::uint64_t n) {
+        if (!enabled) return;
+        total[bucket] += n * 1000;
+        calls[bucket]++;
+    }
     // Called once per presented frame on the render thread; logs and resets every 2 seconds.
     void frame();
 }

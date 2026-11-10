@@ -21,7 +21,7 @@ import java.util.Properties;
 final class BenchmarkController {
     private enum Stage { MENU, JOINING, PREPARE, BUILDING, SETTLING, TRANSITION, MEASURING, WRITING, DONE }
     private static BenchmarkController INSTANCE;
-    private static final String[] TOGGLES = {"entityTicks", "tileTicks", "tileRenderDistance", "itemRenderCap", "particleCaps"};
+    private static final String[] TOGGLES = {"entityTicks", "tileTicks", "tileRenderDistance", "itemRenderCap", "particleCaps", "cloudMeshCache"};
 
     private final Minecraft mc = Minecraft.getMinecraft();
     private final Properties properties;

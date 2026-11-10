@@ -1,0 +1,67 @@
+package dev.envoy.render;
+
+import dev.envoy.module.beam.BeamState;
+import dev.envoy.platform.RenderWorldLastEvent;
+import net.minecraft.client.Minecraft;
+import dev.luka.compat.GlStateManager;
+import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.entity.RenderManager;
+import org.lwjgl.opengl.GL11;
+
+public final class BeamRenderer {
+    private static final double HEIGHT = 256.0D;
+    private static final Layer[] LAYERS = { new Layer(0.15D, 0.60F), new Layer(0.35D, 0.15F) };
+
+    public void onRenderWorld(RenderWorldLastEvent event) {
+        Minecraft game = Minecraft.getMinecraft();
+        if (BeamState.isEmpty() || game.theWorld == null || game.renderViewEntity == null) return;
+        configure(true);
+        Tessellator batch = Tessellator.instance;
+        batch.startDrawing(GL11.GL_QUADS);
+        RenderManager camera = RenderManager.instance;
+        for (BeamState.Beam beam : BeamState.all()) emit(batch, beam, camera);
+        batch.draw();
+        configure(false);
+    }
+
+    private static void configure(boolean entering) {
+        if (entering) {
+            GlStateManager.disableTexture2D(); GlStateManager.disableLighting(); GlStateManager.disableCull();
+            GlStateManager.enableBlend();
+            GlStateManager.tryBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ONE, GL11.GL_ZERO);
+            GlStateManager.depthMask(false); GlStateManager.disableDepth();
+        } else {
+            GlStateManager.enableDepth(); GlStateManager.depthMask(true);
+            GlStateManager.tryBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA,
+                GL11.GL_ONE, GL11.GL_ZERO);
+            GlStateManager.disableBlend(); GlStateManager.enableCull(); GlStateManager.enableTexture2D();
+            GlStateManager.color(1F, 1F, 1F, 1F);
+        }
+    }
+
+    private static void emit(Tessellator out, BeamState.Beam beam, RenderManager camera) {
+        double x = beam.x + 0.5D - camera.viewerPosX;
+        double y = beam.y - camera.viewerPosY;
+        double z = beam.z + 0.5D - camera.viewerPosZ;
+        float red = channel(beam.argb, 16), green = channel(beam.argb, 8), blue = channel(beam.argb, 0);
+        for (Layer layer : LAYERS) {
+            verticalFace(out, x - layer.radius, z, x + layer.radius, z, y, red, green, blue, layer.alpha);
+            verticalFace(out, x, z - layer.radius, x, z + layer.radius, y, red, green, blue, layer.alpha);
+        }
+    }
+
+    private static void verticalFace(Tessellator out, double x0, double z0, double x1, double z1,
+                                     double bottom, float red, float green, float blue, float alpha) {
+        out.setColorRGBA_F(red, green, blue, alpha); out.addVertex(x0, bottom, z0);
+        out.setColorRGBA_F(red, green, blue, alpha); out.addVertex(x1, bottom, z1);
+        out.setColorRGBA_F(red, green, blue, alpha); out.addVertex(x1, bottom + HEIGHT, z1);
+        out.setColorRGBA_F(red, green, blue, alpha); out.addVertex(x0, bottom + HEIGHT, z0);
+    }
+
+    private static float channel(int color, int shift) { return ((color >> shift) & 255) / 255F; }
+
+    private static final class Layer {
+        final double radius; final float alpha;
+        Layer(double radius, float alpha) { this.radius = radius; this.alpha = alpha; }
+    }
+}

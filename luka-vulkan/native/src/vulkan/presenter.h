@@ -48,6 +48,8 @@ namespace at {
         VkFormat format = VK_FORMAT_B8G8R8A8_UNORM;
         VkImageLayout layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         std::atomic<bool> blitTarget{false};
+        // Whether the window's images can be copied from (a reader of a frame drawn straight into the window needs it)
+        std::atomic<bool> readSource{false};
         u32 width = 0;
         u32 height = 0;
         std::vector<VkImage> images;

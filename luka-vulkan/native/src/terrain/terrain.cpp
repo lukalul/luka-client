@@ -2,6 +2,7 @@
 
 #include "core/error.h"
 #include "core/log.h"
+#include "core/prof.h"
 #include "core/threads.h"
 #include "render/blocks.h"
 #include "render/renderer.h"
@@ -11,9 +12,16 @@
 #include "vulkan/memory.h"
 
 #include <algorithm>
+#include <cstring>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <new>
+
+#if defined(_M_X64) || defined(__x86_64__)
+#include <emmintrin.h>
+#define AT_TERRAIN_SSE 1
+#endif
 
 namespace at::terrain {
     static AT_INLINE i32 floorDiv(i32 value, i32 divisor) {
@@ -165,6 +173,7 @@ namespace at::terrain {
         size = viewDistance * 2 + 1;
         sections.clear();
         sections.resize(static_cast<std::size_t>(size) * size * 16);
+        hot.assign(sections.size(), Hot{});
         buildSize.store(size, std::memory_order_relaxed);
         graphNodes.assign(sections.size(), GraphNode{});
         centerX = INT32_MIN;
@@ -172,10 +181,18 @@ namespace at::terrain {
     }
 
     void Terrain::clear() {
+        for (u32 layer = 0; layer < LAYERS; layer++) {
+            ordered[layer].clear();
+            orderedSorted[layer] = 0;
+            orderedDead[layer] = 0;
+        }
         for (Section &section: sections) {
             releaseGeometry(section);
             section = Section{};
         }
+        hot.assign(sections.size(), Hot{});
+        visibleSlots.clear();
+        scheduleStale = true;
         culler.cancel();
         if (cullResult) culler.recycle(std::move(cullResult));
         activeList = nullptr;
@@ -211,8 +228,59 @@ namespace at::terrain {
         return section;
     }
 
-    void Terrain::releaseGeometry(Section &section) const {
-        for (SectionLayer &layer: section.layers) {
+    void Terrain::refresh(const Section &section) {
+        Hot &entry = hot[slotIndex(section)];
+        u8 pending = section.valid && section.dirty && !section.building ? 1 : 0;
+        if (pending && !entry.pending) scheduleStale = true;
+        entry.pending = pending;
+    }
+
+    void Terrain::forget(u32 layerIndex, u32 buffer, u32 first, u32 slot) {
+        std::vector<Ordered> &list = ordered[layerIndex];
+        std::size_t sorted = orderedSorted[layerIndex];
+        auto middle = list.begin() + static_cast<std::ptrdiff_t>(sorted);
+        auto found = std::lower_bound(list.begin(), middle, first, [buffer](const Ordered &entry, u32 wanted) {
+            return entry.buffer != buffer ? entry.buffer < buffer : entry.first < wanted;
+        });
+        if (found != middle && found->buffer == buffer && found->first == first && found->slot == slot) {
+            found->slot = DEAD;
+            orderedDead[layerIndex]++;
+            return;
+        }
+        for (std::size_t index = list.size(); index-- > sorted;) {
+            if (list[index].slot != slot || list[index].buffer != buffer || list[index].first != first) continue;
+            list[index] = list.back();
+            list.pop_back();
+            return;
+        }
+    }
+
+    void Terrain::settle(u32 layerIndex) {
+        std::vector<Ordered> &list = ordered[layerIndex];
+        std::size_t sorted = orderedSorted[layerIndex];
+        auto before = [](const Ordered &a, const Ordered &b) { return a.buffer != b.buffer ? a.buffer < b.buffer : a.first < b.first; };
+        std::sort(list.begin() + static_cast<std::ptrdiff_t>(sorted), list.end(), before);
+        orderedScratch.clear();
+        orderedScratch.reserve(list.size());
+        std::size_t left = 0, right = sorted;
+        while (left < sorted || right < list.size()) {
+            if (left < sorted && list[left].slot == DEAD) {
+                left++;
+                continue;
+            }
+            if (right == list.size() || (left < sorted && before(list[left], list[right]))) orderedScratch.push_back(list[left++]);
+            else orderedScratch.push_back(list[right++]);
+        }
+        list.swap(orderedScratch);
+        orderedSorted[layerIndex] = list.size();
+        orderedDead[layerIndex] = 0;
+    }
+
+    void Terrain::releaseGeometry(Section &section) {
+        std::size_t slot = slotIndex(section);
+        for (u32 index = 0; index < LAYERS; index++) {
+            SectionLayer &layer = section.layers[index];
+            if (layer.vertices > 0 && index != TRANSLUCENT) forget(index, layer.buffer, layer.first, static_cast<u32>(slot));
             if (layer.vertices > 0) {
                 VertexArena *target = arena.get();
                 u32 buffer = layer.buffer, first = layer.first, count = layer.vertices;
@@ -225,6 +293,7 @@ namespace at::terrain {
             }
             layer = SectionLayer{};
         }
+        hot[slot].layers = 0;
     }
 
     void Terrain::reset(Section &section, i32 x, i32 y, i32 z) {
@@ -241,6 +310,8 @@ namespace at::terrain {
         section.valid = true;
         section.version = version;
         section.dirty = true;
+        hot[slotIndex(section)] = Hot{.x = x, .z = z, .drawnFrame = 0, .y = static_cast<u8>(y), .valid = 1, .layers = 0, .pending = 1};
+        scheduleStale = true;
     }
 
     void Terrain::recenter(double x, double z) {
@@ -283,13 +354,18 @@ namespace at::terrain {
 
     void Terrain::publish(u32 scheduleCap) {
         std::lock_guard guard(publishLock);
+        prof::Lap lap;
+        lap.part(prof::PART + prof::PUBLISH_COPY);
         publishedVisible = visibleCoordinates;
+        lap.part(prof::PART + prof::PUBLISH_SCHEDULE);
         auto queued = static_cast<u32>(publishedSchedule.size() / 5);
-        if (queued < scheduleCap) {
-            scheduleScratch.resize(static_cast<std::size_t>(scheduleCap - queued) * 5);
-            u32 count = schedule(scheduleScratch.data(), scheduleCap - queued);
+        if (queued < scheduleCap && scheduleStale) {
+            u32 wanted = scheduleCap - queued;
+            scheduleScratch.resize(static_cast<std::size_t>(wanted) * 5);
+            u32 count = schedule(scheduleScratch.data(), wanted);
             publishedSchedule.insert(publishedSchedule.end(), scheduleScratch.begin(),
                                      scheduleScratch.begin() + static_cast<std::ptrdiff_t>(count) * 5);
+            if (count < wanted) scheduleStale = false; // every candidate was looked at; nothing more until one changes
         }
         if (debugWanted.exchange(false, std::memory_order_relaxed)) publishedDebug = debug();
     }
@@ -329,6 +405,7 @@ namespace at::terrain {
                     section->dirty = true;
                     section->important |= important;
                     section->dirtySequence = std::max(section->dirtySequence, sequence);
+                    refresh(*section);
                 }
             }
         }
@@ -422,7 +499,10 @@ namespace at::terrain {
         cameraY = parameters.y;
         cameraZ = parameters.z;
         if (size == 0) return;
+        prof::Lap lap;
+        lap.part(prof::PART + prof::SETUP_RECENTER);
         recenter(cameraX, cameraZ);
+        lap.part(prof::PART + prof::SETUP_CULL);
         computeFrustum();
 
         float inverse[16];
@@ -458,7 +538,10 @@ namespace at::terrain {
                 list = candidates(originX, originY, originZ);
                 if (!list && !culler.busy()) submitCull(originX, originY, originZ, smart);
             }
-            if (!list) return;
+            if (!list) {
+                scheduleStale = true;
+                return;
+            }
         }
 
         float clip[16];
@@ -474,29 +557,80 @@ namespace at::terrain {
         listDirty = false;
         activeList = list;
 
+        lap.part(prof::PART + prof::SETUP_VISIBLE);
         frame++;
         if (frame == 0) frame = 1;
+        scheduleStale = true;
         visible.clear();
-        for (u32 slot: *list) {
-            Section &section = sections[slot];
-            if (!section.valid || (parameters.frustumCull && !frustumVisible(section))) continue;
-            visible.push_back(&section);
-        }
-
+        visibleSlots.clear();
+        visibleCoordinates.clear();
         for (auto &layerList: layerVisible) layerList.clear();
-        for (Section *section: visible) {
-            section->drawnFrame = frame;
+
+        // The same test as frustumVisible, for all planes at once and reading only the Hot entries. Per plane the
+        // box corner furthest along the normal is tested; the +16 of that corner on x and z is folded into `bias`.
+        constexpr float OUTSIDE_WORLD = 1.0e7f;
+        constexpr int WIDE = 8;
+        float planeX[WIDE] = {}, planeUp[WIDE] = {}, planeDown[WIDE] = {}, planeZ[WIDE] = {}, bias[WIDE];
+        for (int plane = 0; plane < WIDE; plane++) bias[plane] = 1.0f;
+        for (int plane = 0; plane < 6; plane++) {
+            planeX[plane] = planes[plane][0];
+            planeUp[plane] = std::max(planes[plane][1], 0.0f);
+            planeDown[plane] = std::min(planes[plane][1], 0.0f);
+            planeZ[plane] = planes[plane][2];
+            bias[plane] = planes[plane][3] + 16.0f * (std::max(planes[plane][0], 0.0f) + std::max(planes[plane][2], 0.0f));
+        }
+        const bool cull = parameters.frustumCull;
+        Section *base = sections.data();
+        prof::count(prof::PART + prof::N_LIST, list->size());
+#ifdef AT_TERRAIN_SSE
+        const __m128 planeX0 = _mm_loadu_ps(planeX), planeX1 = _mm_loadu_ps(planeX + 4);
+        const __m128 planeUp0 = _mm_loadu_ps(planeUp), planeUp1 = _mm_loadu_ps(planeUp + 4);
+        const __m128 planeDown0 = _mm_loadu_ps(planeDown), planeDown1 = _mm_loadu_ps(planeDown + 4);
+        const __m128 planeZ0 = _mm_loadu_ps(planeZ), planeZ1 = _mm_loadu_ps(planeZ + 4);
+        const __m128 bias0 = _mm_loadu_ps(bias), bias1 = _mm_loadu_ps(bias + 4);
+        const __m128 zero = _mm_setzero_ps();
+#endif
+        for (u32 slot: *list) {
+            Hot &entry = hot[slot];
+            if (!entry.valid) continue;
+            if (cull) {
+                auto minX = static_cast<float>(entry.x * 16 - cameraX);
+                auto minY = static_cast<float>(entry.y * 16 - cameraY);
+                auto minZ = static_cast<float>(entry.z * 16 - cameraZ);
+                float low = entry.y == 0 ? -OUTSIDE_WORLD : minY;
+                float high = entry.y == 15 ? OUTSIDE_WORLD : minY + 16.0f;
+#ifdef AT_TERRAIN_SSE
+                // Same sums in the same order as the plain loop below, four planes at a time.
+                const __m128 x = _mm_set1_ps(minX), up = _mm_set1_ps(high), down = _mm_set1_ps(low), z = _mm_set1_ps(minZ);
+                __m128 d0 = _mm_add_ps(_mm_mul_ps(planeX0, x), _mm_mul_ps(planeUp0, up));
+                __m128 d1 = _mm_add_ps(_mm_mul_ps(planeX1, x), _mm_mul_ps(planeUp1, up));
+                d0 = _mm_add_ps(d0, _mm_mul_ps(planeDown0, down));
+                d1 = _mm_add_ps(d1, _mm_mul_ps(planeDown1, down));
+                d0 = _mm_add_ps(_mm_add_ps(d0, _mm_mul_ps(planeZ0, z)), bias0);
+                d1 = _mm_add_ps(_mm_add_ps(d1, _mm_mul_ps(planeZ1, z)), bias1);
+                if (_mm_movemask_ps(_mm_or_ps(_mm_cmplt_ps(d0, zero), _mm_cmplt_ps(d1, zero)))) continue;
+#else
+                float distance[WIDE];
+                for (int plane = 0; plane < WIDE; plane++) {
+                    distance[plane] = planeX[plane] * minX + planeUp[plane] * high + planeDown[plane] * low + planeZ[plane] * minZ +
+                                      bias[plane];
+                }
+                int outside = 0;
+                for (int plane = 0; plane < WIDE; plane++) outside |= distance[plane] < 0.0f ? 1 : 0;
+                if (outside) continue;
+#endif
+            }
+            entry.drawnFrame = frame;
+            Section *section = base + slot;
+            visibleSlots.push_back(slot);
+            visibleCoordinates.push_back(entry.x);
+            visibleCoordinates.push_back(entry.y);
+            visibleCoordinates.push_back(entry.z);
             for (u32 layer = 0; layer < LAYERS; layer++) {
-                if (section->layers[layer].vertices > 0) layerVisible[layer].push_back(section);
+                if (entry.layers >> layer & 1) layerVisible[layer].push_back(section);
             }
         }
-
-        visibleCoordinates.resize(visible.size() * 3);
-        for (std::size_t i = 0; i < visible.size(); i++) {
-            visibleCoordinates[i * 3] = visible[i]->x;
-            visibleCoordinates[i * 3 + 1] = visible[i]->y;
-            visibleCoordinates[i * 3 + 2] = visible[i]->z;
-        }
+        prof::count(prof::PART + prof::N_VISIBLE, visibleSlots.size());
     }
 
     u32 Terrain::schedule(i32 *out, u32 max) {
@@ -504,8 +638,10 @@ namespace at::terrain {
         i32 cameraSectionX = floorDiv(floorToInt(cameraX), 16);
         i32 cameraSectionY = floorDiv(floorToInt(cameraY), 16);
         i32 cameraSectionZ = floorDiv(floorToInt(cameraZ), 16);
-        auto take = [&](Section &section) {
-            if (count >= max || !section.dirty || section.building) return;
+        auto take = [&](std::size_t index) {
+            Hot &state = hot[index];
+            if (count >= max || !state.pending) return;
+            Section &section = sections[index];
             bool near = std::abs(section.x - cameraSectionX) <= 1 && std::abs(section.y - cameraSectionY) <= 1 &&
                         std::abs(section.z - cameraSectionZ) <= 1;
             bool urgent = near && section.important && section.compiled;
@@ -518,21 +654,27 @@ namespace at::terrain {
             section.building = true;
             section.buildingVersion = section.version;
             section.important = false;
+            state.pending = 0;
             count++;
         };
-        for (Section *section: visible) take(*section);
+        for (u32 slot: visibleSlots) {
+            if (count >= max) break;
+            take(slot);
+        }
         if (activeList) {
             for (u32 slot: *activeList) {
                 if (count >= max) break;
-                take(sections[slot]);
+                take(slot);
             }
         }
         for (i32 radius = 1; radius <= 2 && count < max; radius++) {
             for (i32 dy = -radius; dy <= radius; dy++) {
                 for (i32 dz = -radius; dz <= radius; dz++) {
                     for (i32 dx = -radius; dx <= radius; dx++) {
-                        Section *section = at(cameraSectionX + dx, cameraSectionY + dy, cameraSectionZ + dz);
-                        if (section) take(*section);
+                        i32 x = cameraSectionX + dx, y = cameraSectionY + dy, z = cameraSectionZ + dz;
+                        if (y < 0 || y > 15) continue;
+                        std::size_t index = (static_cast<std::size_t>(floorMod(z, size)) * size + floorMod(x, size)) * 16 + y;
+                        if (const Hot &near = hot[index]; near.valid && near.x == x && near.z == z) take(index);
                     }
                 }
             }
@@ -541,7 +683,10 @@ namespace at::terrain {
     }
 
     void Terrain::abort(i32 x, i32 y, i32 z, u32 version) {
-        if (Section *section = at(x, y, z); section && section->building && section->buildingVersion == version) section->building = false;
+        if (Section *section = at(x, y, z); section && section->building && section->buildingVersion == version) {
+            section->building = false;
+            refresh(*section);
+        }
     }
 
     Snapshot *Terrain::acquireSnapshot() {
@@ -685,7 +830,9 @@ namespace at::terrain {
     void Terrain::apply(MeshResult &result) {
         Section *section = at(result.x, result.y, result.z);
         if (!section) return;
+        std::size_t slot = slotIndex(*section);
         if (!result.urgent && section->building && section->buildingVersion == result.version) section->building = false;
+        refresh(*section);
         if (!result.urgent && result.version < section->builtVersion) return;
         if (result.units != arenaUnits) return;
         bool hadLayer[LAYERS];
@@ -723,6 +870,12 @@ namespace at::terrain {
             layer.first = first;
             layer.vertices = count;
             std::memcpy(layer.bucketQuads, mesh.bucketQuads, sizeof(layer.bucketQuads));
+            hot[slot].layers |= static_cast<u8>(1u << index);
+            if (index != TRANSLUCENT) {
+                Ordered item{.buffer = buffer, .first = first, .slot = static_cast<u32>(slot), .quads = {}};
+                std::memcpy(item.quads, layer.bucketQuads, sizeof(item.quads));
+                ordered[index].push_back(item);
+            }
             if (index == TRANSLUCENT) {
                 u32 indexCount = (count / 4) * 6;
                 u32 indexBuffer, indexFirst;
@@ -770,12 +923,11 @@ namespace at::terrain {
                                                  buildCamera[2] - static_cast<float>(section->z * 16));
             }
         }
-        if (section->drawnFrame == frame) {
+        if (hot[slot].drawnFrame == frame) {
             for (u32 index = 0; index < LAYERS; index++) {
                 if (!hadLayer[index] && section->layers[index].vertices > 0) layerVisible[index].push_back(section);
             }
         }
-        std::size_t slot = slotIndex(*section);
         GraphNode &node = graphNodes[slot];
         if (!section->compiled || section->visibility != result.visibility) {
             node.visibility = result.visibility;
@@ -805,6 +957,7 @@ namespace at::terrain {
         if (!section->opaque) section->opaque = std::make_unique<OpaqueMask>();
         *section->opaque = result.opaque;
         section->dirty = section->version != section->builtVersion;
+        refresh(*section);
     }
 
     u32 Terrain::upload(u64 budget, u64 budgetNanos) {
@@ -879,7 +1032,7 @@ namespace at::terrain {
         u32 queued = 0;
         auto x = static_cast<float>(eyeX), y = static_cast<float>(eyeY), z = static_cast<float>(eyeZ);
         std::vector<SortJob> jobs;
-        for (Section *section: visible) {
+        for (Section *section: layerVisible[TRANSLUCENT]) {
             if (queued >= limit) break;
             SectionLayer &layer = section->layers[TRANSLUCENT];
             if (layer.indexCount == 0 || layer.sorting || !layer.centroids || layer.sortMode == SortMode::NONE) continue;
@@ -964,31 +1117,41 @@ namespace at::terrain {
         const double viewZ = shadowView ? shadowZ : cameraZ;
         const double originX = std::floor(viewX), originY = std::floor(viewY), originZ = std::floor(viewZ);
         if (list.empty()) return 0;
+        prof::Lap lap;
+        lap.part(prof::PART + prof::DRAW_PREPARE);
         bool translucent = layerIndex == TRANSLUCENT;
         u64 tableBytes = sections.size() * sizeof(SectionDraw);
         u64 maxCommands = list.size() * BUCKETS + 64;
         u64 commandBytes = maxCommands * sizeof(VkDrawIndexedIndirectCommand);
         if (!renderer.prepare(commandBytes + 64, tableBytes)) return 0;
+        lap.part(prof::PART + prof::DRAW_BIND);
         renderer.terrainLayer = static_cast<i32>(layerIndex);
         bool bound = renderer.bindState(arenaUnits == EXTENDED_UNITS ? renderer.layouts.extendedTerrain() : renderer.layouts.terrain(),
                                         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
         renderer.terrainLayer = -1;
         if (!bound) return 0;
         renderer.state.dirty |= RenderState::TRANSFORM;
+        lap.part(prof::PART + prof::DRAW_RECORD);
         u32 record = renderer.record();
         renderer.state.dirty |= RenderState::TRANSFORM;
         {
+            // The record sits in memory mapped for writing to the GPU, where reading back is very slow. The matrix in it
+            // was copied from the model view state just now, so the adjusted column is computed from that and written.
             auto *drawRecord = reinterpret_cast<DrawRecord *>(renderer.recordStream().address(static_cast<u64>(record) * sizeof(DrawRecord)));
+            const float *modelView = renderer.state.modelView.top();
             float fraction[3] = {
                 static_cast<float>(viewX - originX), static_cast<float>(viewY - originY), static_cast<float>(viewZ - originZ)
             };
+            float adjusted[4];
             for (int row = 0; row < 4; row++) {
-                drawRecord->modelView[12 + row] -= drawRecord->modelView[row] * fraction[0] + drawRecord->modelView[4 + row] * fraction[1] +
-                    drawRecord->modelView[8 + row] * fraction[2];
+                adjusted[row] = modelView[12 + row] -
+                                (modelView[row] * fraction[0] + modelView[4 + row] * fraction[1] + modelView[8 + row] * fraction[2]);
             }
+            std::memcpy(&drawRecord->modelView[12], adjusted, sizeof(adjusted));
         }
         bool facing = !translucent && !shadowView && renderer.state.cullsBack();
 
+        lap.part(prof::PART + prof::DRAW_ALLOC);
         FrameStream &data = renderer.dataStream();
         FrameStream &sectionStream = renderer.sectionStream();
         u64 tableOffset = sectionStream.allocate(tableBytes, sizeof(SectionDraw));
@@ -998,6 +1161,7 @@ namespace at::terrain {
         auto *commands = reinterpret_cast<VkDrawIndexedIndirectCommand *>(data.address(commandOffset));
         auto tableBase = static_cast<u32>(tableOffset / sizeof(SectionDraw));
 
+        lap.part(prof::PART + prof::DRAW_WALK);
         drawRanges.clear();
         u32 drawn = 0;
         auto addRange = [&](u32 buffer, u32 first, u32 count) {
@@ -1009,17 +1173,26 @@ namespace at::terrain {
             }
             drawRanges.push_back({.buffer = buffer, .first = first, .count = count});
         };
-        auto addSection = [&](const Section &section) {
-            const SectionLayer &layer = section.layers[layerIndex];
-            if (layer.vertices == 0) return;
-            SectionDraw &entry = table[slotIndex(section)];
-            entry.offset[0] = static_cast<float>(section.x * 16 - originX);
-            entry.offset[1] = static_cast<float>(section.y * 16 - originY);
-            entry.offset[2] = static_cast<float>(section.z * 16 - originZ);
+        // luka: ASTATINE_BRIDGE overrides the bridge length, to measure draws against vertices.
+        static const u32 bridge = [] {
+            const char *value = std::getenv("ASTATINE_BRIDGE");
+            return value ? static_cast<u32>(std::strtoul(value, nullptr, 10)) : BRIDGE_VERTICES;
+        }();
+        // luka: the solid layers are drawn nearest section first. ASTATINE_ORDER=buffer goes back to vertex buffer
+        // order, to measure what the hidden pixels cost.
+        static const bool nearFirst = [] {
+            const char *value = std::getenv("ASTATINE_ORDER");
+            return !value || std::strcmp(value, "buffer") != 0;
+        }();
+        auto addBuckets = [&](std::size_t slot, i32 x, i32 y, i32 z, u32 buffer, u32 firstVertex, const u32 *quads) {
+            SectionDraw &entry = table[slot];
+            entry.offset[0] = static_cast<float>(x * 16 - originX);
+            entry.offset[1] = static_cast<float>(y * 16 - originY);
+            entry.offset[2] = static_cast<float>(z * 16 - originZ);
             entry.record = record;
             drawn++;
             bool show[BUCKETS];
-            double minX = section.x * 16.0, minY = section.y * 16.0, minZ = section.z * 16.0;
+            double minX = x * 16.0, minY = y * 16.0, minZ = z * 16.0;
             show[0] = !facing || eyeY < minY + 18.0;
             show[1] = !facing || eyeY > minY - 2.0;
             show[2] = !facing || eyeZ < minZ + 18.0;
@@ -1027,18 +1200,18 @@ namespace at::terrain {
             show[4] = !facing || eyeX < minX + 18.0;
             show[5] = !facing || eyeX > minX - 2.0;
             show[6] = true;
-            u32 vertex = layer.first;
+            u32 vertex = firstVertex;
             u32 start = 0, end = 0, gap = 0;
             bool open = false;
             for (u32 bucket = 0; bucket < BUCKETS; bucket++) {
-                u32 count = layer.bucketQuads[bucket] * 4;
+                u32 count = quads[bucket] * 4;
                 if (count == 0) continue;
                 if (show[bucket]) {
                     if (!open) {
                         start = vertex;
                         open = true;
-                    } else if (gap > BRIDGE_VERTICES) {
-                        addRange(layer.buffer, start, end - start);
+                    } else if (gap > bridge) {
+                        addRange(buffer, start, end - start);
                         start = vertex;
                     }
                     end = vertex + count;
@@ -1048,7 +1221,12 @@ namespace at::terrain {
                 }
                 vertex += count;
             }
-            if (open) addRange(layer.buffer, start, end - start);
+            if (open) addRange(buffer, start, end - start);
+        };
+        auto addSection = [&](const Section &section) {
+            const SectionLayer &layer = section.layers[layerIndex];
+            if (layer.vertices == 0) return;
+            addBuckets(slotIndex(section), section.x, section.y, section.z, layer.buffer, layer.first, layer.bucketQuads);
         };
 
         if (translucent) {
@@ -1098,8 +1276,30 @@ namespace at::terrain {
             flush();
             drawnLastFrame = drawn;
             return drawn;
+        } else if (!shadowView && nearFirst) {
+            // The visible list runs outward from the camera, so what is drawn first hides what comes later and the
+            // GPU skips those pixels. Costs more ranges than vertex buffer order.
+            for (Section *section: list) addSection(*section);
+        } else if (!shadowView) {
+            // Already in vertex buffer order, so neighbouring sections join into one range without a sort. Uploads
+            // since the last settle sit at the end and only cost a few extra ranges until they are merged in.
+            std::vector<Ordered> &entries = ordered[layerIndex];
+            if (entries.size() - orderedSorted[layerIndex] > SETTLE_TAIL || orderedDead[layerIndex] > SETTLE_DEAD) {
+                lap.part(prof::PART + prof::DRAW_ORDER);
+                settle(layerIndex);
+                lap.part(prof::PART + prof::DRAW_WALK);
+            }
+            const Hot *states = hot.data();
+            prof::count(prof::PART + prof::N_ORDERED, entries.size());
+            for (const Ordered &item: entries) {
+                if (item.slot == DEAD) continue;
+                const Hot &state = states[item.slot];
+                if (state.drawnFrame != frame) continue;
+                addBuckets(item.slot, state.x, state.y, state.z, item.buffer, item.first, item.quads);
+            }
         } else {
             for (Section *section: list) addSection(*section);
+            lap.part(prof::PART + prof::DRAW_ORDER);
             std::ranges::sort(drawRanges, [](const DrawRange &a, const DrawRange &b) {
                 return a.buffer != b.buffer ? a.buffer < b.buffer : a.first < b.first;
             });
@@ -1115,11 +1315,19 @@ namespace at::terrain {
             }
             drawRanges.resize(merged);
         }
+        prof::count(prof::PART + prof::N_DRAWN, drawn);
+        if (prof::enabled) {
+            u64 vertices = 0;
+            for (const DrawRange &range : drawRanges) vertices += range.count;
+            prof::count(prof::PART + prof::N_RANGES, drawRanges.size());
+            prof::count(prof::PART + prof::N_VERTS, vertices);
+        }
         if (drawRanges.empty()) {
             drawnLastFrame = drawn;
             return drawn;
         }
 
+        lap.part(prof::PART + prof::DRAW_EMIT);
         const Device &device = *renderer.context().device;
         VkCommandBuffer main = renderer.commands();
         renderer.bindQuadIndices(false);
@@ -1179,7 +1387,8 @@ namespace at::terrain {
             if (section.building) building++;
         }
         u32 rendered = 0;
-        for (const Section *section: visible) {
+        for (u32 slot: visibleSlots) {
+            const Section *section = &sections[slot];
             bool any = false;
             for (const SectionLayer &layer: section->layers) any |= layer.vertices > 0;
             if (any) rendered++;

@@ -1,0 +1,25 @@
+{
+  "required": false,
+  "package": "dev.hcfopt.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "client": [
+    "MinecraftMixin",
+    "EntityItemMixin",
+    "EntityXPOrbMixin",
+    "EntityLivingBaseMixin",
+    "EntityAccessor",
+    "WorldMixin",
+    "TileEntityRendererDispatcherMixin",
+    "RenderEntityItemMixin",
+    "EffectRendererMixin",
+    "RenderManagerMixin",
+    "LongHashMapMixin",
+    "ChunkProviderClientMixin",
+    "ChunkGapsMixin",
+    "WorldLightMixin",
+    "RenderGlobalMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

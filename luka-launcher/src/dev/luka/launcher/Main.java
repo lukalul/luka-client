@@ -20,6 +20,16 @@ public final class Main {
     SwingUtilities.invokeLater(() -> new LauncherFrame(root, accountMode).setVisible(true));
   }
 
+  /** The jar this launcher runs from; null when it runs from a classes folder. */
+  static File launcherJar() {
+    try {
+      File jar = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+      return jar.isFile() ? jar.getAbsoluteFile() : null;
+    } catch (Exception e) {
+      return null;
+    }
+  }
+
   private static File home() throws URISyntaxException {
     String override = System.getProperty("luka.home");
     if (override != null) return new File(override);

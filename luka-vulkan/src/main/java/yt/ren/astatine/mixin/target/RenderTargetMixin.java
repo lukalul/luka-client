@@ -15,6 +15,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import yt.ren.astatine.Native;
 import yt.ren.astatine.extension.FramebufferHolder;
+import yt.ren.astatine.compat.DeferredScreenshot;
 import yt.ren.astatine.render.GL;
 import yt.ren.astatine.render.TextureBinding;
 
@@ -52,6 +53,13 @@ public abstract class RenderTargetMixin implements FramebufferHolder {
 
 	@Unique
 	private long astatine$framebuffer;
+
+	// luka: inside draw(), before the picture's texture is bound for the full-window quad
+	@Unique
+	private boolean astatine$inDraw;
+
+	@Unique
+	private boolean astatine$blitted;
 
 	@Override
 	public long astatine$framebuffer() {
@@ -112,6 +120,16 @@ public abstract class RenderTargetMixin implements FramebufferHolder {
 	@Redirect(method = "*", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/platform/GlStateManager;bindTexture(I)V"))
 	private void astatine$bindTexture(int texture) {
 		if (texture == this.colorTextureId && texture > 0 && this.astatine$framebuffer != 0L) {
+			if (this.astatine$inDraw) {
+				// luka: the copy to the window needs no texture. Binding it would count as reading the picture, which
+				// stops the renderer from drawing the game straight into the window.
+				this.astatine$inDraw = false;
+				if (this.astatine$opaqueDraw && !"true".equals(System.getProperty("luka.fxaa"))
+					&& Native.framebufferBlit(this.astatine$framebuffer, this.astatine$drawWidth, this.astatine$drawHeight)) {
+					this.astatine$blitted = true;
+					return;
+				}
+			}
 			TextureBinding.bind(Native.framebufferTexture(this.astatine$framebuffer));
 		} else {
 			GlStateManager.bindTexture(texture);
@@ -123,10 +141,26 @@ public abstract class RenderTargetMixin implements FramebufferHolder {
 		this.astatine$opaqueDraw = disableBlend && this.viewWidth == this.width && this.viewHeight == this.height;
 		this.astatine$drawWidth = width;
 		this.astatine$drawHeight = height;
+		if (this.astatine$opaqueDraw) DeferredScreenshot.frameDrawn((RenderTarget) (Object) this);
+		this.astatine$blitted = false;
+		this.astatine$inDraw = true;
+	}
+
+	@Inject(method = "draw(IIZ)V", at = @At("RETURN"))
+	private void astatine$endDraw(int width, int height, boolean disableBlend, CallbackInfo callback) {
+		this.astatine$inDraw = false;
+		this.astatine$blitted = false;
 	}
 
 	@Redirect(method = "draw(IIZ)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/vertex/Tesselator;end()V"))
 	private void astatine$blit(Tesselator tesselator) {
+		if (this.astatine$blitted) {
+			this.astatine$blitted = false;
+			BufferBuilder builder = tesselator.getBuffer();
+			builder.end();
+			builder.clear();
+			return;
+		}
 		if (this.astatine$opaqueDraw && this.astatine$framebuffer != 0L && "true".equals(System.getProperty("luka.fxaa"))) {
 			// the plain copy cannot filter, so this frame goes to the screen through the shader
 			GL.program(3);

@@ -1,0 +1,28 @@
+luka
+Copyright (C) 2026 the luka contributors
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General
+Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
+option) any later version. The full text is in the LICENSE file.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+for more details.
+
+Additional terms under section 7 of the GNU General Public License version 3:
+
+1. Separately distributed game and mods. You may convey this program together with, or have it load or link
+   against, Minecraft, its mod loaders, and mods that are distributed separately under their own licences
+   (including Argentum, Argentum Extras and Cera), without those separate works having to be licensed under
+   this License. The source code of this program must still be made available as this License requires.
+
+2. Names and logos (section 7(e)). This License grants no right to use the name "luka", the luka logo, or the
+   luka.wtf domain, except to describe truthfully where a work came from.
+
+3. Modified versions (section 7(c)). A modified version that you make available to others must use a different
+   name and logo, and must state that it is a modified version and is not the official luka.
+
+luka is an independent project. It is not affiliated with, endorsed by, or sponsored by Mojang Studios,
+Microsoft, Lunar Client, or any Minecraft server network. "Minecraft" is a trademark of Mojang AB.
+
+Third-party components keep their own licences. See THIRD_PARTY_NOTICES.md.

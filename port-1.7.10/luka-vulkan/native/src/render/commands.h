@@ -1,0 +1,197 @@
+#pragma once
+
+#include "core/common.h"
+
+namespace at::op {
+    enum : u32 {
+        ENABLE = 1,
+        DISABLE = 2,
+        ALPHA_FUNC = 3,
+        COLOR_MATERIAL = 4,
+        DEPTH_FUNC = 5,
+        DEPTH_MASK = 6,
+        BLEND_FUNC = 7,
+        FOG_MODE = 8,
+        FOG_DENSITY = 9,
+        FOG_START = 10,
+        FOG_END = 11,
+        FOG_COLOR = 12,
+        FOG_RADIAL = 13,
+        CULL_FACE = 14,
+        POLYGON_OFFSET = 15,
+        LOGIC_OP = 16,
+        COLOR_MASK = 17,
+        TEXGEN_MODE = 18,
+        TEXGEN_PLANE = 19,
+        ACTIVE_TEXTURE = 20,
+        BIND_TEXTURE = 21,
+        SHADE_MODEL = 22,
+        VIEWPORT = 23,
+        SCISSOR = 60, // luka: glScissor
+        BLEND_EQUATION = 61, // luka
+        PROGRAM = 62, // luka
+        PROGRAM_PARAMETERS = 63, // luka
+        LINE_WIDTH = 24,
+        CLEAR_COLOR = 25,
+        CLEAR_DEPTH = 26,
+        COLOR = 27,
+        NORMAL = 28,
+        TEXCOORD = 29,
+        OVERLAY = 30,
+        CLEAR_OVERLAY = 31,
+        PUSH_ATTRIB = 32,
+        POP_ATTRIB = 33,
+        MATRIX_MODE = 34,
+        LOAD_IDENTITY = 35,
+        PUSH_MATRIX = 36,
+        POP_MATRIX = 37,
+        ORTHO = 38,
+        ROTATE = 39,
+        PART_TRANSFORM = 120,
+        SCALE = 40,
+        TRANSLATE = 41,
+        MULT_MATRIX = 42,
+        PERSPECTIVE = 43,
+        LIGHT = 44,
+        LIGHT_MODEL_AMBIENT = 45,
+        TEXTURE_PARAMETER = 46,
+        CLEAR = 47,
+        BIND_FRAMEBUFFER = 48,
+        RELEASE_MESH = 49,
+        DRAW_IDS = 50,
+
+        DRAW = 100,
+        DRAW_MESH = 101,
+        TEXTURE_ALLOCATE = 102,
+        TEXTURE_UPLOAD = 103,
+        TEXTURE_DETACH = 104,
+        COPY_FROM_TARGET = 105,
+        FRAMEBUFFER_RELEASE = 106,
+        FRAMEBUFFER_BLIT = 107,
+        PRESENT = 108,
+        SET_VSYNC = 109,
+        TERRAIN_SETUP = 110,
+        TERRAIN_MARK_DIRTY = 111,
+        TERRAIN_ABORT = 112,
+        TERRAIN_UPLOAD = 113,
+        TERRAIN_SORT = 114,
+        TERRAIN_DRAW = 115,
+        BEGIN_CAPTURE = 116,
+        END_CAPTURE = 117,
+        TEXTURE_COMPANIONS = 129,
+        TERRAIN_SHADOW_VIEW = 130,
+        TERRAIN_SHADOW_VIEW_END = 131,
+        IRIS_DRAW_STATE = 132,
+        READBACK = 133,
+    };
+
+    constexpr u32 HEADER = 16;
+    constexpr u32 FIRST_NATIVE = 100;
+
+    struct Draw {
+        u32 layout;
+        i32 mode;
+        u32 count;
+        u32 bytes;
+    };
+
+    struct DrawMesh {
+        u64 mesh;
+        i32 mode;
+        u32 pad;
+    };
+
+    struct TextureCompanions {
+        u64 texture;
+        u64 normals;
+        u64 specular;
+    };
+
+    struct TextureAllocate {
+        u64 texture;
+        u32 width;
+        u32 height;
+    };
+
+    struct TextureUpload {
+        u64 texture;
+        u32 level;
+        i32 x;
+        i32 y;
+        u32 width;
+        u32 height;
+        u32 pad;
+    };
+
+    struct Handle {
+        u64 value;
+    };
+
+    struct CopyFromTarget {
+        u32 level;
+        i32 destinationX;
+        i32 destinationY;
+        i32 x;
+        i32 y;
+        u32 width;
+        u32 height;
+        u32 pad;
+    };
+
+    struct Blit {
+        u64 framebuffer;
+        u32 width;
+        u32 height;
+    };
+
+    struct Flag {
+        u32 value;
+        u32 pad;
+    };
+
+    struct ShadowCulling {
+        u32 cullEverything;
+        u32 planeCount;
+        float distance;
+        float safeDistance;
+        float planes[13][4];
+    };
+
+    struct Readback {
+        u64 ticket;
+        u64 texture;
+        i32 x, y, width, height;
+    };
+
+    struct TerrainShadowView {
+        float modelView[16];
+        float projection[16];
+        ShadowCulling culling;
+        double camera[3];
+    };
+
+    struct TerrainSetup {
+        double x, y, z, eyeHeight;
+        i32 frame;
+        i32 lookFace;
+        u32 flags;
+        u32 scheduleCap;
+    };
+
+    struct TerrainBox {
+        i32 minX, minY, minZ, maxX, maxY, maxZ;
+        u32 important;
+        u32 pad;
+        u64 sequence;
+    };
+
+    struct TerrainAbort {
+        i32 x, y, z;
+        u32 version;
+    };
+
+    struct TerrainUpload {
+        u64 budget;
+        u64 nanos;
+    };
+} // namespace at::op

@@ -4,6 +4,7 @@
   "compatibilityLevel": "JAVA_8",
   "client": [
     "MinecraftMixin",
+    "WorldLightMixin",
     "EntityItemMixin",
     "EntityXPOrbMixin",
     "EntityLivingBaseMixin",
@@ -12,7 +13,8 @@
     "TileEntityRendererDispatcherMixin",
     "RenderEntityItemMixin",
     "EffectRendererMixin",
-    "RenderManagerMixin"
+    "RenderManagerMixin",
+    "RenderGlobalCloudsMixin"
   ],
   "injectors": {
     "defaultRequire": 0

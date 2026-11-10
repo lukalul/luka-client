@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "fullbright",
+  "version": "${version}",
+  "name": "Fullbright",
+  "description": "Full light everywhere with normal colours. Toggle with B (rebindable in Controls).",
+  "authors": [
+    "luka contributors"
+  ],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.fullbright.Fullbright"
+    ]
+  },
+  "mixins": [
+    "fullbright.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.14.21",
+    "minecraft": "1.7.10"
+  },
+  "license": "GPL-3.0-or-later",
+  "icon": "assets/fullbright/icon.png"
+}

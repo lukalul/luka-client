@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "customcolors",
+  "version": "${version}",
+  "name": "Custom Colors and Fonts",
+  "description": "MCPatcher and OptiFine resource pack colormaps, lightmaps and HD fonts for 1.7.10.",
+  "authors": [
+    "luka contributors"
+  ],
+  "environment": "client",
+  "mixins": [
+    "customcolors.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.14.21",
+    "minecraft": "1.7.10"
+  },
+  "license": "LGPL-3.0-only"
+}

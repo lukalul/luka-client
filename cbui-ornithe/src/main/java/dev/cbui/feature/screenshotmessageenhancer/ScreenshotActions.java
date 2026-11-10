@@ -198,7 +198,7 @@ public final class ScreenshotActions {
     try {
       BufferedImage image = ImageIO.read(file);
       if (image == null) throw new IOException("unreadable image");
-      boolean copied = copyImageOnWindows(file);
+      boolean copied = copyImageOnWindows(file) || copyImageOnLinux(file);
       if (!copied && !GraphicsEnvironment.isHeadless()) {
         Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new ImageTransfer(image), null);
         copied = true;
@@ -220,6 +220,31 @@ public final class ScreenshotActions {
       if (!process.waitFor(20, TimeUnit.SECONDS)) { process.destroyForcibly(); return false; }
       return process.exitValue() == 0;
     } catch (Throwable ignored) { return false; }
+  }
+
+  /** Linux: wl-copy on Wayland, xclip on X11 (whichever is installed), fed the PNG file. */
+  private static boolean copyImageOnLinux(File file) {
+    String os = System.getProperty("os.name", "").toLowerCase();
+    if (os.contains("win") || os.contains("mac")) return false;
+    boolean wayland = System.getenv("WAYLAND_DISPLAY") != null;
+    String[][] tools = wayland
+        ? new String[][] {{"wl-copy", "--type", "image/png"}, {"xclip", "-selection", "clipboard", "-t", "image/png", "-i"}}
+        : new String[][] {{"xclip", "-selection", "clipboard", "-t", "image/png", "-i"}, {"wl-copy", "--type", "image/png"}};
+    for (String[] tool : tools) {
+      try {
+        ProcessBuilder builder = new ProcessBuilder(tool);
+        builder.redirectInput(file);
+        builder.redirectErrorStream(true);
+        builder.redirectOutput(new File("/dev/null"));
+        Process process = builder.start();
+        // both tools keep running to serve the clipboard: a quick exit with an error means it did not work
+        if (process.waitFor(2, TimeUnit.SECONDS) && process.exitValue() != 0) continue;
+        return true;
+      } catch (Throwable ignored) {
+        // not installed: try the next one
+      }
+    }
+    return false;
   }
 
   private static void optimizePng(File original) {

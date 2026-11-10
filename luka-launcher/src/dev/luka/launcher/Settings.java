@@ -42,6 +42,9 @@ final class Settings {
   /** Which graphics path the game starts with: "normal" (OpenGL) or "vulkan". */
   String renderer() { return "vulkan".equals(values.getProperty("renderer", "normal").trim()) ? "vulkan" : "normal"; }
 
+  /** Which Minecraft version Play starts: 1.8.9 (the default) or 1.7.10. */
+  GameVersion version() { return GameVersion.of(values.getProperty("mcVersion", GameVersion.V1_8_9.id).trim()); }
+
   /** The newest release whose notes this player has been shown. */
   String seenChangelog() { return values.getProperty("seenChangelog", "").trim(); }
 

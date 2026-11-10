@@ -2,6 +2,7 @@ package dev.fastpacks.index;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.fastpacks.pack.ExtraPacks;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -30,12 +31,12 @@ public final class PackIndex implements AutoCloseable {
     }
 
     public synchronized CompletableFuture<List<PackRecord>> refresh(boolean force) {
-        long now = treeSignature(root, 0);
+        long now = signature(root);
         if (!force && now == signature && active == null) return CompletableFuture.completedFuture(packs);
         if (active != null && !active.isDone()) return active;
         active = CompletableFuture.supplyAsync(() -> scan(root), workers).whenComplete((result, error) -> {
             synchronized (PackIndex.this) {
-                if (error == null) { packs = result; folders = scanFolders(root); signature = treeSignature(root, 0); }
+                if (error == null) { packs = result; folders = scanFolders(root); signature = signature(root); }
                 active = null;
             }
         });
@@ -71,27 +72,37 @@ public final class PackIndex implements AutoCloseable {
     }
 
     private static List<PackRecord> scan(File root) {
-        ArrayList<PackRecord> out = new ArrayList<>(); scanInto(root, root, 0, out);
+        ArrayList<PackRecord> out = new ArrayList<>(); scanInto(root, root, 0, out, "");
+        File extra = ExtraPacks.root(root);
+        if (extra != null) {
+            // the standard launcher's packs, read only, under the folder ".minecraft"; a top-level pack of the same name here wins
+            ArrayList<PackRecord> more = new ArrayList<>(); scanInto(extra, extra, 0, more, ExtraPacks.FOLDER + "/");
+            Set<String> own = ExtraPacks.ownNames(root);
+            for (PackRecord p : more) if (!p.folderPath.equals(ExtraPacks.FOLDER) || !own.contains(p.name.toLowerCase(Locale.ROOT))) out.add(p);
+        }
         out.sort(Comparator.comparing(a -> a.relativePath.toLowerCase(Locale.ROOT))); return Collections.unmodifiableList(out);
     }
 
-    private static void scanInto(File root, File dir, int depth, List<PackRecord> out) {
+    private static void scanInto(File root, File dir, int depth, List<PackRecord> out, String prefix) {
         File[] files = dir.listFiles(); if (files == null) return;
         Arrays.sort(files, Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER));
         for (File f : files) {
             if (f.isDirectory()) {
-                if (new File(f, "pack.mcmeta").isFile()) out.add(new PackRecord(f, relativize(root, f), true));
-                else if (depth < 3) scanInto(root, f, depth + 1, out);
-            } else if (isZip(f)) out.add(new PackRecord(f, relativize(root, f), false));
+                if (new File(f, "pack.mcmeta").isFile()) out.add(new PackRecord(f, prefix + relativize(root, f), true));
+                else if (depth < 3) scanInto(root, f, depth + 1, out, prefix);
+            } else if (isZip(f)) out.add(new PackRecord(f, prefix + relativize(root, f), false));
         }
     }
 
     private static List<String> scanFolders(File root) {
-        ArrayList<String> out = new ArrayList<>(); folderInto(root, root, 0, out); return Collections.unmodifiableList(out);
+        ArrayList<String> out = new ArrayList<>(); folderInto(root, root, 0, out, "");
+        File extra = ExtraPacks.root(root);
+        if (extra != null) { out.add(ExtraPacks.FOLDER); folderInto(extra, extra, 0, out, ExtraPacks.FOLDER + "/"); }
+        return Collections.unmodifiableList(out);
     }
-    private static void folderInto(File root, File dir, int depth, List<String> out) {
+    private static void folderInto(File root, File dir, int depth, List<String> out, String prefix) {
         if (depth >= 3) return; File[] files = dir.listFiles(File::isDirectory); if (files == null) return;
-        for (File f : files) if (!new File(f, "pack.mcmeta").isFile()) { out.add(relativize(root, f)); folderInto(root, f, depth + 1, out); }
+        for (File f : files) if (!new File(f, "pack.mcmeta").isFile()) { out.add(prefix + relativize(root, f)); folderInto(root, f, depth + 1, out, prefix); }
     }
     private static boolean isZip(File f) { String n=f.getName().toLowerCase(Locale.ROOT); return n.endsWith(".zip") || n.endsWith(".jar"); }
     private static String relativize(File root, File f) { return root.toPath().relativize(f.toPath()).toString().replace('\\','/'); }
@@ -116,6 +127,10 @@ public final class PackIndex implements AutoCloseable {
     }
     private static String flatten(String json) { return json.replaceAll("[{}\\[\\]\\\"]", "").replace("text:", "").replace("\\n", " "); }
 
+    private static long signature(File root) {
+        File extra = ExtraPacks.root(root);
+        return treeSignature(root, 0) * 31 + (extra == null ? 0 : treeSignature(extra, 0));
+    }
     private static long treeSignature(File dir, int depth) {
         if (!dir.exists()) return 0; long s = dir.lastModified() ^ dir.length(); File[] fs = dir.listFiles(); if (fs == null) return s;
         for (File f : fs) { s = s * 31 + f.getName().hashCode(); s ^= f.lastModified() + f.length(); if (f.isDirectory() && depth < 3 && !new File(f,"pack.mcmeta").isFile()) s ^= treeSignature(f, depth + 1); }
