@@ -17,7 +17,9 @@
     "ChunkProviderClientMixin",
     "ChunkGapsMixin",
     "WorldLightMixin",
-    "RenderGlobalMixin"
+    "RenderGlobalMixin",
+    "OslServerRaceMixin",
+    "OslIntegratedServerMixin"
   ],
   "injectors": {
     "defaultRequire": 0

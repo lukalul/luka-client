@@ -10,7 +10,7 @@
   "entrypoints": {
     "preLaunch": ["yt.ren.astatine.Astatine"]
   },
-  "mixins": ["astatine.mixins.json", "astatine-compat.mixins.json"],
+  "mixins": ["astatine.mixins.json", "astatine-compat.mixins.json", "astatine-async.mixins.json"],
   "depends": {
     "fabricloader": ">=0.19.5",
     "fabric-language-kotlin": "*",

@@ -6,6 +6,8 @@ import net.minecraft.client.render.vertex.Tesselator;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
+import yt.ren.astatine.terrain.async.CaptureSink;
 import yt.ren.astatine.Native;
 import yt.ren.astatine.compat.GLCompat;
 import yt.ren.astatine.memory.Memory;
@@ -16,7 +18,15 @@ import yt.ren.astatine.terrain.SectionCapture;
  * same vertex data goes either to chunk capture, into the display list being compiled, or straight to the renderer.
  */
 @Mixin(Tesselator.class)
-public abstract class TesselatorMixin {
+public abstract class TesselatorMixin implements CaptureSink.Holder {
+	/** luka: set only on a mesh worker's own Tesselator (see terrain/async); null keeps the paths below. */
+	@Unique private CaptureSink astatine$sink;
+
+	@Override
+	public void astatine$setSink(CaptureSink sink) {
+		this.astatine$sink = sink;
+	}
+
 	@Shadow private ByteBuffer byteBuffer;
 	@Shadow private IntBuffer intBuffer;
 	@Shadow private int[] vertexBuffer;
@@ -45,7 +55,9 @@ public abstract class TesselatorMixin {
 		}
 		this.tesselating = false;
 		if (this.vertexCount > 0) {
-			if (SectionCapture.active) {
+			if (this.astatine$sink != null) {
+				this.astatine$sink.append(this.vertexBuffer, this.index);
+			} else if (SectionCapture.active) {
 				SectionCapture.append(this.vertexBuffer, this.index);
 			} else {
 				this.intBuffer.clear();

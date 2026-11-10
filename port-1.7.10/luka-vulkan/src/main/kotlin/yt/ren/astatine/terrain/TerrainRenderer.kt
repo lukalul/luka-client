@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager
 import yt.ren.astatine.Native
 import yt.ren.astatine.memory.LongObjectMap
 import yt.ren.astatine.memory.Memory
+import yt.ren.astatine.terrain.async.TerrainWorkers
 import kotlin.math.abs
 
 /**
@@ -48,6 +49,7 @@ object TerrainRenderer {
 
     @JvmStatic
     fun reload(renderer: WorldRenderer, world: ClientWorld, viewDistance: Int) {
+        TerrainWorkers.reset()
         important.clear()
         this.renderer = renderer
         this.world = world
@@ -117,6 +119,7 @@ object TerrainRenderer {
     fun clear() {
         forgetDirty()
         important.clear()
+        TerrainWorkers.reset()
         Native.terrainClear()
         blockEntities.clear()
         world = null
@@ -201,6 +204,10 @@ object TerrainRenderer {
     }
 
     private fun schedule(world: ClientWorld) {
+        if (TerrainWorkers.active()) {
+            scheduleAsync(world)
+            return
+        }
         val affordable = (budgetNanos() / buildNanos).toInt().coerceAtLeast(1)
         val wanted = affordable.coerceAtMost(SCHEDULE_ENTRIES)
         val count = Native.terrainSchedule(scheduled, wanted)
@@ -225,19 +232,76 @@ object TerrainRenderer {
         if (urgent) upload()
     }
 
+    private var snapshotNanos = 100_000.0
+
+    /**
+     * luka, async terrain: sections the native side marks urgent are built here as before; the others are copied and
+     * queued for the mesh workers (TerrainWorkers) as long as they have room and the copies fit the frame's budget.
+     * Sections that cannot go to a worker are built here; what is left is handed back and scheduled again.
+     */
+    private fun scheduleAsync(world: ClientWorld) {
+        TerrainWorkers.retryFailed { x, y, z, version -> buildSection(world, x, y, z, version, false) }
+        val room = TerrainWorkers.room()
+        val affordable = (budgetNanos() / snapshotNanos).toInt().coerceAtLeast(1)
+        val wanted = (room.coerceAtMost(affordable) + 1).coerceAtMost(SCHEDULE_ENTRIES)
+        val count = Native.terrainSchedule(scheduled, wanted)
+        var urgent = false
+        var queued = 0
+        val deadline = System.nanoTime() + budgetNanos()
+        for (i in 0 until count) {
+            val at = scheduled + i * 20L
+            val x = Memory.getInt(at)
+            val y = Memory.getInt(at + 4)
+            val z = Memory.getInt(at + 8)
+            val version = Memory.getInt(at + 12)
+            val now = Memory.getInt(at + 16) != 0
+            val started = System.nanoTime()
+            if (now) {
+                buildSection(world, x, y, z, version, false)
+                buildNanos += ((System.nanoTime() - started) - buildNanos) * 0.1
+                urgent = true
+                continue
+            }
+            if (queued >= room || (i > 0 && started >= deadline)) {
+                Native.terrainAbort(x, y, z, version)
+                continue
+            }
+            val entities = ArrayList<BlockEntity>()
+            val sent = try {
+                TerrainWorkers.submit(world, x, y, z, version, entities)
+            } catch (throwable: Throwable) {
+                logger.error("Unable to copy section {} {} {}", x, y, z, throwable)
+                false
+            }
+            if (sent) {
+                queued++
+                trackBlockEntities(x, y, z, entities)
+                RenderChunk.updateCounter++
+                snapshotNanos += ((System.nanoTime() - started) - snapshotNanos) * 0.1
+            } else {
+                buildSection(world, x, y, z, version, false)
+            }
+        }
+        if (urgent) upload()
+    }
+
+    private fun trackBlockEntities(x: Int, y: Int, z: Int, entities: List<BlockEntity>) {
+        val renderer = renderer
+        val key = key(x, y, z)
+        val previous = blockEntities[key] ?: emptyList()
+        if (renderer != null && (previous.isNotEmpty() || entities.isNotEmpty())) {
+            val added = entities.filter { it !in previous }
+            val removed = previous.filter { it !in entities }
+            renderer.blockEntitiesToBeRendered.removeAll(removed)
+            renderer.blockEntitiesToBeRendered.addAll(added)
+        }
+        if (entities.isEmpty()) blockEntities.remove(key) else blockEntities[key] = entities
+    }
+
     private fun buildSection(world: ClientWorld, x: Int, y: Int, z: Int, version: Int, urgent: Boolean) {
         try {
             val entities = SectionCapture.capture(world, x, y, z, version, urgent)
-            val renderer = renderer
-            val key = key(x, y, z)
-            val previous = blockEntities[key] ?: emptyList()
-            if (renderer != null && (previous.isNotEmpty() || entities.isNotEmpty())) {
-                val added = entities.filter { it !in previous }
-                val removed = previous.filter { it !in entities }
-                renderer.blockEntitiesToBeRendered.removeAll(removed)
-                renderer.blockEntitiesToBeRendered.addAll(added)
-            }
-            if (entities.isEmpty()) blockEntities.remove(key) else blockEntities[key] = entities
+            trackBlockEntities(x, y, z, entities)
             RenderChunk.updateCounter++
         } catch (throwable: Throwable) {
             logger.error("Unable to build section {} {} {}", x, y, z, throwable)

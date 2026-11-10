@@ -61,9 +61,34 @@ object SectionCapture {
     }
 
     fun capture(world: ClientWorld, x: Int, y: Int, z: Int, version: Int, urgent: Boolean): List<BlockEntity> {
+        val entities = ArrayList<BlockEntity>()
+        val opaqueCount = run(world, x, y, z, entities)
+        val sequence = if (urgent) Native.terrainDirtySequence() else 0L
+        for (layer in 0 until LAYERS) {
+            Memory.putLong(addresses + layer * 8L, sinks[layer])
+            Memory.putInt(counts + layer * 4L, (written[layer] / VERTEX_BYTES).toInt())
+        }
+        Native.terrainBuildCaptured(x, y, z, version, urgent, sequence, addresses, counts, opaque, opaqueCount)
+        return entities
+    }
+
+    /**
+     * luka, async terrain verify mode: the vertices the game thread makes for this section, per layer, without
+     * handing them to the native mesher.
+     */
+    @JvmStatic
+    fun expected(world: ClientWorld, x: Int, y: Int, z: Int): Array<IntArray> {
+        run(world, x, y, z, ArrayList())
+        return Array(LAYERS) { layer ->
+            val ints = (written[layer] / 4L).toInt()
+            IntArray(ints).also { Memory.copy(sinks[layer], it, ints) }
+        }
+    }
+
+    /** Meshes the section into the sinks and returns the number of opaque blocks. */
+    private fun run(world: ClientWorld, x: Int, y: Int, z: Int, entities: MutableList<BlockEntity>): Int {
         written.fill(0L)
         Memory.fill(opaque, 512L, 0)
-        val entities = ArrayList<BlockEntity>()
         val minX = x shl 4
         val minY = y shl 4
         val minZ = z shl 4
@@ -127,13 +152,7 @@ object SectionCapture {
                 active = false
             }
         }
-        val sequence = if (urgent) Native.terrainDirtySequence() else 0L
-        for (layer in 0 until LAYERS) {
-            Memory.putLong(addresses + layer * 8L, sinks[layer])
-            Memory.putInt(counts + layer * 4L, (written[layer] / VERTEX_BYTES).toInt())
-        }
-        Native.terrainBuildCaptured(x, y, z, version, urgent, sequence, addresses, counts, opaque, opaqueCount)
-        return entities
+        return opaqueCount
     }
 
     /** Pass 0 blocks are opaque cubes or alpha tested; 1.7.10 has no per-block layer beyond the two render passes. */

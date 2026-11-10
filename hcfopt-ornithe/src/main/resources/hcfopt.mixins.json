@@ -14,7 +14,9 @@
     "RenderEntityItemMixin",
     "EffectRendererMixin",
     "RenderManagerMixin",
-    "RenderGlobalCloudsMixin"
+    "RenderGlobalCloudsMixin",
+    "OslServerRaceMixin",
+    "OslIntegratedServerMixin"
   ],
   "injectors": {
     "defaultRequire": 0
