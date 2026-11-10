@@ -63,7 +63,8 @@ public abstract class PolyNametagRenderMixin {
   @WrapOperation(method = "renderLivingLabel",
       at = @At(value = "INVOKE", target = GL_DISABLE, ordinal = 1, remap = false), require = 0)
   private void cbui$preserveDepthForSneaking(int capability, Operation<Void> vanillaCall) {
-    try { if (cbui$usesSneakStyle(cbui$labelOwner)) return; }
+    // sneaking labels, and every label with "Hide behind walls": keep the depth test, so walls hide them
+    try { if (cbui$usesSneakStyle(cbui$labelOwner) || NametagHooks.hiddenBehindWalls()) return; }
     catch (Throwable error) { Cbui.reportOnce("nametag depth hook", error); }
     vanillaCall.call(capability);
   }

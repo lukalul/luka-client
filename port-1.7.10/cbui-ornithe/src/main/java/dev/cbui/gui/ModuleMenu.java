@@ -549,7 +549,7 @@ public class ModuleMenu extends GuiScreen {
         list.add(withGroup("Text", textShadowToggle));
         break;
       case 1:
-        list.addAll(dev.cbui.config.VideoOptions.build());
+        // the VIDEO tab is not shown (tabShown)
         break;
       case 2:
         list.addAll(dev.cbui.config.PerfOptions.build());
@@ -570,16 +570,25 @@ public class ModuleMenu extends GuiScreen {
 
   private static final int TAB_Y = 38, ROWS_Y = 62;
 
+  /** The VIDEO tab (index 1) is not shown: the game's video options live on the Video Settings screen only. */
+  private static boolean tabShown(int i) {
+    return i != 1;
+  }
+
   private int tabW(int i) {
-    int gap = 3, total = layout.panelWidth - 24, sum = 0, n = SETTINGS_TABS.length;
-    for (String t : SETTINGS_TABS) sum += Fonts.bold().getStringWidth(t) + 22;
+    int gap = 3, total = layout.panelWidth - 24, sum = 0, n = 0;
+    for (int k = 0; k < SETTINGS_TABS.length; k++) {
+      if (!tabShown(k)) continue;
+      sum += Fonts.bold().getStringWidth(SETTINGS_TABS[k]) + 22;
+      n++;
+    }
     int extra = (total - sum - gap * (n - 1)) / n;
     return Fonts.bold().getStringWidth(SETTINGS_TABS[i]) + 22 + Math.max(0, extra);
   }
 
   private int tabX(int i) {
     int x = layout.panelX + 12;
-    for (int k = 0; k < i; k++) x += tabW(k) + 3;
+    for (int k = 0; k < i; k++) if (tabShown(k)) x += tabW(k) + 3;
     return x;
   }
 
@@ -590,12 +599,12 @@ public class ModuleMenu extends GuiScreen {
     Fonts.regular()
         .drawString(settingsTab == 0 ? "STYLE CHANGES APPLY TO EVERY HUD MODULE" : "CLIENT-WIDE", layout.panelX + 12, layout.panelY + 23, MUTED);
     for (int i = 0; i < SETTINGS_TABS.length; i++)
-      UiWidgets.cbButton(
+      if (tabShown(i)) UiWidgets.cbButton(
           SETTINGS_TABS[i], tabX(i), layout.panelY + TAB_Y, tabW(i), 16,
           Draw.inside(mx, my, tabX(i), layout.panelY + TAB_Y, tabW(i), 16), i == settingsTab);
     int wheel = takeWheel();
     if (wheel != 0 && editField == null && paletteTarget == null) settingsTarget -= wheel / 6f;
-    int content = (int) rowsHeight(globalSettings) + 12 + (settingsTab == 1 ? 49 : 0);
+    int content = (int) rowsHeight(globalSettings) + 12 + 0;
     int viewport = layout.panelHeight - ROWS_Y - 4;
     settingsTarget = clamp(settingsTarget, 0, Math.max(0, content - viewport));
     settingsScroll += (settingsTarget - settingsScroll) * .32f;
@@ -608,13 +617,6 @@ public class ModuleMenu extends GuiScreen {
       UiWidgets.cbButton("OPEN CAPE SELECTION", x, by, w, 19, Draw.inside(mx, my, x, by, w, 19), false);
     } else {
       drawSettingRows(globalSettings, x, layout.panelY + ROWS_Y - settingsScroll, w, mx, my);
-      if (settingsTab == 1) {
-        float by = layout.panelY + ROWS_Y - settingsScroll + rowsHeight(globalSettings) + 3;
-        UiWidgets.cbButton("PARTICLE TYPES...", x, by, w, 19,
-            Draw.inside(mx, my, x, by, w, 19), false);
-        UiWidgets.cbButton("RENDERER SETTINGS...", x, by + 22, w, 19,
-            Draw.inside(mx, my, x, by + 22, w, 19), false);
-      }
     }
     UiWidgets.endClip();
     drawScrollbar(Math.max(0, content - viewport), settingsScroll, layout.panelY + ROWS_Y, viewport);
@@ -1355,7 +1357,7 @@ public class ModuleMenu extends GuiScreen {
   private void settingsClick(int mx, int my) {
     if (selected == null) {
       for (int i = 0; i < SETTINGS_TABS.length; i++)
-        if (Draw.inside(mx, my, tabX(i), layout.panelY + TAB_Y, tabW(i), 16)) {
+        if (tabShown(i) && Draw.inside(mx, my, tabX(i), layout.panelY + TAB_Y, tabW(i), 16)) {
           if (i != settingsTab) {
             dev.cbui.config.PerfOptions.flush();
             settingsTab = i;
@@ -1367,19 +1369,6 @@ public class ModuleMenu extends GuiScreen {
       if (settingsTab == 4 && hit(mx, my, layout.panelX + 12, layout.panelY + ROWS_Y + 40 - settingsScroll, layout.panelWidth - 24, 19)) {
         mc.displayGuiScreen(new CosmeticsScreen(this));
         return;
-      }
-      if (settingsTab == 1) {
-        float by = layout.panelY + ROWS_Y - settingsScroll + rowsHeight(globalSettings) + 3;
-        if (hit(mx, my, layout.panelX + 12, by, layout.panelWidth - 24, 19)) {
-          dev.cbui.config.PerfOptions.flush();
-          mc.displayGuiScreen(new AnimationsScreen(this));
-          return;
-        }
-        if (hit(mx, my, layout.panelX + 12, by + 22, layout.panelWidth - 24, 19)) {
-          dev.cbui.config.PerfOptions.flush();
-          mc.displayGuiScreen(new net.minecraft.client.gui.GuiVideoSettings(this, mc.gameSettings));
-          return;
-        }
       }
       if (globalSettings != null && settingsTab != 4 && my >= layout.panelY + ROWS_Y - 2 && my < layout.panelY + layout.panelHeight - 2)
         nativeRowsClick(globalSettings, mx, my, layout.panelX + 12, layout.panelY + ROWS_Y - settingsScroll, layout.panelWidth - 24);

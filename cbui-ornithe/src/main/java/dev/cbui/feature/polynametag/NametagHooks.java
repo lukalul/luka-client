@@ -55,6 +55,12 @@ public final class NametagHooks {
     return !nearbyServerLabel(subject);
   }
 
+  /** The label is depth tested in all its passes, so blocks in front of it hide it. */
+  public static boolean hiddenBehindWalls() {
+    PolyNametagModule settings = enabledSettings();
+    return settings != null && settings.hideBehindWalls.get();
+  }
+
   public static boolean hiddenInInventory(Entity subject) {
     PolyNametagModule settings = enabledSettings();
     if (settings == null || settings.showInInventory.get() || subject == null) return false;

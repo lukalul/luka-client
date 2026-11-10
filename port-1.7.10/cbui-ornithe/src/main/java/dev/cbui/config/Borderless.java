@@ -25,6 +25,53 @@ public final class Borderless {
 
   private Borderless() {}
 
+  // ---- Vulkan renderer: the window is pylon's SDL window, not GLFW. SDL has borderless fullscreen itself
+  // ("fullscreen desktop"): pylon uses it for the game's fullscreen unless its exclusive mode is on. So there borderless
+  // means the game's fullscreen in that mode, F11 switches between it and a normal window, and with the setting off
+  // F11 gives exclusive fullscreen as in vanilla.
+  private static Object pylonDisplay;
+  private static Method pylonSetExclusive;
+  private static Boolean pylonExclusive;
+
+  /** pylon's window, once it exists; null when the game does not run on pylon. */
+  private static Object pylon() {
+    if (pylonDisplay != null) return pylonDisplay;
+    try {
+      Class<?> c = Class.forName("pl.tomgirl.pylon.window.DisplaySdl");
+      Object d = c.getMethod("instance").invoke(null);
+      if (d == null || !(Boolean) c.getMethod("isCreated").invoke(d)) return null;
+      pylonSetExclusive = c.getMethod("setExclusiveFullscreen", boolean.class);
+      pylonDisplay = d;
+      return d;
+    } catch (Throwable notPylon) {
+      return null;
+    }
+  }
+
+  private static void pylonExclusive(Object display, boolean exclusive) throws Exception {
+    if (pylonExclusive != null && pylonExclusive == exclusive) return;
+    pylonSetExclusive.invoke(display, exclusive);
+    pylonExclusive = exclusive;
+  }
+
+  private static void pylonToggle(Minecraft mc) {
+    internalToggle = true;
+    try { mc.toggleFullscreen(); } finally { internalToggle = false; }
+  }
+
+  private static void pylonSync(Object display, Minecraft mc) throws Exception {
+    pylonExclusive(display, !want);
+    if (want && pendingEnable) {
+      pendingEnable = false;
+      if (!mc.isFullScreen()) pylonToggle(mc);
+      applied = true;
+    } else if (!want && applied) {
+      applied = false;
+      // leave the borderless fullscreen this class entered; the next F11 is exclusive again
+      if (mc.isFullScreen()) pylonToggle(mc);
+    }
+  }
+
   /** The borderless setting changed (menu switch, or the saved setting at start-up). */
   public static void apply(boolean on) {
     want = on;
@@ -40,6 +87,7 @@ public final class Borderless {
   public static boolean userToggle() {
     try {
       Minecraft mc = Minecraft.getMinecraft();
+      if (pylon() != null) return false;   // the game's own F11 already switches borderless fullscreen and a window
       if (mc.isFullScreen()) return false;
       if (applied) {
         setBorderless(false);
@@ -65,6 +113,11 @@ public final class Borderless {
     try {
       Minecraft mc = Minecraft.getMinecraft();
       if (mc == null) return;
+      Object display = pylon();
+      if (display != null) {
+        pylonSync(display, mc);
+        return;
+      }
       boolean fullscreen = mc.isFullScreen();
       if (!want) {
         if (applied) {

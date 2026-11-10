@@ -10,6 +10,8 @@ public final class PolyNametagModule extends FeatureModule {
   public final Setting.Slider scale = grouped("General", add(new Setting.Slider("Scale", 1f, .25f, 3f, .05f, "How big nametags are (1 is normal)")));
   public final Setting.Choice textShadow = grouped("General", add(Setting.tip(new Setting.Choice("Nametag Text Shadow", "No Shadow", "No Shadow", "Shadow"), "The type of shadow to render")));
   public final Setting.Toggle showOwn = grouped("General", add(new Setting.Toggle("Show own nametag", true, "Whether to show your own nametag (visible in third person)")));
+  public final Setting.Toggle hideBehindWalls = grouped("General", add(new Setting.Toggle("Hide behind walls", true,
+      "Blocks hide nametags, as they hide the player. Off: nametags show through walls (vanilla shows them faintly).")));
   public final Setting.Toggle showInInventory = grouped("General", add(new Setting.Toggle("Show in inventory", false, "Show your own nametag on the model in the inventory screen")));
   public final Setting.Slider renderDistance = grouped("General", add(new Setting.Slider("Render distance", 64f, 1f, 256f, 1f, "Maximum distance for vanilla nametags")));
   public final Setting.Toggle hideEntity = grouped("Hidden HUD (F1)", add(new Setting.Toggle("Hide entity nametags when HUD hidden", true, "Hide non-player, non-armor stand nametags while the HUD is hidden (F1)")));

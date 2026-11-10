@@ -6,6 +6,7 @@
   "client": [
     "MinecraftMixin",
     "StallLogMinecraftMixin",
+    "KeyResyncMinecraftMixin",
     "StallLogProfilerMixin",
     "AnimationsGuiVideoSettingsMixin",
     "AnimationsParticleMixin",
