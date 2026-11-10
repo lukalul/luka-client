@@ -8,34 +8,39 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-8942DA?style=for-the-badge" alt="GPL-3.0"></a>
 </p>
 
-<p align="center"><b>A fast, open-source Minecraft 1.8.9 client for PvP and faction servers.</b></p>
+<p align="center"><b>A fast, open-source Minecraft 1.8.9 and 1.7.10 client for PvP and faction servers, on Windows and Linux.</b></p>
 
 ## Download
 
 **[Get the luka launcher](https://github.com/lukalul/luka-client/releases/latest/download/Luka-Setup.exe)** for Windows. Run it and press Play.
 
-**Using Prism Launcher?** Click Add Instance, open the Import tab and paste a link:
+**On Linux**, download [luka-launcher-linux.tar.gz](https://client.luka.wtf/luka-launcher-linux.tar.gz), unpack it and run `luka.sh`. It uses Java 21 or newer if you have it, and otherwise downloads Java once. The Vulkan renderer needs a Vulkan driver.
+
+**Pick your version** in the launcher: 1.8.9 or 1.7.10, next to the Normal and Vulkan renderer switch.
+
+**Using Prism Launcher?** Click Add Instance, open the Import tab and paste a link (1.8.9 only):
 
 | Renderer | Link |
 |---|---|
 | Normal | `https://github.com/lukalul/luka-client/releases/latest/download/luka-1.8.9-prism.zip` |
 | Vulkan | `https://github.com/lukalul/luka-client/releases/latest/download/luka-1.8.9-vulkan-prism.zip` |
 
-**Code signing:** luka has applied for free code signing provided by [SignPath.io](https://signpath.io), with a certificate by [SignPath Foundation](https://signpath.org). Until that is in place, Windows may warn you about an unknown publisher: click More info, then Run anyway. See the [code signing policy](CODE_SIGNING_POLICY.md).
+**Code signing:** luka isn't code-signed yet, so Windows may warn you about an unknown publisher: click More info, then Run anyway. See the [code signing policy](CODE_SIGNING_POLICY.md).
 
 ## What's included
 
 | Mod | What it does |
 |---|---|
 | **luka** | The mods menu, HUD editor, HUD modules, Chat mod and video settings |
-| **Vulkan renderer** | luka's fork of [Astatine](https://github.com/yeahhren/astatine), a Vulkan renderer for 1.8.9 |
-| **Normal renderer** | [Argentum](https://modrinth.com/mod/argentum), downloaded from its authors' Modrinth page |
+| **Vulkan renderer** | luka's fork of [Astatine](https://github.com/yeahhren/astatine), a Vulkan renderer, for 1.8.9 and 1.7.10 |
+| **Normal renderer** | On 1.8.9 [Argentum](https://modrinth.com/mod/argentum), downloaded from its authors' Modrinth page; on 1.7.10 the game's own OpenGL |
 | **SubFrame** | Replays with a free camera, and video renders with real motion blur |
 | **Envoy** | Support for Apollo server features |
 | **Motion Blur** | Frame-rate-independent motion blur |
 | **BakePlus and HCF Optimizer** | Keep FPS up around chests, signs and big groups of entities |
 | **FastPacks** | A fast resource pack browser |
 | **Custom Sky and Custom Colors** | OptiFine-style pack skies, colours and HD fonts on Vulkan |
+| **Connected textures** | OptiFine-style connected glass and blocks from your packs (1.7.10, Vulkan) |
 | **Fullbright** | Full light with normal colours |
 
 ## Performance
@@ -55,6 +60,13 @@ luka also skips drawing what's hidden behind walls:
 | 300 enchanted items behind a wall | 2,460 → 3,060 | 2,630 → 5,590 |
 
 The wall tests ran in an automated test window, so compare them only with each other.
+
+On 1.7.10, in the same automated test window (1080p, render distance 12):
+
+| Minecraft 1.7.10 | Average FPS |
+|---|---:|
+| The game on its own | 720 to 910 |
+| luka with the Vulkan renderer | 2,090 to 2,120 |
 
 ## Open source
 

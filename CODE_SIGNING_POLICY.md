@@ -1,6 +1,6 @@
 # Code signing policy
 
-Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+luka's releases are not code-signed yet. This page describes how releases are built and approved, and will name the certificate once there is one.
 
 Windows programs in luka's releases are built from this repository by GitHub Actions. A maintainer approves each release before it is signed.
 
