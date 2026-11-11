@@ -630,7 +630,8 @@ public final class LukaNet {
       } catch (IOException noVerification) {
         serverId = null;
       }
-      if (serverId != null) {
+      JsonObject proof = serverId == null ? null : mojangProof(uuid, serverId);
+      if (serverId != null && proof == null) {
         Minecraft mc = Minecraft.getMinecraft();
         try {
           mc.getSessionService().joinServer(mc.getSession().getProfile(), mc.getSession().getToken(), serverId);
@@ -643,6 +644,7 @@ public final class LukaNet {
       body.addProperty("name", name);
       body.addProperty("version", Cbui.VERSION);
       if (serverId != null) body.addProperty("serverId", serverId);
+      if (proof != null) body.add("proof", proof);
       JsonObject reply = call("POST", "/v1/session", body);
       if (reply.has("heartbeatSeconds")) heartbeatMs = Math.max(15, Math.min(300, reply.get("heartbeatSeconds").getAsInt())) * 1000L;
       JsonObject user = reply.getAsJsonObject("user");
@@ -668,6 +670,73 @@ public final class LukaNet {
       backoff = Math.min(backoff * 2, 300_000L);
     } finally {
       signingIn = false;
+    }
+  }
+
+  /**
+   * The sign-in proof luka's service checks with Mojang's published keys (Mojang refuses requests from luka's service, so it
+   * cannot be asked directly): this account's Mojang player certificate (the key pair Mojang makes for signed chat), a
+   * signature over this sign-in's server id made with it, and the account's textures property, which Mojang signs and which
+   * holds the account name. Both come from Mojang with the game's own access token; the token goes to Mojang only. Null when
+   * any part is not available (offline accounts, Mojang down): the older sign-in is used then.
+   */
+  private static JsonObject mojangProof(String uuid, String serverId) {
+    try {
+      Minecraft mc = Minecraft.getMinecraft();
+      String token = mc.getSession().getToken();
+      if (token == null || token.isEmpty() || token.length() < 20) return null;
+      JsonObject cert = mojang("POST", "https://api.minecraftservices.com/player/certificates", token);
+      JsonObject pair = cert.getAsJsonObject("keyPair");
+      byte[] privateDer = java.util.Base64.getDecoder().decode(pem(pair.get("privateKey").getAsString()));
+      java.security.PrivateKey privateKey = java.security.KeyFactory.getInstance("RSA").generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(privateDer));
+      java.security.Signature signer = java.security.Signature.getInstance("SHA256withRSA");
+      signer.initSign(privateKey);
+      signer.update(serverId.getBytes(StandardCharsets.UTF_8));
+      String undashed = uuid.replace("-", "");
+      JsonObject profile = mojang("GET", "https://sessionserver.mojang.com/session/minecraft/profile/" + undashed + "?unsigned=false", null);
+      JsonObject textures = null;
+      for (com.google.gson.JsonElement e : profile.getAsJsonArray("properties")) {
+        JsonObject prop = e.getAsJsonObject();
+        if ("textures".equals(str(prop, "name")) && prop.has("signature")) textures = prop;
+      }
+      if (textures == null) return null;
+      JsonObject proof = new JsonObject();
+      proof.addProperty("publicKey", pem(pair.get("publicKey").getAsString()));
+      proof.addProperty("expiresAt", java.time.Instant.parse(cert.get("expiresAt").getAsString()).toEpochMilli());
+      proof.addProperty("keySignature", cert.get("publicKeySignatureV2").getAsString());
+      proof.addProperty("challengeSignature", java.util.Base64.getEncoder().encodeToString(signer.sign()));
+      JsonObject t = new JsonObject();
+      t.addProperty("value", textures.get("value").getAsString());
+      t.addProperty("signature", textures.get("signature").getAsString());
+      proof.add("textures", t);
+      return proof;
+    } catch (Throwable notAvailable) {
+      return null;
+    }
+  }
+
+  /** The base64 body of a PEM block (header, footer and line breaks removed). */
+  private static String pem(String text) {
+    return text.replaceAll("-----[A-Z ]+-----", "").replaceAll("\\s", "");
+  }
+
+  /** A JSON call to Mojang (only Mojang ever gets the access token). */
+  private static JsonObject mojang(String method, String url, String bearer) throws IOException {
+    HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+    c.setConnectTimeout(5000);
+    c.setReadTimeout(8000);
+    c.setRequestMethod(method);
+    c.setRequestProperty("Accept", "application/json");
+    if (bearer != null) c.setRequestProperty("Authorization", "Bearer " + bearer);
+    if ("POST".equals(method)) {
+      c.setDoOutput(true);
+      c.setRequestProperty("Content-Type", "application/json");
+      c.setFixedLengthStreamingMode(0);
+      c.getOutputStream().close();
+    }
+    if (c.getResponseCode() != 200) throw new IOException("Mojang answered " + c.getResponseCode());
+    try (InputStream in = c.getInputStream()) {
+      return new JsonParser().parse(new String(readAll(in), StandardCharsets.UTF_8)).getAsJsonObject();
     }
   }
 
