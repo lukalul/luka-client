@@ -10,16 +10,19 @@ public final class CombatState {
 
     private CombatState() { }
 
+    // 1.7.10 keeps vanilla 1.7.10 combat, always: the miss penalty stays and dig-and-use stays as the game has it. Neither
+    // the player nor a server can change it here (servers' Lunar combat settings are for Lunar's 1.8+ clients; on 1.7.10
+    // removing the miss penalty looks like an autoclicker to anti-cheats, and Minemen banned a player for it).
     public static boolean disableMissPenalty() {
-        return serverPolicy.missPenalty || EnvoySettings.disableMissPenalty;
+        return false;
     }
 
     public static boolean disableBlockMissPenalty() {
-        return serverPolicy.blockMissPenalty || EnvoySettings.disableBlockMissPenalty;
+        return false;
     }
 
     public static boolean allowDigAndUse() {
-        return serverPolicy.digAndUse || EnvoySettings.allowDigAndUse;
+        return false;
     }
 
     static void setServerDisableMissPenalty(boolean enabled) {

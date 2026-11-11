@@ -66,6 +66,7 @@ public final class Features {
     add(new dev.cbui.feature.chatmacros.ChatMacrosModule());
     if (dev.cbui.Release.SOCIAL) add(new dev.cbui.feature.online.LukaOnlineModule());
     add(new dev.cbui.feature.hideblocks.HideBlocksModule());
+    if (!dev.cbui.feature.discord.DiscordStatusModule.APP_ID.isEmpty()) add(new dev.cbui.feature.discord.DiscordStatusModule());
     // FEATURES-REGISTER (one line per feature, added during integration): add(new FreelookModule());
     try { dev.cbui.feature.bridge.BridgeFeatures.merge(ALL); } catch (Throwable error) { dev.cbui.Cbui.reportOnce("merge nametag cards", error); }
     LOOKUP.clear();

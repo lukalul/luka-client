@@ -8,6 +8,8 @@ public final class Release {
   public static final boolean COSMETICS = false;
   /** Direct messages between friends: not on the service yet. */
   public static final boolean MESSAGES = false;
+  /** The Discord application Rich Presence shows under ("Playing luka"); empty = no Discord status. */
+  public static final String DISCORD_APP_ID = "";
   /** Friend pings (waypoints): not on the service yet. */
   public static final boolean PINGS = false;
 

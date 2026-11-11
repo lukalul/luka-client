@@ -131,6 +131,16 @@ public final class PerfOptions {
   }
 
   /** Rebuilds chunk renderers once after a slider drag ends instead of on every step. */
+  /**
+   * Clear glass from outside the settings screens (the Resource Packs screen calls this by reflection): 0 off, 1 normal glass
+   * and panes, 2 also stained glass. Saved at once; the world is rebuilt so the glass goes or comes back.
+   */
+  public static void setClearGlass(int mode) {
+    GlobalOptions.clearGlass = Math.max(0, Math.min(2, mode));
+    // the Hide blocks tick sees the change and rebuilds the world
+    if (dev.cbui.Cbui.config() != null && dev.cbui.Cbui.hud() != null) dev.cbui.Cbui.config().save(dev.cbui.Cbui.hud());
+  }
+
   public static void flush() {
     Minecraft mc = Minecraft.getMinecraft();
     GameSettings g = mc.gameSettings;

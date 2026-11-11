@@ -33,7 +33,7 @@ public final class BridgeFeatures {
     out.add(simple("Titles", "titles", "Large on-screen titles sent by the server."));
     out.add(simple("Server TNT Timer", "tntCountdown", "The fuse timer the server sends for primed TNT."));
     out.add(cooldowns());
-    out.add(combat());
+    // no "Combat 1.7 Feel" card here: this is 1.7.10, its combat is already the 1.7 combat (owner: remove it on 1.7)
     out.add(motionBlur());
   }
 

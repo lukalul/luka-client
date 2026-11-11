@@ -45,9 +45,19 @@ public final class CombatModule {
         ServerRules.resetApollo();
     }
 
+    /** -Dluka.serverCombat17=false lets servers' Lunar combat settings apply on 1.7.10 again (not recommended). */
+    private static final String IGNORE_SERVER_COMBAT_ON_1_7 = System.getProperty("luka.serverCombat17", "ignore");
+
     private static void applyProperty(String key, Value value) {
         Envoy.LOGGER.info("[Combat] received {}={}", key, value);
         if (value.getKindCase() != Value.KindCase.BOOL_VALUE) return;
+        // Lunar's combat settings are meant for Lunar's 1.8+ clients; Lunar has no 1.7.10 client. A 1.7.10 player who clicks
+        // past the vanilla miss penalty looks like an autoclicker to server anti-cheats (Minemen's AntiGamingChair banned a
+        // player for it), so on 1.7.10 the server's request is noted and not applied. The player's own switches still work.
+        if (!IGNORE_SERVER_COMBAT_ON_1_7.equals("false")) {
+            Envoy.LOGGER.info("[Combat] {}={} ignored on 1.7.10 (Lunar combat settings are for 1.8+)", key, value.getBoolValue());
+            return;
+        }
         boolean enabled = value.getBoolValue();
         switch (key) {
             case "disable-miss-penalty": CombatState.setServerDisableMissPenalty(enabled); break;
