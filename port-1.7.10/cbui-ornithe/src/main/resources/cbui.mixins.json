@@ -110,6 +110,7 @@
     "XRayRenderGlobalMixin",
     "XRayRenderBlocksMixin",
     "ClearGlassRenderBlocksMixin",
+    "TextFieldCtrlKeysMixin",
     "VideoCloudHeightMixin",
     "VideoSettingsRedirectMixin"
   ],
