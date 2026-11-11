@@ -66,6 +66,8 @@ public final class HudManager {
         try { module.tick(); }
         catch (Throwable error) { module.enabled(false); Cbui.reportOnce("module tick: " + module.name(), error); }
     }
+    try { dev.cbui.hud.module.SprintKey.endTick(net.minecraft.client.Minecraft.getMinecraft()); }
+    catch (Throwable error) { Cbui.reportOnce("sprint key", error); }
     HudBackend b = backend;
     if (b != null)
       try { b.tick(); }
