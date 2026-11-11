@@ -104,6 +104,7 @@ public final class VideoOptions {
 
   /** Once the game is up: the texture code reads these at resource load, which ran before the settings were known. */
   public static void startup() {
+    Migrations.run();
     boolean anyOff = false;
     for (java.util.Map.Entry<String, Boolean> e : GlobalOptions.packFeatures.entrySet()) {
       System.setProperty(e.getKey(), e.getValue() ? "true" : "false");

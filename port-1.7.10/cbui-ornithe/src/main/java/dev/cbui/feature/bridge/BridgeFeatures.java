@@ -105,7 +105,7 @@ public final class BridgeFeatures {
   }
 
   private static BridgeModule cooldowns() {
-    return new BridgeModule("Server Cooldowns", "MODS", true, A, "cooldowns").after(SAVE_CLASS, "save")
+    return new BridgeModule("Server Cooldowns", "MODS", false, A, "cooldowns").after(SAVE_CLASS, "save")
         .sliderIn(AC, "Position X", "cooldownX", 0.5f, 0f, 1f, 0.01f, "Horizontal position (0 left, 1 right)")
         .sliderIn(AC, "Position Y", "cooldownY", 0.5f, 0f, 1f, 0.01f, "Vertical position (0 top, 1 bottom)")
         .choice("Direction", AC, "cooldownDirection", 0, "Which way the timers stack", "Right", "Left", "Down", "Up");

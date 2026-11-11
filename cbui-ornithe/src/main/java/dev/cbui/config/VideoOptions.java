@@ -134,6 +134,7 @@ public final class VideoOptions {
 
   /** Once the game is up: the sky, colour and texture code read these at resource load, which ran before the settings were known. */
   public static void startup() {
+    Migrations.run();
     System.setProperty("luka.fxaa", GlobalOptions.fxaa ? "true" : "false");
     boolean anyOff = GlobalOptions.anisotropy > 1;
     if (anyOff) System.setProperty("luka.anisotropy", Integer.toString(GlobalOptions.anisotropy));

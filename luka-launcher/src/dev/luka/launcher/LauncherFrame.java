@@ -56,7 +56,7 @@ final class LauncherFrame extends JFrame {
 
   private static final String[] TABS = {"HOME", "SERVERS", "SETTINGS", "ABOUT"};
   private static final String[][] SERVERS = {
-    {"strafepvp", "strafepvp.com", "HCF on 1.8.9"},
+    {"ElevateMC", "play.elevatemc.com", "PotPvP and teamfights"},
     {"MineMen", "eu.minemen.club", "Practice and more"},
     {"Hypixel", "mc.hypixel.net", "The big network"}
   };
