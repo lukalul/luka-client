@@ -12,6 +12,9 @@ public final class AsyncSwitch {
 	/** Debug: also build a share of the async sections on the game thread and log any difference in the vertices. */
 	public static final boolean VERIFY = ENABLED && "true".equalsIgnoreCase(System.getProperty("luka.asyncTerrain.verify"));
 
+	/** Debug, with VERIFY: compare every section instead of one in eight ({@code -Dluka.asyncTerrain.verifyAll=true}). */
+	public static final boolean VERIFY_ALL = VERIFY && "true".equalsIgnoreCase(System.getProperty("luka.asyncTerrain.verifyAll"));
+
 	private AsyncSwitch() {
 	}
 }

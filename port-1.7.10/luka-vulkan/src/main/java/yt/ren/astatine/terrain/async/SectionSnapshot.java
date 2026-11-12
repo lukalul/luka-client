@@ -24,6 +24,8 @@ import net.minecraft.world.biome.Biome;
  * built on the game thread instead.
  */
 public final class SectionSnapshot implements WorldView {
+	private static final boolean STAIRS_SYNC = "1".equals(System.getenv("ASTATINE_STAIRS_SYNC"));
+
 	public static final int BORDER = 2;
 	private static final int SIZE = 16 + 2 * BORDER;
 	private static final int VOLUME = SIZE * SIZE * SIZE;
@@ -73,7 +75,11 @@ public final class SectionSnapshot implements WorldView {
 					blockLight[at] = (byte) region.getLight(LightType.BLOCK, wx, wy, wz);
 					boolean inside = dx >= BORDER && dx < BORDER + 16 && dy >= BORDER && dy < BORDER + 16 && dz >= BORDER && dz < BORDER + 16;
 					if (inside && block.getMaterial() != Material.AIR) {
-						if (block instanceof StairsBlock || block instanceof PistonHeadBlock) workerSafe = false;
+						// piston heads swap their sprite in a shared field while they are drawn, so they stay on the game
+						// thread. Stairs only read their two shared fields (written by the game thread's ray trace) in
+						// updateShape, and their drawing sets every part's shape itself through the per-thread bounds,
+						// so they mesh on workers (ASTATINE_STAIRS_SYNC=1 keeps them on the game thread as before)
+						if (block instanceof PistonHeadBlock || STAIRS_SYNC && block instanceof StairsBlock) workerSafe = false;
 						if (block.hasBlockEntity()) {
 							// the same call the game thread's meshing makes; it may create the block entity
 							BlockEntity entity = region.getBlockEntity(wx, wy, wz);

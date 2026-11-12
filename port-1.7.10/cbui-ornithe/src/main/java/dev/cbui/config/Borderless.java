@@ -70,6 +70,91 @@ public final class Borderless {
       // leave the borderless fullscreen this class entered; the next F11 is exclusive again
       if (mc.isFullScreen()) pylonToggle(mc);
     }
+    pylonNudge(display, mc);
+  }
+
+
+  // ---- Vulkan window on Windows: 1 px taller than the monitor. SDL's borderless fullscreen covers the monitor exactly,
+  // and Windows and screen-capture tools take a window like that for exclusive fullscreen: Discord's whole-screen share
+  // then captures through a path that holds the game's frames back (FPS drops to a fraction). Shifted up 1 px and 1 px
+  // taller it still covers the whole screen and the taskbar, like the OpenGL window's borderless, and is not taken for
+  // exclusive fullscreen. Off with -Dluka.borderless.exact=true.
+  private static final boolean NUDGE = System.getProperty("os.name", "").toLowerCase().contains("win")
+      && !Boolean.getBoolean("luka.borderless.exact");
+  private static Method nudgeIsExclusive, nudgeHandle, nudgeProps, nudgePointer, nudgeGetRect, nudgeSetPos, nudgeMonitor,
+      nudgeMonitorInfo, nudgeRectCalloc, nudgeInfoCalloc;
+  private static long nudgeLast, nudgeWindowStart;
+  private static int nudgeCount;
+  private static boolean nudgeOff;
+
+  private static void pylonNudge(Object display, Minecraft mc) {
+    if (!NUDGE || nudgeOff || !want) return;
+    long now = System.nanoTime();
+    if (now - nudgeLast < 250_000_000L) return;
+    nudgeLast = now;
+    Object rect = null, info = null;
+    try {
+      if (nudgeHandle == null) {
+        Class<?> c = display.getClass();
+        nudgeIsExclusive = c.getMethod("isExclusiveFullscreen");
+        nudgeHandle = c.getMethod("getHandle");
+        nudgeProps = Class.forName("org.lwjgl.sdl.SDLVideo").getMethod("SDL_GetWindowProperties", long.class);
+        nudgePointer = Class.forName("org.lwjgl.sdl.SDLProperties").getMethod("SDL_GetPointerProperty", int.class, CharSequence.class, long.class);
+        Class<?> user32 = Class.forName("org.lwjgl.system.windows.User32");
+        Class<?> rectClass = Class.forName("org.lwjgl.system.windows.RECT");
+        Class<?> infoClass = Class.forName("org.lwjgl.system.windows.MONITORINFOEX");
+        nudgeGetRect = user32.getMethod("GetWindowRect", java.nio.IntBuffer.class, long.class, rectClass);
+        nudgeSetPos = user32.getMethod("SetWindowPos", java.nio.IntBuffer.class, long.class, long.class, int.class, int.class, int.class, int.class, int.class);
+        nudgeMonitor = user32.getMethod("MonitorFromWindow", long.class, int.class);
+        nudgeMonitorInfo = user32.getMethod("GetMonitorInfo", long.class, infoClass);
+        nudgeRectCalloc = rectClass.getMethod("calloc");
+        nudgeInfoCalloc = infoClass.getMethod("calloc");
+      }
+      if (!mc.isFullScreen() || (Boolean) nudgeIsExclusive.invoke(display)) return;
+      long handle = (Long) nudgeHandle.invoke(display);
+      if (handle == 0) return;
+      int props = (Integer) nudgeProps.invoke(null, handle);
+      long hwnd = (Long) nudgePointer.invoke(null, props, "SDL.window.win32.hwnd", 0L);
+      if (hwnd == 0) return;
+      long monitor = (Long) nudgeMonitor.invoke(null, hwnd, 2); // MONITOR_DEFAULTTONEAREST
+      rect = nudgeRectCalloc.invoke(null);
+      info = nudgeInfoCalloc.invoke(null);
+      info.getClass().getMethod("cbSize", int.class).invoke(info, info.getClass().getField("SIZEOF").getInt(null));
+      if (!(Boolean) nudgeMonitorInfo.invoke(null, monitor, info)) return;
+      if (!(Boolean) nudgeGetRect.invoke(null, null, hwnd, rect)) return;
+      Object m = info.getClass().getMethod("rcMonitor").invoke(info);
+      int ml = side(m, "left"), mt = side(m, "top"), mr = side(m, "right"), mb = side(m, "bottom");
+      int wl = side(rect, "left"), wt = side(rect, "top"), wr = side(rect, "right"), wb = side(rect, "bottom");
+      // only a window that covers the monitor exactly is changed: anything else is not SDL's borderless fullscreen
+      if (wl != ml || wt != mt || wr != mr || wb != mb) return;
+      if (now - nudgeWindowStart > 10_000_000_000L) {
+        nudgeWindowStart = now;
+        nudgeCount = 0;
+      }
+      if (++nudgeCount > 8) {
+        // something puts the exact size back each time: stop instead of fighting over the window
+        nudgeOff = true;
+        System.out.println("[luka] borderless: the window keeps returning to the exact monitor size; leaving it");
+        return;
+      }
+      // SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER
+      nudgeSetPos.invoke(null, null, hwnd, 0L, ml, mt - 1, mr - ml, mb - mt + 1, 0x0004 | 0x0010 | 0x0200);
+    } catch (Throwable ignored) {
+      // not on pylon's SDL window, or LWJGL without these calls: leave the window as it is
+      nudgeOff = true;
+    } finally {
+      free(rect);
+      free(info);
+    }
+  }
+
+  private static int side(Object rect, String name) throws Exception {
+    return (Integer) rect.getClass().getMethod(name).invoke(rect);
+  }
+
+  private static void free(Object struct) {
+    if (struct == null) return;
+    try { struct.getClass().getMethod("free").invoke(struct); } catch (Throwable ignored) { }
   }
 
   /** The borderless setting changed (menu switch, or the saved setting at start-up). */

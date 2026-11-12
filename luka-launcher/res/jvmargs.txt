@@ -4,6 +4,5 @@
 -XX:MaxGCPauseMillis=50
 -XX:+UnlockExperimentalVMOptions
 -XX:+DisableExplicitGC
--Djava.net.preferIPv4Stack=true
 -Dfabric.fixPackageAccess=true
 -Dfabric.gameVersion=1.8.9

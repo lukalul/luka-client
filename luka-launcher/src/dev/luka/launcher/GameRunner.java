@@ -99,6 +99,11 @@ final class GameRunner {
     for (String arg : lines(new File(home, "jvmargs.txt"))) {
       // the Windows toolkit package only exists on Windows; opening it elsewhere only prints a warning
       if (!Platform.windows() && arg.contains("sun.awt.windows")) continue;
+      // older installs have -Djava.net.preferIPv4Stack=true in their jvmargs.txt. It stops Java from talking to IPv6
+      // DNS servers, and when Windows lists one of those first, the game's server lookup (SRV records such as
+      // pvp.land -> na-east.pvp.land) fails, so the server list cannot ping and joining hangs. Connections still go
+      // over IPv4 without it (Java prefers IPv4 addresses by default).
+      if (arg.startsWith("-Djava.net.preferIPv4Stack")) continue;
       command.add(arg);
     }
     int ram = Math.max(1024, settings.ramMb());

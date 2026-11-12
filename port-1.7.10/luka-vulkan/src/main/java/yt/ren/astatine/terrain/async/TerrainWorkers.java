@@ -120,7 +120,7 @@ public final class TerrainWorkers {
 		job.cameraX = MathHelper.floor(camera.x);
 		job.cameraY = MathHelper.floor(camera.y);
 		job.cameraZ = MathHelper.floor(camera.z);
-		if (AsyncSwitch.VERIFY && (submitted++ & 7) == 0) job.expected = SectionCapture.expected(world, x, y, z);
+		if (AsyncSwitch.VERIFY && (AsyncSwitch.VERIFY_ALL || (submitted++ & 7) == 0)) job.expected = SectionCapture.expected(world, x, y, z);
 		IN_FLIGHT.incrementAndGet();
 		QUEUE.offer(job);
 		return true;
