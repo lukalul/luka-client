@@ -233,6 +233,25 @@ final class Recording {
         return frameT[frameCount - 1];
     }
 
+    /** Frames the live game drew in the second up to t: the frame rate the player had at that moment. */
+    int fpsAt(long t) {
+        return frameCount < 2 ? 0 : framesUpTo(t) - framesUpTo(t - 1_000_000_000L);
+    }
+
+    /** How many recorded frames have frameT <= t. */
+    private int framesUpTo(long t) {
+        int lo = 0, hi = frameCount;
+        while (lo < hi) {
+            int mid = (lo + hi) >>> 1;
+            if (frameT[mid] <= t) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
     /** Index i such that frameT[i] <= t < frameT[i+1], clamped. */
     private int segment(long t) {
         int lo = 0, hi = frameCount - 2;

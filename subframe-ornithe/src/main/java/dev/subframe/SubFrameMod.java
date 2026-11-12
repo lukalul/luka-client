@@ -96,6 +96,18 @@ public final class SubFrameMod implements ClientModInitializer {
         }
     }
 
+    /**
+     * While a replay is shown or rendered: the frame rate the player had when it was recorded, at the moment being shown
+     * (luka's FPS counter shows this instead of the replay's own drawing speed). -1 otherwise.
+     */
+    public static int replayFps() {
+        try {
+            return Replay.recordedFps();
+        } catch (Throwable notReady) {
+            return -1;
+        }
+    }
+
     public static void onDisconnect() {
         try {
             Recorder.stop();

@@ -103,6 +103,17 @@ final class Replay {
     private int pinnedResizes;
     private int warmup;
     private boolean running;
+    /** Recording time of the frame being drawn, for the FPS counter (-1 before the first). */
+    private volatile long shownT = -1;
+
+    /** The frame rate the player had live at the moment of the recording being shown, or -1 when no replay is shown. */
+    static int recordedFps() {
+        Replay r = active;
+        if (r == null || !r.running || r.finished || r.shownT < 0) {
+            return -1;
+        }
+        return r.rec.fpsAt(r.shownT);
+    }
     private boolean finished;
 
     private final File recFile;
@@ -1280,6 +1291,7 @@ final class Replay {
     }
 
     private void renderSubframe(long t) {
+        shownT = t;
         double g = rec.gameTimeAt(t);
         int target = (int) Math.floor(g);
         while (ticksRun < target) {
