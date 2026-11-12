@@ -266,6 +266,7 @@ public final class HitboxRenderer {
     for (int i = 0; i < entities.size(); i++) {
       Entity entity = entities.get(i);
       if (entity == null || entity == SCENE.firstPersonSelf || entity.isInvisible()) continue;
+      if (hologram(entity, entity.boundingBox)) continue;
       if (!showGroundedArrows && entity instanceof EntityArrow && ((PolyHitboxArrowAccess) entity).cbui$inGround()) continue;
       Style matched = m.match(entity);
       Style look = m.visualsOf(matched);
@@ -276,6 +277,21 @@ public final class HitboxRenderer {
       if (entity.isInvisibleToPlayer(SCENE.viewer)) continue;
       paintEntity(entity, look);
     }
+  }
+
+  /**
+   * Server holograms are text, not entities anyone hits, so they get no hitbox. 1.7's hologram trick is a horse with a huge
+   * negative age riding a wither skull: the age makes the horse's box inside out and dozens of blocks wide, which drew
+   * lines across the whole screen. Any other box that is inside out or bigger than any real mob is left out as well.
+   */
+  private static boolean hologram(Entity entity, AxisAlignedBB bb) {
+    if (entity instanceof net.minecraft.entity.passive.EntityHorse
+        && ((net.minecraft.entity.passive.EntityHorse) entity).getGrowingAge() < -24000) return true;
+    if (entity instanceof net.minecraft.entity.projectile.EntityWitherSkull
+        && (entity.riddenByEntity != null || entity.ridingEntity != null)) return true;
+    if (entity.ridingEntity instanceof net.minecraft.entity.projectile.EntityWitherSkull) return true;
+    double w = bb.maxX - bb.minX, h = bb.maxY - bb.minY, d = bb.maxZ - bb.minZ;
+    return !(w >= 0.0 && h >= 0.0 && d >= 0.0) || w > 16.0 || h > 16.0 || d > 16.0;
   }
 
   private static boolean conditionMet(int condition, Entity entity) {

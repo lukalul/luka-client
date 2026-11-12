@@ -137,7 +137,7 @@ public final class Borderless {
       if (++nudgeCount > 8) {
         // something puts the exact size back each time: stop instead of fighting over the window
         nudgeOff = true;
-        System.out.println("[luka] borderless: the window keeps returning to the exact monitor size; leaving it");
+        org.apache.logging.log4j.LogManager.getLogger("luka").info("Borderless: the window keeps returning to the exact monitor size; leaving it");
         return;
       }
       // SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER

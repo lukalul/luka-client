@@ -23,7 +23,7 @@ public final class HitFixModule extends FeatureModule {
   /** The connection HitFix was last announced on. */
   private static NetHandlerPlayClient told;
   /** For checks: how often the queue was applied early, and how many connections were told. */
-  public static volatile long applied, announced;
+  public static volatile long applied, announced, hurtHeld;
 
   public HitFixModule() {
     super("HitFix", false);
@@ -45,8 +45,32 @@ public final class HitFixModule extends FeatureModule {
     NetHandlerPlayClient handler = mc.getNetHandler();
     NetworkManager connection = handler == null ? null : handler.getNetworkManager();
     if (connection == null || !connection.isChannelOpen()) return;
+    net.minecraft.entity.EntityLivingBase camera = mc.renderViewEntity;
+    int hurtBefore = camera == null ? 0 : camera.hurtTime;
     connection.processReceivedPackets();
     applied++;
+    if (camera != null && camera.maxHurtTime > 0 && camera.hurtTime == camera.maxHurtTime && hurtBefore != camera.hurtTime) {
+      // the hit lands now, but the hurt timer (the hurt camera, its shake and anything else that reads hurtTime) starts
+      // where it would without HitFix: when the game applies its packets at the end of the tick
+      camera.hurtTime = hurtBefore;
+      heldHurt = camera;
+      hurtHeld++;
+    }
+  }
+
+  /**
+   * The player's hurt timer from a hit HitFix applied early, kept back until the end of the tick. Without HitFix the game
+   * applies packets at the end of a tick, so hurtTime becomes 10 there and the camera shake runs from the next frame; set
+   * earlier, the shake started part of the way in and other hurt camera mods saw it at the wrong time.
+   */
+  private static net.minecraft.entity.EntityLivingBase heldHurt;
+
+  /** End of a tick, where the game applies its packets: start the held hurt timer. */
+  public static void releaseHurt() {
+    net.minecraft.entity.EntityLivingBase entity = heldHurt;
+    if (entity == null) return;
+    heldHurt = null;
+    if (entity == Minecraft.getMinecraft().renderViewEntity && entity.maxHurtTime > 0) entity.hurtTime = entity.maxHurtTime;
   }
 
   /** End of a tick: tell a new connection once that this client has HitFix. */
