@@ -22,7 +22,7 @@ public final class MotionBlurConfig {
         public boolean smoothSwings = true;
         public boolean smoothFov = true;
         public boolean smoothHandSway = true;
-        public boolean smoothItemUse = true;
+        public boolean handOnly;
 
         public void sanitize() {
             level = AlphaMath.clamp(level, 0, 10);
@@ -50,7 +50,7 @@ public final class MotionBlurConfig {
         data.smoothSwings = readBoolean(json, "smoothSwings", data.smoothSwings);
         data.smoothFov = readBoolean(json, "smoothFov", data.smoothFov);
         data.smoothHandSway = readBoolean(json, "smoothHandSway", data.smoothHandSway);
-        data.smoothItemUse = readBoolean(json, "smoothItemUse", data.smoothItemUse);
+        data.handOnly = readBoolean(json, "handOnly", data.handOnly);
         data.sanitize();
         return data;
     }
@@ -71,7 +71,7 @@ public final class MotionBlurConfig {
             + "  \"smoothSwings\": " + data.smoothSwings + ",\n"
             + "  \"smoothFov\": " + data.smoothFov + ",\n"
             + "  \"smoothHandSway\": " + data.smoothHandSway + ",\n"
-            + "  \"smoothItemUse\": " + data.smoothItemUse + "\n"
+            + "  \"handOnly\": " + data.handOnly + "\n"
             + "}\n";
         try (FileOutputStream out = new FileOutputStream(file)) {
             out.write(json.getBytes(StandardCharsets.UTF_8));

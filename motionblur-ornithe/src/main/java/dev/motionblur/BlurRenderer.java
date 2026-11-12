@@ -49,6 +49,37 @@ public final class BlurRenderer {
     /** Offline renders (the replay mod): when above 0, every blended frame counts as this many seconds instead of the real time between frames. */
     public static volatile double fixedDt;
 
+    /** The full-screen pass setup and quad drawing, shared with {@link HandBlur}. */
+    static final class Pass {
+        private final boolean[] saved = new boolean[4];
+
+        void begin() {
+            java.util.Arrays.fill(saved, false);
+            beginPass(saved);
+        }
+
+        void end() {
+            endPass(saved);
+        }
+
+        /** A quad over the whole target; {@code textureId} 0 draws plain colour (texturing must be off). */
+        void quad(int textureId, float scale, float alpha) {
+            if (textureId == 0) {
+                GL11.glColor4f(scale, scale, scale, alpha);
+                GL11.glBegin(GL11.GL_QUADS);
+                GL11.glVertex2f(0.0F, 0.0F);
+                GL11.glVertex2f(1.0F, 0.0F);
+                GL11.glVertex2f(1.0F, 1.0F);
+                GL11.glVertex2f(0.0F, 1.0F);
+                GL11.glEnd();
+            } else {
+                drawQuad(textureId, scale, alpha);
+            }
+        }
+    }
+
+    private static final Pass PASS = new Pass();
+
     /** Starts the blur history afresh (the next frame seeds it). */
     public static void reset() {
         release();
@@ -106,7 +137,8 @@ public final class BlurRenderer {
             gpu(true);
             if (action == BlurState.Action.CAPTURE) {
                 dbgCaptures++;
-                process(mc.displayWidth, mc.displayHeight, 0f, true, mode);
+                if (MotionBlurSettings.handOnly) HandBlur.composite(mc.displayWidth, mc.displayHeight, 0f, true, PASS);
+                else process(mc.displayWidth, mc.displayHeight, 0f, true, mode);
                 lastBlendNanos = System.nanoTime();
             } else if (action == BlurState.Action.BLEND) {
                 long now = System.nanoTime();
@@ -115,7 +147,8 @@ public final class BlurRenderer {
                 float keep = (float) AlphaMath.retention(AlphaMath.frameWeight(MotionBlurSettings.level, mode), dt);
                 dbgBlends++;
                 dbgWeight += keep;
-                process(mc.displayWidth, mc.displayHeight, keep, false, mode);
+                if (MotionBlurSettings.handOnly) HandBlur.composite(mc.displayWidth, mc.displayHeight, keep, false, PASS);
+                else process(mc.displayWidth, mc.displayHeight, keep, false, mode);
             }
             gpu(false);
             if (dbgFrames >= 600) debugReport(mc);
@@ -152,6 +185,7 @@ public final class BlurRenderer {
 
     public static void release() {
         STATE.setEnabled(false);
+        HandBlur.release();
         if (texture != 0) {
             GL11.glDeleteTextures(texture);
             texture = 0;

@@ -78,6 +78,7 @@ public final class ConfigStore {
     options.addProperty("hudRefresh", GlobalOptions.hudRefresh);
     options.addProperty("unfocusedLimit", GlobalOptions.unfocusedLimit);
     options.addProperty("hideFoliage", GlobalOptions.hideFoliage);
+    options.addProperty("hideStuckArrows", GlobalOptions.hideStuckArrows);
     options.addProperty("highPriority", GlobalOptions.highPriority);
     options.addProperty("leavesMode", GlobalOptions.leavesMode);
     options.addProperty("clearGlass", GlobalOptions.clearGlass);
@@ -132,6 +133,7 @@ public final class ConfigStore {
           GlobalOptions.packFeatures.put(feature.getKey(), feature.getValue().getAsBoolean());
       if (options.has("highPriority")) GlobalOptions.highPriority = options.get("highPriority").getAsBoolean();
       if (options.has("hideFoliage")) GlobalOptions.hideFoliage = options.get("hideFoliage").getAsBoolean();
+      if (options.has("hideStuckArrows")) GlobalOptions.hideStuckArrows = options.get("hideStuckArrows").getAsBoolean();
       if (options.has("tileDistance")) GlobalOptions.tileDistance = options.get("tileDistance").getAsInt();
       if (options.has("layerDistance")) GlobalOptions.layerDistance = options.get("layerDistance").getAsInt();
       if (options.has("itemDistance")) GlobalOptions.itemDistance = options.get("itemDistance").getAsInt();

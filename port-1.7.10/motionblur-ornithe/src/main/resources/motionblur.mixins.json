@@ -3,6 +3,6 @@
   "package": "dev.motionblur.mixin",
   "compatibilityLevel": "JAVA_8",
   "minVersion": "0.7.11",
-  "client": ["EntityRendererMixin", "MinecraftMixin", "SmoothSwingMixin", "SmoothFovMixin", "SmoothHandSwayMixin", "SmoothItemUseMixin"],
+  "client": ["EntityRendererMixin", "MinecraftMixin", "SmoothSwingMixin", "SmoothFovMixin", "SmoothHandSwayMixin", "HandBlurMixin"],
   "injectors": { "defaultRequire": 0 }
 }

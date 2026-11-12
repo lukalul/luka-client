@@ -22,7 +22,6 @@ public abstract class HitFixMinecraftMixin {
 
   @Inject(method = "runTick", at = @At("RETURN"), require = 0)
   private void cbui$hitFixAnnounce(CallbackInfo ci) {
-    try { HitFixModule.releaseHurt(); } catch (Throwable error) { dev.cbui.Cbui.reportOnce("HitFix hurt", error); }
     try { HitFixModule.announce(); } catch (Throwable error) { dev.cbui.Cbui.reportOnce("HitFix announce", error); }
   }
 }

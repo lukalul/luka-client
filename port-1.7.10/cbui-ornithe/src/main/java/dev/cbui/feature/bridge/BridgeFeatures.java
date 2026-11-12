@@ -125,12 +125,12 @@ public final class BridgeFeatures {
         .after(mb, "settingsChanged").after(mb, "save")
         .choice("Mode", null, "mode", 2, "V1: bright things leave fading ghosts. V2: even smear, gets long at high levels. V3: even smear with a limit, never mushy", "V1 Phosphor", "V2 Blend", "V3 Capped blend")
         .slider("Level", "level", 3, 1, 10, 1, "How long the trail lasts. 1 is faint, 10 is a long smear")
+        .toggle("Hand only", "handOnly", false, "Only your hand and held item get the blur (swings, sway when turning); the world stays sharp")
         .toggle("Blur while in menus", "blurMenus", true, "Keeps the world-background blur running while a menu is open")
         .slider("Blend every Nth frame", "frameSkip", 1, 1, 10, 1, "1 blends every frame; higher trades smoothness for less GPU work")
         .group("Smoothing")
         .toggle("Smooth swings", "smoothSwings", true, "Eases the start and restarts of the arm swing")
         .toggle("Smooth FOV", "smoothFov", true, "Eases sprint, speed and bow FOV changes between ticks")
-        .toggle("Smooth hand sway", "smoothHandSway", true, "Eases the held item sway when turning")
-        .toggle("Smooth item use", "smoothItemUse", true, "Animates the block pose and the hand dip when right clicking");
+        .toggle("Smooth hand sway", "smoothHandSway", true, "Eases the held item sway when turning");
   }
 }

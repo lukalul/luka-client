@@ -29,6 +29,7 @@ public final class PerfOptions {
     list.add(grp("World", choice("Lazy chunk loading", GlobalOptions.chunkPace, new String[] {"Off", "Low", "Medium", "High"}, 0, "Spreads the work of loading new chunks over more frames. Higher keeps FPS steadier when you join a server, teleport or fly fast, but chunks appear a little slower. Block changes near you are never delayed")));
     list.add(grp("World", toggle("Entity culling", GlobalOptions.entityCulling, true, "Players, mobs and dropped items completely behind solid blocks are not drawn, which saves a lot when a base or wall hides a crowd or loot. Names still show through walls as usual")));
     list.add(grp("World", toggle("Hide foliage", GlobalOptions.hideFoliage, false, "Does not draw tall grass, ferns, flowers, dead bushes, vines or mushrooms. Fewer things to draw, and it is easier to see players and items. Leaves stay (they follow Graphics in Video Settings)")));
+    list.add(grp("World", toggle("Hide stuck arrows", GlobalOptions.hideStuckArrows, false, "Arrows stuck in players and mobs are not drawn. Lots of them on one player cost FPS in fights. Arrows in flight and in the ground stay")));
     return list;
   }
 
@@ -101,6 +102,8 @@ public final class PerfOptions {
     }
     else if (n.equals("Entity culling")) {
       GlobalOptions.entityCulling = (Boolean) s.get();
+    } else if (n.equals("Hide stuck arrows")) {
+      GlobalOptions.hideStuckArrows = (Boolean) s.get();
     } else if (n.equals("Hide foliage")) {
       GlobalOptions.hideFoliage = (Boolean) s.get();
       reload = true;

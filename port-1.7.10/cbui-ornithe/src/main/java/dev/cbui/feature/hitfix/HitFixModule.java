@@ -10,8 +10,10 @@ import net.minecraft.network.play.client.C17PacketCustomPayload;
 /**
  * HitFix: 1.8.9's timing for packets from the server, on 1.7.10. 1.7.10 keeps almost every packet in a queue and applies the
  * queue once per tick, at the end of the tick; 1.8.9 applies each packet on the next frame, before that frame's ticks. Here
- * the queue is also applied at the start of every frame and every tick, with the game's own method, so hits, knockback and
- * other players' movement show up to 50 ms sooner. Nothing is sent, changed or held back; the tick rate stays the same.
+ * the queue is also applied at the start of every frame and every tick, so other players' movement and their hurt and
+ * death show up to 50 ms sooner. Packets about the player themself (being hit, knockback, health, teleports) keep the
+ * game's own timing, so getting hit looks and feels exactly as without HitFix. Nothing is sent or changed; the tick rate
+ * stays the same.
  *
  * <p>The client says it has HitFix the way the original HitFix mod does (channel "1337", message "HitFix/1.0"), so servers
  * that look for it see it.
@@ -23,7 +25,11 @@ public final class HitFixModule extends FeatureModule {
   /** The connection HitFix was last announced on. */
   private static NetHandlerPlayClient told;
   /** For checks: how often the queue was applied early, and how many connections were told. */
-  public static volatile long applied, announced, hurtHeld;
+  public static volatile long applied, announced, heldBack;
+  /** For checks: which packet types made the early pass stop, and how often. */
+  private static final java.util.Map<String, Long> HELD_KINDS = new java.util.concurrent.ConcurrentHashMap<>();
+
+  public static String heldKinds() { return HELD_KINDS.toString(); }
 
   public HitFixModule() {
     super("HitFix", false);
@@ -45,32 +51,44 @@ public final class HitFixModule extends FeatureModule {
     NetHandlerPlayClient handler = mc.getNetHandler();
     NetworkManager connection = handler == null ? null : handler.getNetworkManager();
     if (connection == null || !connection.isChannelOpen()) return;
-    net.minecraft.entity.EntityLivingBase camera = mc.renderViewEntity;
-    int hurtBefore = camera == null ? 0 : camera.hurtTime;
-    connection.processReceivedPackets();
-    applied++;
-    if (camera != null && camera.maxHurtTime > 0 && camera.hurtTime == camera.maxHurtTime && hurtBefore != camera.hurtTime) {
-      // the hit lands now, but the hurt timer (the hurt camera, its shake and anything else that reads hurtTime) starts
-      // where it would without HitFix: when the game applies its packets at the end of the tick
-      camera.hurtTime = hurtBefore;
-      heldHurt = camera;
-      hurtHeld++;
+    java.util.Queue<?> queue = ((dev.cbui.mixin.HitFixNetworkAccess) connection).cbui$receivedPackets();
+    net.minecraft.network.INetHandler listener = ((dev.cbui.mixin.HitFixNetworkAccess) connection).cbui$packetListener();
+    if (queue == null || !(listener instanceof NetHandlerPlayClient)) return;
+    boolean any = false;
+    for (int budget = 1000; budget > 0; budget--) {
+      Object next = queue.peek();
+      if (next == null) break;
+      if (aboutThePlayer(next, mc)) {
+        // this one, and everything after it, waits for the game's own turn at the end of the tick
+        heldBack++;
+        HELD_KINDS.merge(next.getClass().getSimpleName(), 1L, Long::sum);
+        break;
+      }
+      Object packet = queue.poll();
+      if (packet == null) break;
+      ((net.minecraft.network.Packet) packet).processPacket(listener);
+      any = true;
     }
+    if (any) applied++;
   }
 
   /**
-   * The player's hurt timer from a hit HitFix applied early, kept back until the end of the tick. Without HitFix the game
-   * applies packets at the end of a tick, so hurtTime becomes 10 there and the camera shake runs from the next frame; set
-   * earlier, the shake started part of the way in and other hurt camera mods saw it at the wrong time.
+   * Packets that change the player's own state: knockback, hurt and death, health, a teleport, an explosion's push. HitFix
+   * applies them when the game would have, so being hit looks and moves exactly as without HitFix (hurt camera, hand
+   * tilt, knockback); only other players' packets come early. The queue keeps its order: applying stops at the first of
+   * these.
    */
-  private static net.minecraft.entity.EntityLivingBase heldHurt;
-
-  /** End of a tick, where the game applies its packets: start the held hurt timer. */
-  public static void releaseHurt() {
-    net.minecraft.entity.EntityLivingBase entity = heldHurt;
-    if (entity == null) return;
-    heldHurt = null;
-    if (entity == Minecraft.getMinecraft().renderViewEntity && entity.maxHurtTime > 0) entity.hurtTime = entity.maxHurtTime;
+  private static boolean aboutThePlayer(Object packet, Minecraft mc) {
+    if (packet instanceof net.minecraft.network.play.server.S06PacketUpdateHealth) return true;
+    if (packet instanceof net.minecraft.network.play.server.S08PacketPlayerPosLook) return true;
+    if (packet instanceof net.minecraft.network.play.server.S27PacketExplosion) return true;
+    if (packet instanceof net.minecraft.network.play.server.S12PacketEntityVelocity) {
+      return ((net.minecraft.network.play.server.S12PacketEntityVelocity) packet).m_74342766() == mc.thePlayer.getEntityId();
+    }
+    if (packet instanceof net.minecraft.network.play.server.S19PacketEntityStatus) {
+      return ((net.minecraft.network.play.server.S19PacketEntityStatus) packet).m_16748207(mc.theWorld) == mc.thePlayer;
+    }
+    return false;
   }
 
   /** End of a tick: tell a new connection once that this client has HitFix. */

@@ -16,7 +16,8 @@ public final class MotionBlurSettings {
     public static volatile boolean smoothSwings = true;
     public static volatile boolean smoothFov = true;
     public static volatile boolean smoothHandSway = true;
-    public static volatile boolean smoothItemUse = true;
+    /** Only the first-person hand and held item are blurred; the world stays sharp (see HandBlur). */
+    public static volatile boolean handOnly;
 
     private MotionBlurSettings() { }
 
@@ -31,7 +32,7 @@ public final class MotionBlurSettings {
         data.smoothSwings = smoothSwings;
         data.smoothFov = smoothFov;
         data.smoothHandSway = smoothHandSway;
-        data.smoothItemUse = smoothItemUse;
+        data.handOnly = handOnly;
         data.sanitize();
         return data;
     }
@@ -46,7 +47,7 @@ public final class MotionBlurSettings {
         smoothSwings = data.smoothSwings;
         smoothFov = data.smoothFov;
         smoothHandSway = data.smoothHandSway;
-        smoothItemUse = data.smoothItemUse;
+        handOnly = data.handOnly;
         MotionBlur.setEnabled(data.enabled);
     }
 }

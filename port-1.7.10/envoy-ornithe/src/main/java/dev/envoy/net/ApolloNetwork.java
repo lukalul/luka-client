@@ -36,6 +36,9 @@ public final class ApolloNetwork {
     private volatile long joinedAt;
     private volatile long lastRespawnAt;
     private volatile long forgotAt;
+    /** The player's dimension as the server last set it (join or respawn), and whether the last respawn changed it. */
+    private volatile int dimension;
+    private volatile boolean lastRespawnChangedWorld;
     /** BungeeCord and Velocity move a 1.8 player to another server with two respawns straight after each other. */
     private static final long DOUBLE_RESPAWN_MILLIS = 1500L;
     /** A server may send its name more than once while the player logs in; only later repeats mean an animated name. */
@@ -95,12 +98,25 @@ public final class ApolloNetwork {
     }
 
     /** Dying and changing dimension respawn the player too, so a respawn alone says nothing; see {@link #onServerName()}. */
-    public void onRespawn() {
+    public void onRespawn(int newDimension) {
         long now = System.currentTimeMillis();
         respawnAt = now;
-        // dying or a portal never gives two respawns this close together; a proxy's move to another server does
-        if (now - lastRespawnAt < DOUBLE_RESPAWN_MILLIS) forgetMove("a proxy moved the player to another server (two respawns)");
+        boolean changedWorld = newDimension != dimension;
+        dimension = newDimension;
+        // A proxy moves the player with two respawns straight after each other, the first into another dimension so the
+        // client drops the old world. Some servers send two respawns on death as well, in the same dimension: that is no
+        // move, and treating it as one threw away the nametags the server had just sent for the new life.
+        if (now - lastRespawnAt < DOUBLE_RESPAWN_MILLIS && (changedWorld || lastRespawnChangedWorld)) {
+            forgetMove("a proxy moved the player to another server (two respawns)");
+        }
         lastRespawnAt = now;
+        lastRespawnChangedWorld = changedWorld;
+    }
+
+    /** The dimension the server put the player in when they joined it. */
+    public void onJoinDimension(int joinedDimension) {
+        dimension = joinedDimension;
+        lastRespawnChangedWorld = false;
     }
 
     /**

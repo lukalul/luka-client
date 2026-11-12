@@ -78,6 +78,7 @@ public final class ConfigStore {
     options.addProperty("hudRefresh", GlobalOptions.hudRefresh);
     options.addProperty("unfocusedLimit", GlobalOptions.unfocusedLimit);
     options.addProperty("hideFoliage", GlobalOptions.hideFoliage);
+    options.addProperty("hideStuckArrows", GlobalOptions.hideStuckArrows);
     options.addProperty("fogStart", GlobalOptions.fogStart);
     options.addProperty("fogEnd", GlobalOptions.fogEnd);
     options.addProperty("cloudHeight", GlobalOptions.cloudHeight);
@@ -120,6 +121,7 @@ public final class ConfigStore {
           GlobalOptions.packFeatures.put(feature.getKey(), feature.getValue().getAsBoolean());
       if (options.has("highPriority")) GlobalOptions.highPriority = options.get("highPriority").getAsBoolean();
       if (options.has("hideFoliage")) GlobalOptions.hideFoliage = options.get("hideFoliage").getAsBoolean();
+      if (options.has("hideStuckArrows")) GlobalOptions.hideStuckArrows = options.get("hideStuckArrows").getAsBoolean();
       if (options.has("fogStart")) GlobalOptions.fogStart = options.get("fogStart").getAsInt();
       if (options.has("fogEnd")) GlobalOptions.fogEnd = options.get("fogEnd").getAsInt();
       if (options.has("cloudHeight")) GlobalOptions.cloudHeight = options.get("cloudHeight").getAsInt();

@@ -71,9 +71,12 @@ public class MixinNetworkManager {
         try {
             if (packet instanceof net.minecraft.network.play.server.S01PacketJoinGame) {
                 Envoy.onJoinGame((NetworkManager) (Object) this);
+                ApolloNetwork.getInstance().onJoinDimension(
+                    ((net.minecraft.network.play.server.S01PacketJoinGame) packet).getDimension());
             }
             if (packet instanceof net.minecraft.network.play.server.S07PacketRespawn) {
-                ApolloNetwork.getInstance().onRespawn();
+                ApolloNetwork.getInstance().onRespawn(
+                    ((net.minecraft.network.play.server.S07PacketRespawn) packet).getDimensionID());
             }
             if (!(packet instanceof S3FPacketCustomPayload)) return;
             S3FPacketCustomPayload payload = (S3FPacketCustomPayload) packet;

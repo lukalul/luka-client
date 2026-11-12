@@ -6,6 +6,7 @@
   "client": [
     "MinecraftMixin",
     "HitFixMinecraftMixin",
+    "HitFixNetworkAccess",
     "MinecraftResizeInvoker",
     "PylonDisplayMixin",
     "StallLogMinecraftMixin",
@@ -26,6 +27,9 @@
     "EntityRendererInvoker",
     "GuiBlurFallbackMixin",
     "HideBlocksBlockMixin",
+    "HideStuckArrowsMixin",
+    "EffectsBeforeTooltipMixin",
+    "EffectsBeforeTooltipContainerMixin",
     "HideBlocksContainersMixin",
     "EntityCullFlagMixin",
     "EntityCullRenderMixin",

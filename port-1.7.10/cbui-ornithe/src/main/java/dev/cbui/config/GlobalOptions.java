@@ -36,6 +36,8 @@ public final class GlobalOptions {
   public static volatile boolean unfocusedLimit = true;
   /** Chunk meshing skips tall grass, flowers, ferns, dead bushes, vines and mushrooms. */
   public static volatile boolean hideFoliage;
+  /** Performance tab: arrows stuck in players and mobs are not drawn. */
+  public static volatile boolean hideStuckArrows;
   /** Players and mobs fully behind solid blocks are not drawn; their names still are. */
   public static volatile boolean entityCulling = true;
   /** Borderless fullscreen window. */

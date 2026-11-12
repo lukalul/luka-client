@@ -19,6 +19,7 @@ public final class MotionBlur implements ClientModInitializer {
     private static File configFile;
     private static boolean keyRegistered;
     private static boolean reported;
+    private static boolean lastHandOnly = MotionBlurSettings.handOnly;
 
     @Override
     public void onInitializeClient() {
@@ -75,6 +76,11 @@ public final class MotionBlur implements ClientModInitializer {
         try {
             MotionBlurSettings.level = AlphaMath.clamp(MotionBlurSettings.level, 0, 10);
             MotionBlurSettings.frameSkip = AlphaMath.clamp(MotionBlurSettings.frameSkip, 1, 10);
+            if (MotionBlurSettings.handOnly != lastHandOnly) {
+                // the other mode's history would show for a frame: start both afresh
+                lastHandOnly = MotionBlurSettings.handOnly;
+                BlurRenderer.reset();
+            }
             save();
         } catch (Throwable t) {
             report("settings", t);
