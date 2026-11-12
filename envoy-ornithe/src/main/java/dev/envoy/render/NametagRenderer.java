@@ -294,13 +294,14 @@ public final class NametagRenderer {
             this.width = measured;
         }
 
-        void draw(FontRenderer font, int y) {
+        /** {@code alpha} 255 is the normal tag, a low value the faint copy seen through blocks (no shadow, like vanilla). */
+        void draw(FontRenderer font, int y, int alpha, boolean withBackground) {
             int cursor = -width / 2;
-            if (EnvoySettings.nametagBackground) {
+            if (withBackground && EnvoySettings.nametagBackground) {
                 drawBackground(cursor - 1, y - 1, cursor + width + 1, y + font.FONT_HEIGHT);
             }
             for (AdventureText.Run run : runs) {
-                font.drawString(run.display, cursor, y, 0xFF000000 | run.rgb, EnvoySettings.nametagShadow);
+                font.drawString(run.display, cursor, y, (alpha << 24) | (run.rgb & 0xFFFFFF), EnvoySettings.nametagShadow && alpha == 255);
                 cursor += font.getStringWidth(run.display);
             }
         }
@@ -366,16 +367,29 @@ public final class NametagRenderer {
 
         GlStateManager.disableLighting();
         GlStateManager.depthMask(false);
-        if (EnvoySettings.nametagThroughWalls || sticky()) {
-            GlStateManager.disableDepth();
-        } else {
-            GlStateManager.enableDepth();
-        }
         GlStateManager.enableBlend();
         GlStateManager.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-
-        for (int i = 0; i < prepared.size(); i++) {
-            prepared.get(i).draw(font, -i * lineHeight);
+        if (detailed || sticky()) {
+            // staff view: every tag stays fully readable through walls
+            GlStateManager.disableDepth();
+            for (int i = 0; i < prepared.size(); i++) {
+                prepared.get(i).draw(font, -i * lineHeight, 255, true);
+            }
+        } else {
+            // like vanilla: behind blocks only a faint copy shows (none for a crouching player), and the tag is drawn in
+            // full only where the player can be seen. Drawing it all through walls made tags shine through trees and
+            // stack unreadably over each other.
+            boolean faint = EnvoySettings.nametagThroughWalls && !player.isSneaking();
+            if (faint) {
+                GlStateManager.disableDepth();
+                for (int i = 0; i < prepared.size(); i++) {
+                    prepared.get(i).draw(font, -i * lineHeight, 0x20, true);
+                }
+            }
+            GlStateManager.enableDepth();
+            for (int i = 0; i < prepared.size(); i++) {
+                prepared.get(i).draw(font, -i * lineHeight, 255, !faint);
+            }
         }
 
         if (detailed && drawGear && EnvoySettings.staffTagEquipment) {

@@ -81,6 +81,7 @@ public final class ConfigStore {
     options.addProperty("highPriority", GlobalOptions.highPriority);
     options.addProperty("leavesMode", GlobalOptions.leavesMode);
     options.addProperty("clearGlass", GlobalOptions.clearGlass);
+    options.addProperty("resolution", GlobalOptions.resolution);
     options.addProperty("fogStart", GlobalOptions.fogStart);
     options.addProperty("fogEnd", GlobalOptions.fogEnd);
     options.addProperty("cloudHeight", GlobalOptions.cloudHeight);
@@ -123,6 +124,7 @@ public final class ConfigStore {
       if (options.has("fogEnd")) GlobalOptions.fogEnd = options.get("fogEnd").getAsInt();
       if (options.has("cloudHeight")) GlobalOptions.cloudHeight = options.get("cloudHeight").getAsInt();
       if (options.has("leavesMode")) GlobalOptions.leavesMode = options.get("leavesMode").getAsInt();
+      if (options.has("resolution")) GlobalOptions.resolution = options.get("resolution").getAsString();
       if (options.has("clearGlass")) GlobalOptions.clearGlass = Math.max(0, Math.min(2, options.get("clearGlass").getAsInt()));
       if (options.has("vignette")) GlobalOptions.vignette = options.get("vignette").getAsBoolean();
       if (options.has("packFeatures"))

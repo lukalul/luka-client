@@ -84,6 +84,7 @@ public final class ConfigStore {
     options.addProperty("highPriority", GlobalOptions.highPriority);
     options.addProperty("leavesMode", GlobalOptions.leavesMode);
     options.addProperty("clearGlass", GlobalOptions.clearGlass);
+    options.addProperty("resolution", GlobalOptions.resolution);
     options.addProperty("vignette", GlobalOptions.vignette);
     com.google.gson.JsonObject packFeatures = new com.google.gson.JsonObject();
     for (java.util.Map.Entry<String, Boolean> feature : GlobalOptions.packFeatures.entrySet()) packFeatures.addProperty(feature.getKey(), feature.getValue());
@@ -111,6 +112,7 @@ public final class ConfigStore {
       if (options.has("unfocusedLimit")) GlobalOptions.unfocusedLimit = options.get("unfocusedLimit").getAsBoolean();
       if (options.has("entityCulling")) GlobalOptions.entityCulling = options.get("entityCulling").getAsBoolean();
       if (options.has("leavesMode")) GlobalOptions.leavesMode = options.get("leavesMode").getAsInt();
+      if (options.has("resolution")) GlobalOptions.resolution = options.get("resolution").getAsString();
       if (options.has("clearGlass")) GlobalOptions.clearGlass = Math.max(0, Math.min(2, options.get("clearGlass").getAsInt()));
       if (options.has("vignette")) GlobalOptions.vignette = options.get("vignette").getAsBoolean();
       if (options.has("packFeatures"))

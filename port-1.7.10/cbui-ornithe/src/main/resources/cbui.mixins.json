@@ -5,6 +5,8 @@
   "minVersion": "0.7.11",
   "client": [
     "MinecraftMixin",
+    "MinecraftResizeInvoker",
+    "PylonDisplayMixin",
     "StallLogMinecraftMixin",
     "KeyResyncMinecraftMixin",
     "StallLogProfilerMixin",

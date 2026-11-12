@@ -39,6 +39,14 @@ public abstract class MinecraftMixin {
     @org.spongepowered.asm.mixin.injection.Inject(method="createDisplay", at=@At("RETURN"), require=0)
     private void cbui$title(org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) { org.lwjgl.opengl.Display.setTitle("luka"); if (dev.cbui.config.GlobalOptions.borderless) dev.cbui.config.Borderless.apply(true); }
 
+    /** Once per frame: the Resolution setting (Video Settings). */
+    @org.spongepowered.asm.mixin.injection.Inject(method="runGameLoop", at=@At("HEAD"), require=0)
+    private void cbui$resolution(org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+        // Borderless also from here, so a borderless start waits for the game in the main menu too (the HUD tick only runs in a world)
+        if (dev.cbui.config.GlobalOptions.borderless) dev.cbui.config.Borderless.tick();
+        dev.cbui.config.Resolution.frame();
+    }
+
     @org.spongepowered.asm.mixin.injection.Inject(method="runTick", at=@At("RETURN"), require=0)
     private void cbui$tick(org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) { Cbui.tick(); }
 }

@@ -61,6 +61,9 @@ public final class Borderless {
 
   private static void pylonSync(Object display, Minecraft mc) throws Exception {
     pylonExclusive(display, !want);
+    // at start-up (the saved setting is applied when the window is made) the game's picture buffer does not exist yet and
+    // its fullscreen switch fails halfway ("Couldn't toggle fullscreen"): wait for it, the per-frame tick tries again
+    if (want && pendingEnable && mc.getFramebuffer() == null) return;
     if (want && pendingEnable) {
       pendingEnable = false;
       if (!mc.isFullScreen()) pylonToggle(mc);

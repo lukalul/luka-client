@@ -69,6 +69,8 @@ public final class PerfOptions {
       Display.setVSyncEnabled(g.enableVsync);
     } else if (n.equals("Fullscreen")) {
       if (mc.isFullScreen() != (Boolean) s.get()) mc.toggleFullscreen();
+    } else if (n.equals("Resolution")) {
+      Resolution.choose(String.valueOf(s.get()));
     } else if (n.equals("GUI scale")) {
       g.guiScale = ((Setting.Choice) s).choices().indexOf(s.get());
       net.minecraft.client.gui.ScaledResolution r = new net.minecraft.client.gui.ScaledResolution(mc);

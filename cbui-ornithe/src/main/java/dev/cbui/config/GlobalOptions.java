@@ -26,6 +26,8 @@ public final class GlobalOptions {
   public static volatile int leavesMode;
   /** Clear glass: 0 off, 1 normal glass and panes, 2 also stained glass. Those blocks are not drawn in the world. */
   public static volatile int clearGlass;
+  /** Video Settings Resolution, "WIDTHxHEIGHT"; empty is the monitor's own (see Resolution). */
+  public static volatile String resolution = "";
   /** Where distance fog starts and ends, in percent of the render distance. Vanilla is 75 and 100. */
   public static volatile int fogStart = 75, fogEnd = 100;
   /** Height of the clouds. Vanilla is 128. */

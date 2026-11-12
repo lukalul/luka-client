@@ -33,6 +33,10 @@ public final class VideoOptions {
     add(list, "General", slider("Max FPS", g.limitFramerate, 10, 260, 10, "Frame rate cap. 260 means unlimited"));
     add(list, "General", toggle("VSync", g.enableVsync, false, "Matches the monitor refresh rate. Stops tearing but adds input delay"));
     add(list, "General", toggle("Fullscreen", mc.isFullScreen(), false, "Exclusive fullscreen. Borderless is in the General tab"));
+    if (Resolution.supported()) {
+      String[] sizes = Resolution.choices();
+      add(list, "General", choice("Resolution", Resolution.index(sizes), sizes, 0, "Fullscreen: the monitor switches to this resolution. Borderless: the game is drawn at this resolution and stretched over the screen, so it looks the same. Native is your monitor's own"));
+    }
     add(list, "General", choice("GUI scale", g.guiScale, new String[] {"Auto", "Small", "Normal", "Large"}, 0, "Size of menus and the hotbar"));
     add(list, "General", slider("Brightness", Math.round(g.gammaSetting * 100f), 0, 100, 5, "Vanilla gamma. The Fullbright mod goes further"));
     add(list, "General", slider("FOV", g.fovSetting, 30, 110, 1, "Field of view"));
