@@ -19,6 +19,6 @@ public abstract class GlintDistanceItemMixin {
 
   @ModifyReturnValue(method = "isItemEnchanted", at = @At("RETURN"), require = 0)
   private boolean cbui$keepArmorGlint(boolean enchanted) {
-    return enchanted && !GlintDistance.skip();
+    return enchanted && !GlintDistance.skipInWorld();
   }
 }

@@ -96,7 +96,7 @@ public abstract class OldAnimationsRenderItemMixin {
   private void cbui$oldGuiGlint(ItemStack stack, int x, int y, CallbackInfo ci) {
     try {
       OldAnimationsModule m = OldAnimationsModule.active();
-      if (m == null || !m.glintRendering.get() || stack == null || !stack.hasEffect() || !GL11.glIsEnabled(GL11.GL_DEPTH_TEST)) return;
+      if (m == null || !m.glintRendering.get() || stack == null || !stack.hasEffect() || dev.cbui.render.GlintDistance.skip() || !GL11.glIsEnabled(GL11.GL_DEPTH_TEST)) return;
       LegacyGlint.drawGuiGlint(this.textureManager, RES_ITEM_GLINT, this.zLevel, x, y);
     } catch (Throwable ignored) { }
   }
