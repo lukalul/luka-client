@@ -54,6 +54,8 @@ public final class Features {
     add(new dev.cbui.feature.polycrosshair.PolyCrosshairModule());
     add(new dev.cbui.feature.oldanimations.OldAnimationsModule());
     add(new dev.cbui.feature.noglint.NoGlintModule());
+    add(new dev.cbui.feature.rawinput.RawInputModule());
+    add(new dev.cbui.feature.hitfix.HitFixModule());
     add(new dev.cbui.feature.screenshotmessageenhancer.ScreenshotMessageEnhancerModule());
     add(new dev.cbui.feature.crashpatch.CrashPatchModule());
     add(new dev.cbui.feature.staff.StaffModeModule());

@@ -76,8 +76,9 @@ public final class TeamRenderer {
     }
 
     private static void renderPin(FontRenderer font, TeamPin pin) {
-        triangle(pin.x - 6, pin.y - 9, pin.x + 6, pin.y - 9, pin.x, pin.y + 1, 0xB0000000);
-        triangle(pin.x - 5, pin.y - 8, pin.x + 5, pin.y - 8, pin.x, pin.y - 1, pin.color);
+        // a small arrow pointing down at the team mate (its tip stays where the old, bigger one had it)
+        triangle(pin.x - 4, pin.y - 6, pin.x + 4, pin.y - 6, pin.x, pin.y + 1, 0xB0000000);
+        triangle(pin.x - 3, pin.y - 5, pin.x + 3, pin.y - 5, pin.x, pin.y - 0.5, pin.color);
         if (pin.metres <= 50) return;
         GlStateManager.enableBlend(); GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
         String distance = "(" + pin.metres + "m)"; float y = (float) pin.y + 2;

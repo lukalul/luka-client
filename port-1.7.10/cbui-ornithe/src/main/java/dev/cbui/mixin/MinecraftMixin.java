@@ -52,7 +52,7 @@ public abstract class MinecraftMixin {
 
     /** Once per frame: the Resolution setting (Video Settings). */
     @org.spongepowered.asm.mixin.injection.Inject(method="runGameLoop", at=@At("HEAD"), require=0)
-    private void cbui$resolution(org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) { dev.cbui.config.Resolution.frame(); }
+    private void cbui$resolution(org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) { dev.cbui.config.Resolution.frame(); dev.cbui.feature.rawinput.RawInputModule.sync(); }
 
     @org.spongepowered.asm.mixin.injection.Inject(method="runTick", at=@At("RETURN"), require=0)
     private void cbui$tick(org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) { Cbui.tick(); }

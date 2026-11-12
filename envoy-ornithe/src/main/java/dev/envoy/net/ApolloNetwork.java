@@ -35,6 +35,13 @@ public final class ApolloNetwork {
     private volatile long respawnAt;
     private volatile boolean loginNameSeen;
     private volatile boolean nameIsRepeated;
+    private volatile long joinedAt;
+    private volatile long lastRespawnAt;
+    private volatile long forgotAt;
+    /** BungeeCord and Velocity move a 1.8 player to another server with two respawns straight after each other. */
+    private static final long DOUBLE_RESPAWN_MILLIS = 1500L;
+    /** A server may send its name more than once while the player logs in; only later repeats mean an animated name. */
+    private static final long LOGIN_SETTLE_MILLIS = 15000L;
     private boolean logAllIncoming = true;
 
     private ApolloNetwork() {
@@ -62,6 +69,10 @@ public final class ApolloNetwork {
         dev.envoy.rules.ServerRules.reset();
         forgetServer(null);
         respawnAt = 0L;
+        lastRespawnAt = 0L;
+        joinedAt = System.currentTimeMillis();
+        // the join already forgot the last server; respawns a server sends while the player logs in are not a move
+        forgotAt = joinedAt;
         loginNameSeen = false;
         nameIsRepeated = false;
         if (registrationTarget != manager) return;
@@ -87,7 +98,11 @@ public final class ApolloNetwork {
 
     /** Dying and changing dimension respawn the player too, so a respawn alone says nothing; see {@link #onServerName()}. */
     public void onRespawn() {
-        respawnAt = System.currentTimeMillis();
+        long now = System.currentTimeMillis();
+        respawnAt = now;
+        // dying or a portal never gives two respawns this close together; a proxy's move to another server does
+        if (now - lastRespawnAt < DOUBLE_RESPAWN_MILLIS) forgetMove("a proxy moved the player to another server (two respawns)");
+        lastRespawnAt = now;
     }
 
     /**
@@ -102,8 +117,9 @@ public final class ApolloNetwork {
         }
         boolean afterRespawn = System.currentTimeMillis() - respawnAt < PROXY_MOVE_WINDOW_MILLIS;
         respawnAt = 0L;
-        if (!afterRespawn) nameIsRepeated = true;
-        else if (!nameIsRepeated) forgetServer("a proxy moved the player to another server");
+        if (!afterRespawn) {
+            if (System.currentTimeMillis() - joinedAt > LOGIN_SETTLE_MILLIS) nameIsRepeated = true;
+        } else if (!nameIsRepeated) forgetMove("a proxy moved the player to another server");
     }
 
     /**
@@ -112,6 +128,17 @@ public final class ApolloNetwork {
      * The rules about allowed mods are not touched here: a proxy may have sent those once for the whole network, and
      * dropping them on a move between its servers would turn disallowed mods back on.
      */
+    /**
+     * One move to another server can show both signs (two respawns, then the new server's name): it is forgotten once, so
+     * what the new server sends in between is not thrown away again.
+     */
+    private void forgetMove(String reason) {
+        long now = System.currentTimeMillis();
+        if (now - forgotAt < 5000L) return;
+        forgotAt = now;
+        forgetServer(reason);
+    }
+
     private static void forgetServer(String reason) {
         dev.envoy.module.staff.StaffState.clear();
         dev.envoy.module.nametag.NametagState.resetAll();

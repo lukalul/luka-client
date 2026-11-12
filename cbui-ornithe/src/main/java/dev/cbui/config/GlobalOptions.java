@@ -56,11 +56,11 @@ public final class GlobalOptions {
   /** Block entities (chests, portals, spawners...) are drawn only within this many blocks; 64 is vanilla. */
   public static volatile int tileDistance = 64;
   /** Players and mobs farther than this many blocks are drawn without armour, held items and other layers; 128 or more is off. */
-  public static volatile int layerDistance = 48;
+  public static volatile int layerDistance = 128;
   /** Dropped items and experience orbs farther than this many blocks are not drawn; 64 or more is vanilla. */
   public static volatile int itemDistance = 64;
   /** Names above players and mobs are drawn only within this many blocks; 64 or more is vanilla. */
-  public static volatile int nametagDistance = 48;
+  public static volatile int nametagDistance = 64;
   /** The enchantment shine on other players, mobs and dropped items stops beyond this. 64 is vanilla (off), 0 removes it. */
   public static volatile int glintDistance = 64;
   /** The luka HUD is redrawn this many times a second and reused in between; 250 redraws it every frame. */

@@ -23,6 +23,14 @@ public final class Migrations {
       List<String> done = file.isFile() ? Files.readAllLines(file.toPath(), StandardCharsets.UTF_8) : Collections.<String>emptyList();
       // 2026-11-11: Server Cooldowns is off unless the player turns it on (it used to start on, and that was saved)
       once(file, done, "server-cooldowns-off", () -> switchOff("Server Cooldowns"));
+      // 2026-11-12: armour and names follow how far players are drawn unless the player picked a distance. The old
+      // default (48) was saved like a choice, so only 48 moves; any other number was set by hand and stays.
+      once(file, done, "detail-distances-follow-players", () -> {
+        boolean changed = false;
+        if (GlobalOptions.layerDistance == 48) { GlobalOptions.layerDistance = 128; changed = true; }
+        if (GlobalOptions.nametagDistance == 48) { GlobalOptions.nametagDistance = 64; changed = true; }
+        if (changed && Cbui.config() != null && Cbui.hud() != null) Cbui.config().save(Cbui.hud());
+      });
     } catch (Throwable error) {
       Cbui.reportOnce("settings migration", error);
     }

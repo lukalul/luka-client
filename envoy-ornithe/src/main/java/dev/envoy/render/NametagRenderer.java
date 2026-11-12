@@ -28,6 +28,8 @@ public final class NametagRenderer {
 
     public void onRenderName(RenderLivingEvent.Specials.Pre<EntityLivingBase> event) {
         if (!(event.entity instanceof EntityPlayer)) {
+            // NPCs are often mobs (villagers and the like): the server's tag for them is drawn the same way
+            queueOtherEntity(event);
             return;
         }
         EntityPlayer player = (EntityPlayer) event.entity;
@@ -63,6 +65,29 @@ public final class NametagRenderer {
         // drawn at the end of the world pass (see renderQueued), after translucent blocks, so glass cannot tint the tag
         if (PENDING.size() > 512) PENDING.clear();
         PENDING.add(new PendingTag(player, lines, event.x, event.y, event.z));
+    }
+
+    /** A server tag on a living entity that is not a player (an NPC that is a mob). */
+    private void queueOtherEntity(RenderLivingEvent.Specials.Pre<EntityLivingBase> event) {
+        EntityLivingBase entity = event.entity;
+        List<List<AdventureText.Run>> lines = NametagState.get(entity.getUniqueID());
+        if (lines == null || lines.isEmpty()) {
+            return;
+        }
+        if (EnvoySettings.nametagsHidden) {
+            event.setCanceled(true);
+            return;
+        }
+        if (EnvoySettings.nametagsOnlyStaff && !dev.envoy.module.staff.StaffState.active()) {
+            return;
+        }
+        Minecraft mc = Minecraft.getMinecraft();
+        if (mc.getRenderViewEntity() == null || entity.getDistanceSqToEntity(mc.getRenderViewEntity()) > (double) EnvoySettings.nametagMaxDistance * EnvoySettings.nametagMaxDistance) {
+            return;
+        }
+        event.setCanceled(true);
+        if (PENDING.size() > 512) PENDING.clear();
+        PENDING.add(new PendingTag(entity, lines, event.x, event.y, event.z));
     }
 
     private static boolean sticky() {
@@ -266,11 +291,11 @@ public final class NametagRenderer {
     }
 
     private static final class PendingTag {
-        final EntityPlayer player;
+        final EntityLivingBase player;
         final List<List<AdventureText.Run>> lines;
         final double x, y, z;
 
-        PendingTag(EntityPlayer player, List<List<AdventureText.Run>> lines, double x, double y, double z) {
+        PendingTag(EntityLivingBase player, List<List<AdventureText.Run>> lines, double x, double y, double z) {
             this.player = player;
             this.lines = lines;
             this.x = x;
@@ -332,12 +357,12 @@ public final class NametagRenderer {
     }
 
     /** {@code detailed}: the staff view - health/distance line, gear icons with enchants, optional constant size. */
-    private void paintTag(EntityPlayer player, List<List<AdventureText.Run>> lines, double x, double y, double z, boolean detailed) {
+    private void paintTag(EntityLivingBase player, List<List<AdventureText.Run>> lines, double x, double y, double z, boolean detailed) {
         Minecraft mc = Minecraft.getMinecraft();
         FontRenderer font = mc.fontRendererObj;
         double distance = Math.sqrt(x * x + y * y + z * z);
         if (detailed) {
-            lines = decorateStaffLines(player, lines, distance);
+            lines = decorateStaffLines((EntityPlayer) player, lines, distance);
         }
 
         float baseOffset = player.height + 0.5F + EnvoySettings.nametagHeight;
@@ -393,7 +418,7 @@ public final class NametagRenderer {
         }
 
         if (detailed && drawGear && EnvoySettings.staffTagEquipment) {
-            drawEquipment(mc, font, player, -count * lineHeight - 18, lineHeight);
+            drawEquipment(mc, font, (EntityPlayer) player, -count * lineHeight - 18, lineHeight);
         }
 
         GlStateManager.enableDepth();
