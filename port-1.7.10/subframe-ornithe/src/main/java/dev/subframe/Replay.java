@@ -106,13 +106,20 @@ final class Replay {
     /** Recording time of the frame being drawn, for the FPS counter (-1 before the first). */
     private volatile long shownT = -1;
 
-    /** The frame rate the player had live at the moment of the recording being shown, or -1 when no replay is shown. */
+    /**
+     * The frame rate the player had live at the moment of the recording being shown, or -1 when no replay is shown.
+     * Like the game's own counter it changes once a second: it is the count of the last whole recorded second (the
+     * first second of the recording shows its own count), not a window that slides with every drawn frame.
+     */
     static int recordedFps() {
         Replay r = active;
         if (r == null || !r.running || r.finished || r.shownT < 0) {
             return -1;
         }
-        return r.rec.fpsAt(r.shownT);
+        long second = 1_000_000_000L;
+        long start = r.rec.startTime();
+        long boundary = start + Math.max(1, Math.floorDiv(r.shownT - start, second)) * second;
+        return r.rec.fpsAt(boundary);
     }
     private boolean finished;
 
