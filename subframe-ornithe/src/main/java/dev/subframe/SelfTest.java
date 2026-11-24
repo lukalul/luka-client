@@ -320,6 +320,11 @@ final class SelfTest {
             Replay rp = Replay.active;
             String[] big = rp == null ? null : ReplayMenuScreen.bigRender(rp, 1920, 1080);
             SubFrameMod.LOG.info("[fpsbox] large-render check at 1920x1080: " + (big == null ? "none" : String.join(" | ", big)));
+            s.mouseClicked(fx, fy, 0);
+            boxType(s, "#####1000000!");
+            SubFrameMod.LOG.info("[fpsbox] typed 1000000 + Enter: fps=" + SubFrameMod.outputFps + " box='" + s.fpsText() + "'");
+            String[] huge = rp == null ? null : ReplayMenuScreen.bigRender(rp, 1920, 1080);
+            SubFrameMod.LOG.info("[fpsbox] large-render check at 1,000,000 fps: " + (huge == null ? "none" : String.join(" | ", huge)));
         }
         Replay.abort();
         mc.shutdown();

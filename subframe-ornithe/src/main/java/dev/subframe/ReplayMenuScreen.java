@@ -12,7 +12,7 @@ import java.io.IOException;
 final class ReplayMenuScreen extends GuiScreen {
     private static final int[] FPS = {30, 60, 120, 240, 480, 960};
     /** Same bounds as {@code outputFps} in subframe.properties. */
-    private static final int MIN_FPS = 1, MAX_FPS = 20000;
+    private static final int MIN_FPS = 1, MAX_FPS = 1_000_000;
     private static final int[] SUBFRAMES = {1, 4, 8, 16, 32, 64, 128};
 
     private static final int RESUME = 0, OPTIONS = 1, FPS_BTN = 2, SUB_BTN = 3, RENDER = 4, QUIT = 5, BLEND_BTN = 6, OUT_BTN = 7, ENC_BTN = 8, GAME_MENU_BTN = 9,
@@ -43,7 +43,7 @@ final class ReplayMenuScreen extends GuiScreen {
         fpsButton = new GuiButton(FPS_BTN, x, y + 90, 146, 20, "");
         Keyboard.enableRepeatEvents(true);
         fpsField = new GuiTextField(10, fontRendererObj, boxX = x + 151, boxY = y + 91, BOX_W, BOX_H);
-        fpsField.setMaxStringLength(5);
+        fpsField.setMaxStringLength(7);
         fpsField.setText(Integer.toString(SubFrameMod.outputFps));
         blendButton = new GuiButton(BLEND_BTN, x, y + 114, 200, 20, "");
         subButton = new GuiButton(SUB_BTN, x, y + 138, 200, 20, "");

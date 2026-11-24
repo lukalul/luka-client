@@ -2,6 +2,9 @@
 
 The launcher shows the notes below on its What's New page. Add a new `## version` heading at the top for each release.
 
+## 1.5.8
+- Replays: you can type a frame rate up to 1,000,000 fps (was 20,000). Expect very long renders and very large files at those rates: the check before rendering shows how big and how long it will be.
+
 ## 1.5.7
 - Replays: the enchantment shine on items moves at its normal speed in renders. Before, it ran at the render's own speed, so at high frame rates it raced and flickered.
 - Replays: the render log is written again on setups whose game window library had no fullscreen check.
