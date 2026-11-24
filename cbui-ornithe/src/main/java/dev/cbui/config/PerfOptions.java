@@ -19,6 +19,10 @@ public final class PerfOptions {
     List<Setting<?>> list = new ArrayList<>();
     // the picture settings are in the VIDEO tab (VideoOptions), this one is for what only trades look for speed
     list.add(grp("Frame rate", toggle("Limit FPS when unfocused", GlobalOptions.unfocusedLimit, true, "Drops to 30 FPS while the game window is in the background so it stops using your GPU")));
+    list.add(grp("Frame rate", choice("Main menu FPS", FpsContexts.index(GlobalOptions.menuFps), FpsContexts.CHOICES, 0, "Frame rate cap on the title screen and other menus outside a world. Off: the normal limit (vanilla caps menus at 30)")));
+    list.add(grp("Frame rate", choice("Pause menu FPS", FpsContexts.index(GlobalOptions.pauseFps), FpsContexts.CHOICES, 0, "Frame rate cap while the pause menu is open. Off: the normal limit")));
+    list.add(grp("Frame rate", choice("Container FPS", FpsContexts.index(GlobalOptions.containerFps), FpsContexts.CHOICES, 0, "Frame rate cap while a chest, furnace, crafting table or your inventory is open. Off: the normal limit")));
+    list.add(grp("Frame rate", choice("HUD editor FPS", FpsContexts.index(GlobalOptions.hudEditorFps), FpsContexts.CHOICES, 0, "Frame rate cap while the HUD editor is open. Off: the normal limit")));
     list.add(grp("Frame rate", toggle("Above normal priority", GlobalOptions.highPriority, true, "Asks Windows to favour the game over ordinary background programs. Removes nearly all stutter over 4 ms in a crowd. Voice chat and recording keep working")));
     list.add(grp("Frame rate", slider("HUD refresh rate", GlobalOptions.hudRefresh, 30, 250, 10, "How many times a second the luka HUD boxes are redrawn; in between the last picture is reused, which saves a lot at high FPS. 250 redraws every frame. Default 120")));
     list.add(grp("World", slider("Block entity distance", GlobalOptions.tileDistance, 8, 64, 4, "How far away chests, portals, spawners and other block entities are still drawn, in blocks. Lower is faster")));
@@ -29,7 +33,12 @@ public final class PerfOptions {
     list.add(grp("World", choice("Lazy chunk loading", GlobalOptions.chunkPace, new String[] {"Off", "Low", "Medium", "High"}, 0, "Spreads the work of loading new chunks over more frames. Higher keeps FPS steadier when you join a server, teleport or fly fast, but chunks appear a little slower. Block changes near you are never delayed")));
     list.add(grp("World", toggle("Entity culling", GlobalOptions.entityCulling, true, "Players, mobs and dropped items completely behind solid blocks are not drawn, which saves a lot when a base or wall hides a crowd or loot. Names still show through walls as usual")));
     list.add(grp("World", toggle("Hide foliage", GlobalOptions.hideFoliage, false, "Does not draw tall grass, ferns, flowers, dead bushes, vines or mushrooms. Fewer things to draw, and it is easier to see players and items. Leaves stay (they follow Graphics in Video Settings)")));
-    list.add(grp("World", toggle("Hide stuck arrows", GlobalOptions.hideStuckArrows, false, "Arrows stuck in players and mobs are not drawn. Lots of them on one player cost FPS in fights. Arrows in flight and in the ground stay")));
+    list.add(grp("World", toggle("Entity shadows", g.entityShadows, true, "The round shadow under players, mobs and items. Off saves a little in crowds")));
+    list.add(grp("World", toggle("Hide stuck arrows", GlobalOptions.hideStuckArrows, false, "Arrows stuck in players and mobs are not drawn. Lots of them on one player cost FPS in fights")));
+    list.add(grp("World", toggle("Hide arrows in the ground", GlobalOptions.hideGroundArrows, false, "Arrows lying in blocks are not drawn. Bow fights leave many of them around")));
+    list.add(grp("World", toggle("Hide arrows in flight", GlobalOptions.hideFlyingArrows, false, "Arrows in the air are not drawn. They still hit; you only stop seeing them coming")));
+    list.add(grp("Particles", toggle("Fewer ambient effects", GlobalOptions.fewerAmbientEffects, false, "Drips, torch and fire flames, void and portal particles appear a tenth as often: the game checks 100 spots around you each tick instead of 1,000")));
+    list.add(grp("Particles", toggle("Particle collisions", GlobalOptions.particleCollisions, true, "Off: particles fly through blocks instead of bouncing off and landing on them, which saves time when there are many. Applies to new particles")));
     return list;
   }
 
@@ -62,6 +71,13 @@ public final class PerfOptions {
     String n = s.name();
     if (VideoOptions.applyAnimation(s)) return;
     if (VideoOptions.applyParticle(s)) return;
+    if (VideoOptions.applyCera(s)) return;
+    if (VideoOptions.applyExtras(s)) return;
+    int engine = VideoOptions.applyEngine(s);
+    if (engine > 0) {
+      if (engine == 2) reload = true;
+      return;
+    }
     if (VideoOptions.applyPackFeature(s)) { refreshResources = true; return; }
     save = true;
     if (n.equals("Max FPS")) g.limitFramerate = Math.round((Float) s.get());
@@ -87,6 +103,7 @@ public final class PerfOptions {
       // the Hide blocks tick sees the change and rebuilds the world
     } else if (n.equals("Vignette")) VideoOptions.applyVignette((Boolean) s.get());
     else if (n.equals("Held item names")) g.heldItemTooltips = (Boolean) s.get();
+    else if (n.equals("Advanced tooltips")) g.advancedItemTooltips = (Boolean) s.get();
     else if (n.equals("Block alternatives")) {
       g.allowBlockAlternatives = (Boolean) s.get();
       reload = true;
@@ -102,6 +119,14 @@ public final class PerfOptions {
     }
     else if (n.equals("Entity culling")) {
       GlobalOptions.entityCulling = (Boolean) s.get();
+    } else if (n.equals("Hide arrows in the ground")) {
+      GlobalOptions.hideGroundArrows = (Boolean) s.get();
+    } else if (n.equals("Hide arrows in flight")) {
+      GlobalOptions.hideFlyingArrows = (Boolean) s.get();
+    } else if (n.equals("Fewer ambient effects")) {
+      GlobalOptions.fewerAmbientEffects = (Boolean) s.get();
+    } else if (n.equals("Particle collisions")) {
+      GlobalOptions.particleCollisions = (Boolean) s.get();
     } else if (n.equals("Hide stuck arrows")) {
       GlobalOptions.hideStuckArrows = (Boolean) s.get();
     } else if (n.equals("Hide foliage")) {
@@ -111,6 +136,10 @@ public final class PerfOptions {
       GlobalOptions.highPriority = (Boolean) s.get();
       dev.cbui.render.GamePriority.apply(GlobalOptions.highPriority);
     } else if (n.equals("Limit FPS when unfocused")) GlobalOptions.unfocusedLimit = (Boolean) s.get();
+    else if (n.equals("Main menu FPS")) GlobalOptions.menuFps = FpsContexts.value((String) s.get());
+    else if (n.equals("Pause menu FPS")) GlobalOptions.pauseFps = FpsContexts.value((String) s.get());
+    else if (n.equals("Container FPS")) GlobalOptions.containerFps = FpsContexts.value((String) s.get());
+    else if (n.equals("HUD editor FPS")) GlobalOptions.hudEditorFps = FpsContexts.value((String) s.get());
     else if (n.equals("Render distance")) {
       g.renderDistanceChunks = Math.round((Float) s.get());
       reload = true;
@@ -131,7 +160,7 @@ public final class PerfOptions {
     } else if (n.equals("Smooth lighting")) {
       g.ambientOcclusion = ((Setting.Choice) s).choices().indexOf(s.get());
       reload = true;
-    } else if (n.equals("Particles")) g.particleSetting = ((Setting.Choice) s).choices().indexOf(s.get());
+    }
     else if (n.equals("Entity shadows")) g.entityShadows = (Boolean) s.get();
   }
 
@@ -149,7 +178,12 @@ public final class PerfOptions {
   public static void flush() {
     Minecraft mc = Minecraft.getMinecraft();
     GameSettings g = mc.gameSettings;
-    VideoOptions.saveRendererSettings();
+    int renderer = VideoOptions.saveRendererSettings();
+    if (renderer == 2) {
+      // Cera reads its switches while loading the resource pack, so like OptiFine reload once now (this also rebuilds the world)
+      mc.refreshResources();
+      refreshResources = false;
+    } else if (renderer == 1) reload = true;
     if (pendingMipmap >= 0 && pendingMipmap != g.mipmapLevels) g.setOptionFloatValue(GameSettings.Options.MIPMAP_LEVELS, pendingMipmap);
     pendingMipmap = -1;
     if (refreshResources) {

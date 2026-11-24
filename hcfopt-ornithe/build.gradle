@@ -64,3 +64,4 @@ tasks.register('plainChecks', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'dev.hcfopt.checks.PlainChecks'
 }
+

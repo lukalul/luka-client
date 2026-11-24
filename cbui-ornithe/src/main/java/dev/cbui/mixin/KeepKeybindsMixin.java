@@ -36,7 +36,10 @@ public abstract class KeepKeybindsMixin {
       for (KeyBinding key : keyBindings) known.add(key.getKeyDescription());
       for (String line : Files.readAllLines(optionsFile.toPath(), StandardCharsets.UTF_8)) {
         int colon = line.lastIndexOf(':');
-        if (line.startsWith("key_") && colon > 4 && !known.contains(line.substring(4, colon))) cbui$notRegistered.add(line);
+        if (!line.startsWith("key_") || colon <= 4) continue;
+        String description = line.substring(4, colon), renamed = dev.cbui.config.CardRenames.newKey(description);
+        // a renamed key's line under its old name goes once the key is registered (and so saved) under the new one
+        if (!known.contains(description) && (renamed == null || !known.contains(renamed))) cbui$notRegistered.add(line);
       }
     } catch (Throwable ignored) {
       cbui$notRegistered.clear();

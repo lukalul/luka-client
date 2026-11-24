@@ -4,15 +4,17 @@ luka has no analytics or tracking. It connects to these places, and only for the
 
 | Where | Why |
 |---|---|
-| client.luka.wtf | The signed list of what to install, and luka's own mods |
-| api.luka.wtf | Luka Online: friends and the luka icon over other luka players (see below, and you can switch it off) |
+| client.luka.wtf | The signed list of what to install, luka's own mods and the Vulkan renderer |
+| api.luka.wtf | Luka Online: friends and the luka icon over other luka players (see below, and you can switch it off). Also, with no switch: a crash report when luka fails (see below) |
 | Mojang (minecraft.net, mojang.com) | Minecraft itself, its assets, and joining online-mode servers |
 | Microsoft (microsoft.com, xboxlive.com) | Signing in, only if you choose a Microsoft account |
-| Modrinth and GitHub | Open-source mods, Argentum, and the Vulkan renderer |
-| Adoptium, or Amazon Corretto as a backup | Java |
+| Modrinth | Mods by other authors, and Argentum |
+| Adoptium (its downloads are hosted on GitHub), or Amazon Corretto as a backup | Java |
 | Minecraft servers | The ones you join, and the ones listed on the launcher's Servers page, which it pings to show player counts |
 
-Apart from Luka Online, these are the downloads and connections luka needs to work, so there is no switch to turn them off. Your Microsoft sign-in stays on your PC and is sent only to Microsoft and Mojang.
+Apart from Luka Online and the crash reports described below, these are the downloads and connections luka needs to work, so there is no switch to turn them off. Your Microsoft sign-in stays on your PC and is sent only to Microsoft and Mojang.
+
+luka checks client.luka.wtf for updates every time you press Play. Without an internet connection it still starts for up to a day, with the list from its last check.
 
 ## Nvidia graphics cards
 
@@ -35,4 +37,18 @@ Luka Online gives you a friends list and puts the purple luka icon beside the na
 
 **What it does not do:** no chat logs, no recordings, no ads, and nothing is sold to anyone.
 
-**Turning it off:** open the luka menu and switch off the **Luka Online** card. The client then stops talking to api.luka.wtf. To have your account removed from the service, ask in the luka Discord.
+**Turning it off:** open the luka menu and switch off the **Luka Online** card. The client then stops sending friends and presence data to api.luka.wtf (it still sends the crash reports described below, which are not part of Luka Online). To have your account removed from the service, ask in the luka Discord.
+
+## Crash reports (api.luka.wtf)
+
+The launcher generates a random id once, when you first install luka, and keeps it in your install. It does not identify you and is not your Minecraft account. There is no switch for this; it is about luka's own stability, not about you.
+
+**What it sends:**
+- That random install id.
+- When luka fails internally or the game crashes: which part failed, the error message, and the stack trace. Never anything you typed or any personal data.
+
+**What it does not do:** known, harmless noise (a flaky network connection, an optional feature that is not installed) is filtered out before anything is sent.
+
+## Copying a Lunar Client profile
+
+Only when you click **Copy** in the luka menu's Profiles view, luka reads Lunar Client's settings files on your PC (the profile list and that profile's mod settings) and copies mod switches and HUD positions into a new luka profile. Nothing is sent anywhere, and Lunar Client's files are never changed.

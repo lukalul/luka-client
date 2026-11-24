@@ -2,7 +2,7 @@
 
 luka's releases are not code-signed yet. This page describes how releases are built and approved, and will name the certificate once there is one.
 
-Windows programs in luka's releases are built from this repository by GitHub Actions. A maintainer approves each release before it is signed.
+Windows programs in luka's releases are built from this repository by the maintainer, who approves each release before it is published.
 
 ## Team
 

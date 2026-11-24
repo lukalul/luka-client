@@ -236,14 +236,14 @@ final class SelfTest {
         if (VIEWREC == null || stage != Stage.VIEWING || finishedView) {
             return;
         }
-        if (VIEWMENU) {
-            SubFrameMod.LOG.info("[selftest] the viewer menu check is not available in the Ornithe port");
-            return;
-        }
         if (viewStart == 0) {
             viewStart = System.nanoTime();
         }
         double sec = (System.nanoTime() - viewStart) / 1e9;
+        if (VIEWMENU) {
+            fpsBoxCheck(sec);
+            return;
+        }
         Replay r = Replay.active;
         if (sec > 6 && !pressedEsc && mc.currentScreen != null) {
             pressedEsc = true;
@@ -259,6 +259,58 @@ final class SelfTest {
             finishedView = true;
             Replay.abort();
             mc.shutdown();
+        }
+    }
+
+    private boolean boxOpened;
+
+    /** Viewer menu check (-Dsubframe.viewmenu): types into the custom video fps box the way a player would and logs each result. */
+    private void fpsBoxCheck(double sec) {
+        if (sec < 6) {
+            return;
+        }
+        if (!boxOpened) {
+            boxOpened = true;
+            mc.displayGuiScreen(new ReplayMenuScreen());
+            return;
+        }
+        finishedView = true;
+        if (!(mc.currentScreen instanceof ReplayMenuScreen)) {
+            SubFrameMod.LOG.info("[fpsbox] FAIL: the viewer menu did not open (" + mc.currentScreen + ")");
+        } else {
+            ReplayMenuScreen s = (ReplayMenuScreen) mc.currentScreen;
+            int fx = s.width / 2 + 61, fy = s.height / 4 + 100;
+            SubFrameMod.LOG.info("[fpsbox] start: fps=" + SubFrameMod.outputFps + " box='" + s.fpsText() + "'");
+            s.mouseClicked(fx, fy, 0);
+            boxType(s, "####144!");
+            SubFrameMod.LOG.info("[fpsbox] typed 144 + Enter: fps=" + SubFrameMod.outputFps + " box='" + s.fpsText() + "'");
+            s.mouseClicked(fx, fy, 0);
+            boxType(s, "###5000ab");
+            SubFrameMod.LOG.info("[fpsbox] while typing 5000ab: fps=" + SubFrameMod.outputFps + " box='" + s.fpsText() + "'");
+            s.mouseClicked(5, 5, 0);
+            SubFrameMod.LOG.info("[fpsbox] clicked away: fps=" + SubFrameMod.outputFps + " box='" + s.fpsText() + "'");
+            s.mouseClicked(fx, fy, 0);
+            boxType(s, "###75!");
+            SubFrameMod.LOG.info("[fpsbox] typed 75 + Enter: fps=" + SubFrameMod.outputFps + " box='" + s.fpsText() + "'");
+            s.mouseClicked(fx, fy, 0);
+            boxType(s, "###333");
+            s.mouseClicked(s.width / 2 - 90, s.height / 4 + 95, 0);
+            SubFrameMod.LOG.info("[fpsbox] typed 333 then clicked the preset button: fps=" + SubFrameMod.outputFps + " box='" + s.fpsText() + "'");
+        }
+        Replay.abort();
+        mc.shutdown();
+    }
+
+    /** \b is Backspace, \n is Enter, anything else is typed as a character. */
+    private static void boxType(ReplayMenuScreen s, String keys) {
+        for (char c : keys.toCharArray()) {
+            if (c == '#') {
+                s.keyTyped((char) 8, org.lwjgl.input.Keyboard.KEY_BACK);
+            } else if (c == '!') {
+                s.keyTyped((char) 13, org.lwjgl.input.Keyboard.KEY_RETURN);
+            } else {
+                s.keyTyped(c, 0);
+            }
         }
     }
 

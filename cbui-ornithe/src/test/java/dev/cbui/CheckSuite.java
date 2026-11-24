@@ -8,15 +8,10 @@ import dev.cbui.gui.ModsLayout;
 import dev.cbui.gui.ModuleSearch;
 import dev.cbui.gui.ModulesLayout;
 import dev.cbui.hud.*;
-import dev.cbui.oneconfig.ConfigBridge;
-import dev.cbui.oneconfig.ConfigSnapshot;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
-import org.polyfrost.oneconfig.api.config.v1.Properties;
-import org.polyfrost.oneconfig.api.config.v1.Property;
-import org.polyfrost.oneconfig.api.config.v1.Tree;
 
 public final class CheckSuite {
   public static void main(String[] args) throws Exception {
@@ -28,16 +23,17 @@ public final class CheckSuite {
     configRoundTrip();
     profileRoundTrip();
     combinedSearch();
-    oneConfigRowsAndSearch();
     hudEditorSnapping();
-    oneConfigHudSync();
+    renamedCards();
     timerBook();
     chatMacroText();
     mentions();
+    SoundAndSkyChecks.run();
+    WheelAndLevelChecks.run();
     System.out.println(
         "CBUI plain-Java checks passed: CPS, atlas packing, GUI scales/layout, config/profile"
-            + " round-trips, combined search, OneConfig row mapping/search, HUD editor snapping,"
-            + " OneConfig HUD two-way sync, chat macro expansion/sanitising");
+            + " round-trips, combined search, HUD editor snapping, renamed-card migration,"
+            + " chat macro expansion/sanitising");
   }
 
   private static void mentions() {
@@ -174,63 +170,6 @@ public final class CheckSuite {
     truth("16s".equals(dev.cbui.hud.TimerBook.format(320)), "format 16s");
   }
 
-  private static void oneConfigRowsAndSearch() {
-    Property<Boolean> toggle = prop("enabled", "Enabled", Boolean.TRUE, SwitchVisualizer.class);
-    Property<Double> slider = prop("strength", "Strength", 4.0, SliderVisualizer.class);
-    slider.addMetadata("bounds", new float[] {0, 10, .5f});
-    Property<Integer> number = prop("count", "Count", 3, NumberVisualizer.class);
-    Property<String> text = prop("message", "Message", "hello", TextVisualizer.class);
-    Property<Integer> dropdown = prop("mode", "Mode", 1, DropdownVisualizer.class);
-    dropdown.addMetadata("options", new String[] {"Fast", "Pretty"});
-    Property<Integer> color = prop("color", "Colour", 0xFFDA4253, ColorVisualizer.class);
-    Property<Integer> key = prop("key", "Key", 42, KeybindVisualizer.class);
-    Property<Void> button = Properties.dummy("run", "Run", "Runs it");
-    button.addMetadata("visualizer", ButtonVisualizer.class);
-    button.addMetadata("runnable", (Runnable) () -> {});
-    Property<String> info = prop("note", "Note", "read only", InfoVisualizer.class);
-    Property<String> unsupported = prop("files", "Files", "x", FileVisualizer.class);
-    Property<String> hidden = prop("hidden", "Hidden", "x", TextVisualizer.class);
-    hidden.addDisplayCondition(() -> Property.Display.HIDDEN);
-    hidden.revaluateDisplay();
-    Tree tree =
-        new Tree("synthetic", "Synthetic Mod", "Synthetic description", null)
-            .put(
-                toggle,
-                slider,
-                number,
-                text,
-                dropdown,
-                color,
-                key,
-                button,
-                info,
-                unsupported,
-                hidden);
-    tree.addMetadata("category", "QOL");
-    slider.addMetadata("subcategory", "Visuals");
-    ConfigSnapshot snapshot = ConfigBridge.fromTrees(Collections.singletonList(tree), false);
-    equal(1, snapshot.mods.size(), "mapped mod count");
-    ConfigSnapshot.Mod mod = snapshot.mods.get(0);
-    truth(mod.matches("strength"), "setting search");
-    truth(mod.matches("synthetic"), "mod search");
-    equal(0, snapshot.search("absent").size(), "empty search");
-    int kinds = 0;
-    ConfigSnapshot.Row toggleRow = null, hiddenRow = null;
-    for (ConfigSnapshot.Section section : mod.sections)
-      for (ConfigSnapshot.Row row : section.rows) {
-        kinds |= 1 << row.kind.ordinal();
-        if (row.id.equals("enabled")) toggleRow = row;
-        if (row.id.equals("hidden")) hiddenRow = row;
-      }
-    for (ConfigSnapshot.Kind kind : ConfigSnapshot.Kind.values())
-      truth((kinds & (1 << kind.ordinal())) != 0, "mapped kind " + kind);
-    truth(toggleRow != null && Boolean.TRUE.equals(toggleRow.get()), "typed read");
-    truth(toggleRow.set(Boolean.FALSE) && Boolean.FALSE.equals(toggle.get()), "typed write");
-    truth(
-        hiddenRow != null && hiddenRow.display() == ConfigSnapshot.Display.HIDDEN,
-        "live hidden display");
-  }
-
   private static void hudEditorSnapping() {
     float[] d = LayoutMath.snap(new float[] {-4, 10, 40, 19}, Collections.<float[]>emptyList(), 427, 240, 3, 2);
     truth(d[0] == 7 && d[1] == 0, "editor clamps to the left margin");
@@ -240,25 +179,32 @@ public final class CheckSuite {
     truth(d[0] == -1 && d[1] == 0, "editor snaps left edges");
     d = LayoutMath.snap(new float[] {100, 60, 40, 19}, Collections.singletonList(new float[] {10, 61.5f, 20, 19}), 427, 240, 3, 2);
     truth(d[0] == 0 && d[1] == 1.5f, "editor snaps top edges");
-    // regression: hidden OneConfig-hosted modules were sized from OneConfig's unmeasured static size
-    truth(LayoutMath.hostedSize(40, 1) == 40, "hidden hosted HUD keeps its module size");
-    truth(LayoutMath.hostedSize(40, 1.5f) == 60, "hosted HUD box follows effective scale");
-    truth(LayoutMath.hostedSize(40, 0) == 40, "unmeasured scale falls back to 1");
-    truth(LayoutMath.hostedSize(0, 2) == 0, "empty module has no box");
   }
 
-  private static void oneConfigHudSync() {
-    TwoWaySync s = new TwoWaySync();
-    equal(TwoWaySync.TO_EXTERNAL, s.step(0, 1, true), "first pairing: CBUI wins when fresh");
-    equal(TwoWaySync.NONE, s.step(1, 1, true), "settled after copy");
-    equal(TwoWaySync.TO_LOCAL, s.step(0, 1, true), "OneConfig editor change flows to CBUI");
-    equal(TwoWaySync.NONE, s.step(0, 0, true), "settled after OneConfig change");
-    equal(TwoWaySync.TO_EXTERNAL, s.step(0, 1, true), "CBUI card change flows to OneConfig");
-    TwoWaySync t = new TwoWaySync();
-    equal(TwoWaySync.TO_LOCAL, t.step(1.25f, 1f, false), "first pairing: OneConfig wins once placed");
-    t.settle(1.25f, 1.25f);
-    equal(TwoWaySync.NONE, t.step(1.25f, 1.25f, false), "scale settled");
-    equal(TwoWaySync.TO_EXTERNAL, t.step(1.25f, 1.5f, false), "CBUI scale slider flows to OneConfig");
+  /** 2026-11-22 card renames: old saved entries, hold keys and bound keys move to the new names. */
+  private static void renamedCards() {
+    JsonObject modules = new JsonObject();
+    JsonObject zoom = new JsonObject();
+    zoom.addProperty("enabled", false);
+    modules.add("PolyZoom", zoom);
+    JsonObject both = new JsonObject();
+    both.addProperty("enabled", true);
+    modules.add("PolyTime", new JsonObject());
+    modules.add("Time Changer", both);
+    dev.cbui.config.CardRenames.moveCards(modules);
+    truth(!modules.has("PolyZoom") && modules.has("Zoom"), "old card entry moves to the new name");
+    truth(!modules.getAsJsonObject("Zoom").get("enabled").getAsBoolean(), "moved entry keeps its values");
+    truth(modules.getAsJsonObject("Time Changer").get("enabled").getAsBoolean(), "an entry under the new name wins");
+    java.util.Map<String, Integer> hold = new java.util.HashMap<String, Integer>();
+    hold.put("PolyCrosshair", 42);
+    dev.cbui.config.CardRenames.moveCards(hold);
+    truth(Integer.valueOf(42).equals(hold.get("Crosshair")) && !hold.containsKey("PolyCrosshair"), "hold key moves");
+    java.util.List<String> options = Arrays.asList("key_PolyZoom: magnify:46", "key_Flip hitboxes (PolyHitbox):35",
+        "key_Flip hitboxes:36", "key_PolyTime - push clock ahead:bad");
+    truth(Integer.valueOf(46).equals(dev.cbui.config.CardRenames.savedKeyCode(options, "Zoom: magnify")), "old bound key is read");
+    truth(Integer.valueOf(36).equals(dev.cbui.config.CardRenames.savedKeyCode(options, "Flip hitboxes")), "new bound key wins");
+    truth(dev.cbui.config.CardRenames.savedKeyCode(options, "Time Changer - push clock ahead") == null, "damaged line is ignored");
+    truth("Zoom: step back".equals(dev.cbui.config.CardRenames.newKey("PolyZoom: step back")), "old key name maps to new");
   }
 
   private static void profileRoundTrip() throws Exception {
@@ -302,32 +248,6 @@ public final class CheckSuite {
       return category;
     }
   }
-
-  private static <T> Property<T> prop(String id, String title, T value, Class<?> visualizer) {
-    Property<T> p = Properties.simple(id, title, "Description for " + title, value);
-    p.addMetadata("visualizer", visualizer);
-    return p;
-  }
-
-  private static final class SwitchVisualizer {}
-
-  private static final class SliderVisualizer {}
-
-  private static final class NumberVisualizer {}
-
-  private static final class TextVisualizer {}
-
-  private static final class DropdownVisualizer {}
-
-  private static final class ColorVisualizer {}
-
-  private static final class KeybindVisualizer {}
-
-  private static final class ButtonVisualizer {}
-
-  private static final class InfoVisualizer {}
-
-  private static final class FileVisualizer {}
 
   private static boolean overlap(float[] a, float[] b) {
     return a[0] < b[0] + b[2] && a[0] + a[2] > b[0] && a[1] < b[1] + b[3] && a[1] + a[3] > b[1];

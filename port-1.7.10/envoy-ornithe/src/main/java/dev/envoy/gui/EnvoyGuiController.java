@@ -21,7 +21,7 @@ public final class EnvoyGuiController {
         if (destination == Destination.NONE) return;
         if (destination == Destination.CONFIG) {
             Envoy.LOGGER.info("[Config] opening the Envoy configuration");
-            if (!OneConfigBridge.open()) show(new GuiEnvoyMenu());
+            show(new GuiEnvoyMenu());
             return;
         }
         if (destination == Destination.WAYPOINTS) show(new GuiWaypointManager(null));

@@ -19,10 +19,13 @@ public final class ServerRulesBridge {
     static {
         // luka module (normalized name) -> the ids other clients' server APIs (Badlion, Apollo) use for the same mod
         alias("freelook", "perspective", "freelook");
-        alias("polyzoom", "zoom", "polyzoom");
+        alias("zoom", "zoom", "polyzoom");
         alias("motionblur", "motionblur");
-        alias("togglesneak", "togglesneak", "sneak");
-        alias("alwayssprint", "togglesprint", "sprint", "alwayssprint");
+
+
+        alias("togglesprint", "togglesprint", "sprint", "alwayssprint", "togglesneak", "sneak");
+        alias("nickhider", "nickhider", "nick");
+        alias("tablist", "tablist", "tab");
         alias("potionstatus", "potioneffects", "potionstatus", "effects");
         alias("armourstatus", "armorstatus", "armourstatus", "armor");
         alias("potioncounter", "potioncounter", "potcounter");
@@ -36,8 +39,8 @@ public final class ServerRulesBridge {
         alias("servertnttimer", "tnttimer", "tntcountdown");
         alias("tntcountdown", "tntcountdown", "tnttimer");
         alias("fovchanger", "fovchanger", "fov", "fovmodifier");
-        alias("polyhitbox", "hitboxes", "hitbox", "polyhitbox");
-        alias("polycrosshair", "crosshair", "polycrosshair");
+        alias("hitboxes", "hitboxes", "hitbox", "polyhitbox");
+        alias("crosshair", "crosshair", "polycrosshair");
         alias("oldanimations", "animations", "oldanimations", "1.7animations");
         alias("combat17feel", "animations", "legacycombat", "oldcombat");
         alias("blockoverlay", "blockoverlay", "blockhighlight");
@@ -47,18 +50,15 @@ public final class ServerRulesBridge {
         alias("fullbright", "fullbright", "gamma", "brightness");
         alias("subframe", "replaymod", "replay", "freecam");
         alias("chatmacros", "autotext", "macros", "chatmacros");
-        alias("polytime", "timechanger", "time", "polytime");
+        alias("timechanger", "timechanger", "time", "polytime");
         alias("damagetint", "damagetint", "hurtcolor");
         alias("betterhurtcam", "hurtcam", "betterhurtcam");
         alias("smoothskies", "smoothskies");
         alias("soundtweaks", "soundtweaks", "sounds");
         alias("keystrokes", "keystrokes", "keystroke");
         alias("bossbars", "bossbar", "bossbars");
-        alias("limbs", "limbs", "limb");
-        alias("markers", "markers", "marker");
         alias("beams", "beams", "beam");
         alias("holograms", "holograms", "hologram");
-        alias("coloredfire", "coloredfire", "colouredfire");
         alias("worldborder", "worldborder", "border");
         alias("autoreconnect", "autoreconnect", "reconnect");
     }

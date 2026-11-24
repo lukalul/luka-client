@@ -1,0 +1,16 @@
+{
+  "required": false,
+  "package": "dev.cbui.mixin.skins",
+  "compatibilityLevel": "JAVA_8",
+  "minVersion": "0.7.11",
+  "client": [
+    "SkinsDownloadedImageAccessor",
+    "SkinsImageBufferMixin",
+    "SkinsSkinManagerMixin",
+    "SkinsRenderPlayerMixin",
+    "SkinsSkullRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

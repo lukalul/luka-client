@@ -28,11 +28,15 @@ final class Manifests {
   private Manifests() {}
 
   /** Checks the signature and returns the list inside. {@code seen} is the last accepted copy, or null to skip the age check. */
-  static String open(String signed, File seen) throws IOException {
-    String body = verify(signed);
+  static String open(String signed, File seen) throws IOException { return open(signed, seen, null); }
+
+  /** The same for a list fetched from {@code url}; a loopback test list may carry a test key's signature (see Dev). */
+  static String open(String signed, File seen, String url) throws IOException {
+    String testKey = Dev.manifestKey(url);
+    String body = verify(signed, testKey);
     if (seen != null && seen.isFile()) {
       double known = 0;
-      try { known = sequence(verify(new String(Files.readAllBytes(seen.toPath()), StandardCharsets.UTF_8))); }
+      try { known = sequence(verify(new String(Files.readAllBytes(seen.toPath()), StandardCharsets.UTF_8), testKey)); }
       catch (IOException unreadable) { /* a damaged copy says nothing about age */ }
       if (sequence(body) < known) throw new IOException("The update list is older than the one this launcher already has");
     }
@@ -69,20 +73,27 @@ final class Manifests {
   /** Newest release first; each entry is the version followed by its notes. */
   static List<List<String>> changelog() { return changelog; }
 
-  private static String verify(String signed) throws IOException {
+  private static String verify(String signed) throws IOException { return verify(signed, null); }
+
+  private static String verify(String signed, String testKey) throws IOException {
     Map<String,Object> envelope = map(Installer.Json.parse(signed));
     Object signature = envelope.get("signature"), manifest = envelope.get("manifest");
     if (!(signature instanceof String) || !(manifest instanceof String)) throw new IOException("The update list is not signed");
+    if (signedBy(PUBLIC_KEY, (String) manifest, (String) signature)) return (String) manifest;
+    if (testKey != null && signedBy(testKey, (String) manifest, (String) signature)) return (String) manifest;
+    throw new IOException("The update list's signature is wrong");
+  }
+
+  private static boolean signedBy(String publicKey, String manifest, String signature) throws IOException {
     try {
-      PublicKey key = KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(Base64.getDecoder().decode(PUBLIC_KEY)));
+      PublicKey key = KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(Base64.getDecoder().decode(publicKey)));
       Signature check = Signature.getInstance("Ed25519");
       check.initVerify(key);
-      check.update(((String) manifest).getBytes(StandardCharsets.UTF_8));
-      if (!check.verify(Base64.getDecoder().decode((String) signature))) throw new IOException("The update list's signature is wrong");
+      check.update(manifest.getBytes(StandardCharsets.UTF_8));
+      return check.verify(Base64.getDecoder().decode(signature));
     } catch (GeneralSecurityException | IllegalArgumentException e) {
       throw new IOException("The update list's signature could not be checked: " + e.getMessage(), e);
     }
-    return (String) manifest;
   }
 
   private static double sequence(String body) throws IOException {

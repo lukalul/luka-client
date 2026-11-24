@@ -57,11 +57,27 @@ public final class IconTextRenderer {
                 visitor.icon(cursor.icon());
             } else {
                 String plain = cursor.text();
-                String active = history.length() == 0 ? "" : dev.envoy.module.chat.HexTextRenderer.activeFormat(history.toString());
+                String active = history.length() == 0 ? "" : activeFormat(history.toString());
                 visitor.text(plain, active);
                 history.append(plain);
             }
         }
+    }
+
+    /** FontRenderer.getFormatFromString, which is private in 1.7.10: the last colour code plus the styles after it. */
+    private static String activeFormat(String text) {
+        StringBuilder active = new StringBuilder();
+        for (int marker = text.indexOf('\u00a7'); marker >= 0 && marker + 1 < text.length();
+             marker = text.indexOf('\u00a7', marker + 1)) {
+            char code = Character.toLowerCase(text.charAt(marker + 1));
+            if ("0123456789abcdef".indexOf(code) >= 0) {
+                active.setLength(0);
+                active.append('\u00a7').append(code);
+            } else if ((code >= 'k' && code <= 'o') || code == 'r') {
+                active.append('\u00a7').append(code);
+            }
+        }
+        return active.toString();
     }
 
     private static int normalizeColor(int color, boolean darken) {

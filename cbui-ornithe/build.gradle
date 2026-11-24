@@ -23,32 +23,23 @@ repositories {
     mavenCentral()
     maven { url = 'https://maven.ornithemc.net/releases' }
     maven { url = 'https://maven.ornithemc.net/snapshots' }
-    maven {
-        url = 'https://repo.polyfrost.org/releases'
-        metadataSources { artifact() }
-    }
     exclusiveContent {
         forRepository { maven { url = 'https://api.modrinth.com/maven' } }
         filter { includeGroup 'maven.modrinth' }
     }
 }
 
-// Third-party APIs cbui compiles against. Gradle fetches them at build time and none of them goes into the mod.
+// Third-party API cbui compiles against. Gradle fetches it at build time and it does not go into the mod.
 configurations {
-    compileApis { transitive = false }
-    oneconfigMod { transitive = false }
     argentumMod { transitive = false }
-    compileOnly.extendsFrom compileApis
-    testImplementation.extendsFrom compileApis
 }
 
 def compileLibs = layout.buildDirectory.dir('compile-libs')
 
 tasks.register('prepareCompileLibs') {
-    description = 'Takes the two compile-time APIs that are not published as plain jars out of the mods that carry them.'
-    def oneconfig = configurations.oneconfigMod
+    description = 'Takes the compile-time Celeritas API, which is not published as a plain jar, out of the mod that carries it.'
     def argentum = configurations.argentumMod
-    inputs.files(oneconfig, argentum)
+    inputs.files(argentum)
     outputs.dir(compileLibs)
     doLast {
         def out = compileLibs.get().asFile
@@ -57,18 +48,6 @@ tasks.register('prepareCompileLibs') {
         new java.util.zip.ZipFile(argentum.singleFile).withCloseable { zip ->
             def jar = zip.entries().find { it.name ==~ /META-INF\/jars\/celeritas-common-.*\.jar/ }
             new File(out, 'celeritas-common.jar').bytes = zip.getInputStream(jar).bytes
-        }
-        // OneConfig publishes LegacyHud for Java 25 only; its class-file version is lowered so JDK 21 can read it
-        new java.util.zip.ZipFile(oneconfig.singleFile).withCloseable { zip ->
-            def name = 'org/polyfrost/oneconfig/api/hud/v1/LegacyHud.class'
-            byte[] bytes = zip.getInputStream(zip.getEntry(name)).bytes
-            bytes[6] = 0
-            bytes[7] = 65
-            new java.util.zip.ZipOutputStream(new File(out, 'legacy-hud-java21.jar').newOutputStream()).withCloseable { z ->
-                z.putNextEntry(new java.util.zip.ZipEntry(name))
-                z.write(bytes)
-                z.closeEntry()
-            }
         }
     }
 }
@@ -89,12 +68,6 @@ dependencies {
     // output through Calamus gen2. See PORTING_NOTES.md.
     mappings ploceus.mcpMappings('stable', project.minecraft_version, '22')
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    // OneConfig's config API (read and edit every mod's settings from our own screen); compile-only, never shipped
-    compileApis 'org.polyfrost.oneconfig:config:1.6.1'
-    compileApis 'org.polyfrost.oneconfig:config-impl:1.6.1'
-    compileApis 'org.polyfrost.oneconfig:hud:1.6.1'
-    compileApis 'org.jetbrains.kotlin:kotlin-stdlib:2.2.0'
-    oneconfigMod 'org.polyfrost.oneconfig:1.8.9-ornithe:1.6.1'
     // Argentum 1.0.2: only the LGPL Celeritas API it embeds is read, and only at compile time
     argentumMod 'maven.modrinth:QRMV06RW:RxzOYPTx'
     compileOnly fileTree(dir: compileLibs, include: '*.jar', builtBy: ['prepareCompileLibs'])
@@ -103,8 +76,6 @@ dependencies {
 
 tasks.register('plainJavaChecks', JavaExec) {
     dependsOn testClasses
-    // The OneConfig jars remain compile-only for the shipped mod, but the synthetic-tree
-    // check deliberately executes against their public API.
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'dev.cbui.CheckSuite'
 }
@@ -126,3 +97,4 @@ tasks.withType(JavaCompile).configureEach {
 java {
     withSourcesJar()
 }
+

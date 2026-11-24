@@ -1,44 +1,49 @@
 package dev.cbui.gui;
 
 import dev.cbui.Cbui;
+import dev.cbui.config.OptimalPreset;
 import dev.cbui.config.PerfOptions;
 import dev.cbui.config.VideoOptions;
 import dev.cbui.hud.Setting;
 import dev.luka.compat.GlStateManager;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiVideoSettings;
+import net.minecraft.client.gui.GuiYesNo;
+import net.minecraft.client.gui.GuiYesNoCallback;
 import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.resources.I18n;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 
-/** Video Settings drawn with Minecraft's own buttons and sliders. Two columns, with a page for each kind of setting. */
-public final class VideoSettingsScreen extends GuiScreen {
-  /** The Vulkan renderer's own options screen. It is not built for 1.7.10 yet, so this only matters once it is. */
+/**
+ * Video Settings in OptiFine's layout, drawn with Minecraft's own buttons and sliders: the main options and five page buttons
+ * on the first page, then Quality, Details, Performance, Animations and Other. It is the only settings screen: the vanilla one
+ * (and the Vulkan renderer's own, should it get one) is swapped for it.
+ */
+public final class VideoSettingsScreen extends GuiScreen implements GuiYesNoCallback {
   private static final String ASTATINE = "yt.ren.astatine.gui.AstatineOptionsScreen";
-  /** Page title, then the row groups shown on it. */
+  /** Button label, page title, then the row groups shown on the page. */
   private static final String[][] PAGES = {
-      {"Details", "Details"},
-      {"Quality", "Quality"},
-      {"Animations", "Animations"},
-      {"Particles", "Particle types"},
-      {"Fog", "Fog"},
-      {"Clouds", "Clouds"},
-      {"Performance", "Frame rate", "World"},
+      {"Quality", "Quality Settings", "Quality"},
+      {"Details", "Detail Settings", "Details"},
+      {"Performance", "Performance Settings", "Frame rate", "World", "Particles"},
+      {"Animations", "Animation Settings", "Animations", "Particle types"},
+      {"Other", "Other Settings", "Other"},
   };
-  private static final int DONE = 200, VANILLA = 1, ALL_ON = 2, ALL_OFF = 3, PAGE = 100;
-  private static final int LEFT = 155, COLUMN = 160, BUTTON = 150, TOP = 32, ROW = 24, HOVER_MS = 500;
-
-  /** True from opening the game's own page until the player comes back, so that page and the screens under it are left alone. */
-  private static boolean vanillaOpen;
+  private static final int DONE = 200, ALL_ON = 2, ALL_OFF = 3, RESET = 4, RESET_ASK = 5, PAGE = 100;
+  /** OptiFine's grid: columns 150 wide at centre-155 and centre+5, rows 21 apart from height/6-12, Done at height/6+179. */
+  private static final int LEFT = 155, COLUMN = 160, BUTTON = 150, ROW = 21, HOVER_MS = 500;
 
   private final GuiScreen parent;
+  /** The grid, two per row; a null keeps its slot empty. */
   private final List<GuiButton> cells = new ArrayList<>();
   private final List<Setting<?>> rows = new ArrayList<>();
   /** Clicks run on the next frame: pages swap the buttons out, and Minecraft is still looping over them during a click. */
@@ -52,14 +57,11 @@ public final class VideoSettingsScreen extends GuiScreen {
     this.parent = parent;
   }
 
-  /** Called with every screen the game is about to show. */
+  /** Called with every screen the game is about to show: the vanilla and renderer settings screens become this one. */
   public static GuiScreen replace(GuiScreen screen) {
-    if (screen == null || screen instanceof VideoSettingsScreen) {
-      vanillaOpen = false;
-      return screen;
-    }
-    if (vanillaOpen) return screen;
-    if (screen instanceof GuiVideoSettings || screen.getClass().getName().equals(ASTATINE))
+    if (screen == null || screen instanceof VideoSettingsScreen) return screen;
+    String name = screen.getClass().getName();
+    if (screen instanceof GuiVideoSettings || name.equals(ASTATINE))
       return new VideoSettingsScreen(Minecraft.getMinecraft().currentScreen);
     return screen;
   }
@@ -70,28 +72,50 @@ public final class VideoSettingsScreen extends GuiScreen {
     cells.clear();
     rows.clear();
     List<Setting<?>> all = new ArrayList<>(VideoOptions.build());
-    all.addAll(PerfOptions.build());
+    Set<String> names = new HashSet<>();
+    for (Setting<?> setting : all) names.add(setting.name());
+    // the Performance page shows the luka menu's PERFORMANCE rows; a row Video Settings already has elsewhere is not repeated
+    for (Setting<?> setting : PerfOptions.build()) if (names.add(setting.name())) all.add(setting);
     for (Setting<?> setting : all) if (onPage(setting)) rows.add(setting);
-    if (page != null && "Particles".equals(page[0])) {
-      cells.add(new GuiButton(ALL_ON, 0, 0, BUTTON, 20, "All on"));
-      cells.add(new GuiButton(ALL_OFF, 0, 0, BUTTON, 20, "All off"));
-    }
     for (Setting<?> setting : rows)
       cells.add(setting instanceof Setting.Slider ? new SliderButton((Setting.Slider) setting) : new RowButton(setting));
     if (page == null) {
+      if (cells.size() % 2 == 1) cells.add(null);
       for (int i = 0; i < PAGES.length; i++) cells.add(new GuiButton(PAGE + i, 0, 0, BUTTON, 20, PAGES[i][0] + "..."));
-      cells.add(new GuiButton(VANILLA, 0, 0, BUTTON, 20, "Vanilla settings..."));
     }
-    buttonList.addAll(cells);
-    buttonList.add(new GuiButton(DONE, width / 2 - 100, height - 27, 200, 20, I18n.format("gui.done")));
+    for (GuiButton cell : cells) if (cell != null) buttonList.add(cell);
+    int footer = footerY();
+    if (isPage("Animations")) {
+      buttonList.add(new GuiButton(ALL_ON, width / 2 - LEFT, footer, BUTTON, 20, "All ON"));
+      buttonList.add(new GuiButton(ALL_OFF, width / 2 - LEFT + COLUMN, footer, BUTTON, 20, "All OFF"));
+    } else if (isPage("Other")) {
+      buttonList.add(new GuiButton(RESET, width / 2 - 100, footer, 200, 20, "Reset video settings..."));
+    }
+    buttonList.add(new GuiButton(DONE, width / 2 - 100, doneY(), 200, 20, I18n.format("gui.done")));
     layout();
   }
 
-  private boolean onPage(Setting<?> setting) {
-    return page == null ? "General".equals(setting.group()) : Arrays.asList(page).subList(1, page.length).contains(setting.group());
+  private boolean isPage(String label) {
+    return page != null && page[0].equals(label);
   }
 
-  private int visibleRows() { return Math.max(1, (height - TOP - 32) / ROW); }
+  private boolean onPage(Setting<?> setting) {
+    return page == null ? "Main".equals(setting.group()) : Arrays.asList(page).subList(2, page.length).contains(setting.group());
+  }
+
+  private int top() { return Math.max(height / 6 - 12, 27); }
+
+  private int doneY() { return Math.min(height / 6 + 168 + 11, height - 25); }
+
+  /** The extra row above Done (All ON / All OFF, Reset video settings). */
+  private int footerY() { return doneY() - 24; }
+
+  private boolean hasFooter() { return isPage("Animations") || isPage("Other"); }
+
+  private int visibleRows() {
+    int bottom = hasFooter() ? footerY() : doneY();
+    return Math.max(1, (bottom - top() + 1) / ROW);
+  }
 
   private int maxScroll() { return Math.max(0, (cells.size() + 1) / 2 - visibleRows()); }
 
@@ -99,10 +123,11 @@ public final class VideoSettingsScreen extends GuiScreen {
     scroll = Math.max(0, Math.min(scroll, maxScroll()));
     for (int i = 0; i < cells.size(); i++) {
       GuiButton cell = cells.get(i);
+      if (cell == null) continue;
       int row = i / 2 - scroll;
       cell.visible = row >= 0 && row < visibleRows();
       cell.xPosition = width / 2 - LEFT + (i % 2) * COLUMN;
-      cell.yPosition = TOP + row * ROW;
+      cell.yPosition = top() + row * ROW;
     }
   }
 
@@ -127,12 +152,22 @@ public final class VideoSettingsScreen extends GuiScreen {
         }
         initGui();
       };
-    } else if (button.id == VANILLA) {
-      pending = this::openVanilla;
+    } else if (button.id == RESET) {
+      pending = () -> mc.displayGuiScreen(new GuiYesNo(this, "Reset video settings?",
+          "Graphics, particles, render distance and frame rate go back to luka's optimal settings.", RESET_ASK));
     } else if (button.id >= PAGE) {
       String[] target = PAGES[button.id - PAGE];
       pending = () -> show(target);
     }
+  }
+
+  /** The answer of the Reset video settings question. */
+  @Override public void confirmClicked(boolean yes, int id) {
+    if (id == RESET_ASK && yes) {
+      commit();
+      OptimalPreset.apply();
+    }
+    mc.displayGuiScreen(this);
   }
 
   private static void flip(Setting<?> setting) {
@@ -154,12 +189,6 @@ public final class VideoSettingsScreen extends GuiScreen {
   private void back() {
     if (page != null) show(null);
     else mc.displayGuiScreen(parent);
-  }
-
-  /** The game's own Video Settings, for the few options this screen has no row for. */
-  private void openVanilla() {
-    vanillaOpen = true;
-    mc.displayGuiScreen(new GuiVideoSettings(this, mc.gameSettings));
   }
 
   private static void commit() {
@@ -192,7 +221,7 @@ public final class VideoSettingsScreen extends GuiScreen {
       if (mc.currentScreen != this) return;
     }
     drawDefaultBackground();
-    String title = page == null ? I18n.format("options.videoTitle") : page[0];
+    String title = page == null ? I18n.format("options.videoTitle") : page[1];
     drawCenteredString(fontRendererObj, title, width / 2, 15, 0xFFFFFF);
     super.drawScreen(mouseX, mouseY, partialTicks);
     drawScrollbar();
@@ -202,7 +231,7 @@ public final class VideoSettingsScreen extends GuiScreen {
   private void drawScrollbar() {
     int max = maxScroll();
     if (max == 0) return;
-    int x = width / 2 + LEFT + 6, top = TOP, bottom = TOP + visibleRows() * ROW - 4;
+    int x = width / 2 + LEFT + 4, top = top(), bottom = top() + visibleRows() * ROW - 1;
     int span = bottom - top, knob = Math.max(16, span * visibleRows() / (visibleRows() + max));
     int y = top + (span - knob) * scroll / max;
     Gui.drawRect(x, top, x + 4, bottom, 0xFF000000);
@@ -214,7 +243,7 @@ public final class VideoSettingsScreen extends GuiScreen {
   private void drawTooltip(int mouseX, int mouseY) {
     GuiButton over = null;
     for (GuiButton cell : cells) {
-      if (cell.visible && mouseX >= cell.xPosition && mouseX < cell.xPosition + BUTTON && mouseY >= cell.yPosition && mouseY < cell.yPosition + 20) over = cell;
+      if (cell != null && cell.visible && mouseX >= cell.xPosition && mouseX < cell.xPosition + BUTTON && mouseY >= cell.yPosition && mouseY < cell.yPosition + 20) over = cell;
     }
     if (over != hovered) {
       hovered = over;
@@ -248,6 +277,7 @@ public final class VideoSettingsScreen extends GuiScreen {
   private static String shortName(String name) {
     if (name.equals("Limit FPS when unfocused")) return "Unfocused FPS limit";
     if (name.equals("Item / block break particles")) return "Break particles";
+    if (name.equals("Fog in water and lava")) return "Liquid fog";
     return name;
   }
 

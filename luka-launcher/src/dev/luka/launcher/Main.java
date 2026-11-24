@@ -10,6 +10,8 @@ public final class Main {
   private Main() {}
 
   public static void main(String[] args) throws Exception {
+    // Linux: restart once with the desktop's cursor size and theme if the session doesn't give them to X11 programs
+    if (LinuxCursor.relaunchIfNeeded(args)) return;
     final File root = home();
     try {
       UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());

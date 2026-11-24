@@ -1,9 +1,8 @@
 package dev.cbui.hud;
 
 /**
- * One draggable box in the CBUI HUD layout editor, whoever owns its placement: a native CBUI module
- * (anchor + offset). All coordinates are GUI units, top-left origin, and
- * already include the element's scale.
+ * One draggable box in the CBUI HUD layout editor: a CBUI module placed by its anchor + offset. All
+ * coordinates are GUI units, top-left origin, and already include the element's scale.
  */
 public interface HudElement {
   String name();
@@ -27,7 +26,7 @@ public interface HudElement {
 
   void scale(float value);
 
-  /** The scale the box's content is actually drawn at . */
+  /** The scale the box's content is actually drawn at. */
   float drawScale();
 
   boolean locked();

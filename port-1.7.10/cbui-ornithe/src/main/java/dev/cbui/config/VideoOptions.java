@@ -6,14 +6,16 @@ import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.GameSettings;
 
-/** The VIDEO tab: every picture setting in one list. Rows that only exist on the Vulkan renderer are left out on the other. */
+/**
+ * Every picture setting of Video Settings. The group of a row is the page it is shown on (Main, Quality, Details, Animations,
+ * Particle types, Other). Rows that only exist on the Vulkan renderer are left out on the other.
+ */
 public final class VideoOptions {
   /** Row name, system property read by the texture code at its next resource reload. */
   private static final String[][] PACK_FEATURES = {
       {"Connected textures", "luka.connectedTextures", "Glass, bookshelves and other blocks join up where the resource pack supports it"},
   };
   private static final boolean PACK_ROWS = net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("astatine");
-  private static final String[] DETAIL_KEYS = {"rain_snow", "sun_moon", "stars"};
   private static final String[] ANIMATION_KEYS = {"water_animation", "lava_animation", "fire_animation", "portal_animation",
       "redstone_dust", "void_particles", "item_block_break", "damage_numbers"};
 
@@ -23,45 +25,46 @@ public final class VideoOptions {
     Minecraft mc = Minecraft.getMinecraft();
     GameSettings g = mc.gameSettings;
     List<Setting<?>> list = new ArrayList<>();
-    add(list, "General", slider("Render distance", g.renderDistanceChunks, 2, 32, 1, "How many chunks you can see. The biggest setting for FPS. Servers can limit it"));
-    add(list, "General", slider("Max FPS", g.limitFramerate, 10, 260, 10, "Frame rate cap. 260 means unlimited"));
-    add(list, "General", toggle("VSync", g.enableVsync, false, "Matches the monitor refresh rate. Stops tearing but adds input delay"));
-    add(list, "General", toggle("Fullscreen", mc.isFullScreen(), false, "Exclusive fullscreen. Borderless is in the General tab"));
-    if (Resolution.supported()) {
-      String[] sizes = Resolution.choices();
-      add(list, "General", choice("Resolution", Resolution.index(sizes), sizes, 0, "Fullscreen: the monitor switches to this resolution. Borderless: the game is drawn at this resolution and stretched over the screen, so it looks the same. Native is your monitor's own"));
-    }
-    add(list, "General", choice("GUI scale", g.guiScale, new String[] {"Auto", "Small", "Normal", "Large"}, 0, "Size of menus and the hotbar"));
-    add(list, "General", slider("Brightness", Math.round(g.gammaSetting * 100f), 0, 100, 5, "Vanilla gamma. The Fullbright mod goes further"));
-    add(list, "General", slider("FOV", g.fovSetting, 30, 110, 1, "Field of view"));
-    add(list, "General", toggle("View bobbing", g.viewBobbing, true, "The camera sways as you walk"));
-
-    add(list, "Details", choice("Graphics", g.fancyGraphics ? 1 : 0, new String[] {"Fast", "Fancy"}, 1, "Fancy adds transparent leaves, entity shadows and the vignette"));
-    add(list, "Details", choice("Smooth lighting", g.ambientOcclusion, new String[] {"Off", "Minimum", "Maximum"}, 2, "Soft shadows in block corners. Off is fastest"));
-    add(list, "Details", choice("Leaves", GlobalOptions.leavesMode, new String[] {"Follow graphics", "Fast", "Fancy"}, 0, "Solid or see-through leaves, separate from Graphics. Fast is much quicker in forests"));
-    add(list, "Details", toggle("Vignette", GlobalOptions.vignette, true, "The dark edges of the screen on Fancy graphics"));
-    add(list, "Details", toggle("Held item names", g.heldItemTooltips, true, "The item name above the hotbar when you switch"));
-    for (String key : DETAIL_KEYS) add(list, "Details", animationRow(key));
-
-    add(list, "Fog", animationRow("terrain_fog"));
-    add(list, "Fog", slider("Fog start", GlobalOptions.fogStart, 0, 100, 5, "How far away distance fog begins, as a percent of your render distance. Vanilla is 75"));
-    add(list, "Fog", slider("Fog end", GlobalOptions.fogEnd, 25, 200, 5, "Where distance fog becomes solid. Higher pushes it past your render distance. Vanilla is 100"));
-    add(list, "Fog", animationRow("fluid_fog"));
-
-    // 1.7.10 has one clouds switch; fast or fancy clouds follow Graphics
-    add(list, "Clouds", choice("Clouds", g.clouds ? 1 : 0, new String[] {"Off", "On"}, 1, "Off is fastest. Their shape follows Graphics"));
-    add(list, "Clouds", slider("Cloud height", GlobalOptions.cloudHeight, 64, 256, 4, "How high the clouds sit. Vanilla is 128"));
-    add(list, "Clouds", animationRow("sky_clouds"));
+    add(list, "Main", choice("Graphics", g.fancyGraphics ? 1 : 0, new String[] {"Fast", "Fancy"}, 1, "Fancy adds transparent leaves, entity shadows and the vignette"));
+    add(list, "Main", slider("Render distance", g.renderDistanceChunks, 2, 32, 1, "How many chunks you can see. The biggest setting for FPS. Servers can limit it"));
+    add(list, "Main", choice("Smooth lighting", g.ambientOcclusion, new String[] {"Off", "Minimum", "Maximum"}, 2, "Soft shadows in block corners. Off is fastest"));
+    add(list, "Main", slider("Max FPS", g.limitFramerate, 10, 260, 10, "Frame rate cap. 260 means unlimited"));
+    add(list, "Main", toggle("VSync", g.enableVsync, false, "Matches the monitor refresh rate. Stops tearing but adds input delay"));
+    add(list, "Main", toggle("View bobbing", g.viewBobbing, true, "The camera sways as you walk"));
+    add(list, "Main", choice("GUI scale", g.guiScale, new String[] {"Auto", "Small", "Normal", "Large"}, 0, "Size of menus and the hotbar"));
+    add(list, "Main", slider("Brightness", Math.round(g.gammaSetting * 100f), 0, 100, 5, "Vanilla gamma. The Fullbright mod goes further"));
 
     add(list, "Quality", slider("Mipmap levels", g.mipmapLevels, 0, 4, 1, "Smooths distant textures. 0 is sharpest and fastest"));
     add(list, "Quality", choice("Clear glass", GlobalOptions.clearGlass, new String[] {"Off", "Regular", "All"}, 0, "Glass is not drawn, frame included, so you see straight through it. Regular: normal glass and panes. All: stained glass too"));
     if (PACK_ROWS)
       for (String[] feature : PACK_FEATURES) add(list, "Quality", toggle(feature[0], !"false".equals(System.getProperty(feature[1])), true, feature[2]));
 
-    add(list, "Particle types", choice("Particles", g.particleSetting, new String[] {"All", "Decreased", "Minimal"}, 0, "How many particles are spawned"));
+    // 1.7.10 has one clouds switch; fast or fancy clouds follow Graphics
+    add(list, "Details", choice("Clouds", g.clouds ? 1 : 0, new String[] {"Off", "On"}, 1, "Off is fastest. Their shape follows Graphics"));
+    add(list, "Details", slider("Cloud height", GlobalOptions.cloudHeight, 64, 256, 4, "How high the clouds sit. Vanilla is 128"));
+    add(list, "Details", choice("Leaves", GlobalOptions.leavesMode, new String[] {"Follow graphics", "Fast", "Fancy"}, 0, "Solid or see-through leaves, separate from Graphics. Fast is much quicker in forests"));
+    add(list, "Details", animationRow("rain_snow"));
+    add(list, "Details", animationRow("sky_clouds"));
+    add(list, "Details", animationRow("stars"));
+    add(list, "Details", animationRow("sun_moon"));
+    add(list, "Details", animationRow("terrain_fog"));
+    add(list, "Details", slider("Fog start", GlobalOptions.fogStart, 0, 100, 5, "How far away distance fog begins, as a percent of your render distance. Vanilla is 75"));
+    add(list, "Details", slider("Fog end", GlobalOptions.fogEnd, 25, 200, 5, "Where distance fog becomes solid. Higher pushes it past your render distance. Vanilla is 100"));
+    add(list, "Details", animationRow("fluid_fog"));
+    add(list, "Details", toggle("Held item names", g.heldItemTooltips, true, "The item name above the hotbar when you switch"));
+    add(list, "Details", toggle("Entity shadows", GlobalOptions.entityShadows, true, "The round shadow under players, mobs and items. Off saves a little in crowds"));
+    add(list, "Details", toggle("Vignette", GlobalOptions.vignette, true, "The dark edges of the screen on Fancy graphics"));
+
     for (String key : ANIMATION_KEYS) add(list, "Animations", animationRow(key));
     for (String[] particle : AnimationOptions.PARTICLES)
       add(list, "Particle types", toggle(particle[1], GlobalOptions.animationEnabled(AnimationOptions.particleKey(particle[0])), true, "Turn off to stop this particle from appearing"));
+
+    add(list, "Other", toggle("Fullscreen", mc.isFullScreen(), false, "Exclusive fullscreen. Borderless is in the General tab of the luka menu"));
+    if (Resolution.supported()) {
+      String[] sizes = Resolution.choices();
+      add(list, "Other", choice("Resolution", Resolution.index(sizes), sizes, 0, "Fullscreen: the monitor switches to this resolution. Borderless: the game is drawn at this resolution and stretched over the screen, so it looks the same. Native is your monitor's own"));
+    }
+    add(list, "Other", toggle("Advanced tooltips", g.advancedItemTooltips, false, "Item tooltips also show the item id and durability (F3+H)"));
     return list;
   }
 
@@ -108,6 +111,8 @@ public final class VideoOptions {
 
   /** Once the game is up: the texture code reads these at resource load, which ran before the settings were known. */
   public static void startup() {
+    OptimalPreset.firstLaunch();
+    holdParticleLevel();
     Migrations.run();
     boolean anyOff = false;
     for (java.util.Map.Entry<String, Boolean> e : GlobalOptions.packFeatures.entrySet()) {
@@ -115,6 +120,18 @@ public final class VideoOptions {
       anyOff |= !e.getValue();
     }
     if (anyOff && PACK_ROWS) Minecraft.getMinecraft().scheduleResourcesRefresh();
+  }
+
+  /**
+   * Vanilla's particle level (All / Decreased / Minimal) has no row any more: it is held at All, so the per-type switches on
+   * the Animations page are the only control (Minimal would also hide the crits those switches keep).
+   */
+  static void holdParticleLevel() {
+    GameSettings g = Minecraft.getMinecraft().gameSettings;
+    if (g != null && g.particleSetting != 0) {
+      g.particleSetting = 0;
+      g.saveOptions();
+    }
   }
 
   private static Setting<?> animationRow(String key) {

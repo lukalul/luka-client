@@ -17,18 +17,10 @@ public final class BridgeFeatures {
     out.add(staffTags());
     out.add(waypoints());
     out.add(simple("Team View", "teamView", "Shows your team's members through walls with the server's colours."));
-    out.add(simple("Markers", "markers", "Server-placed markers in the world."));
-    out.add(simple("Glow", "glow", "Coloured outlines on players the server marks as glowing."));
     out.add(simple("Holograms", "holograms", "Floating text the server places in the world."));
     out.add(simple("Beams", "beams", "Light beams the server places in the world."));
     out.add(simple("World Border", "border", "Server-drawn borders and claim outlines."));
     out.add(simple("Notifications", "notifications", "Pop-up notifications sent by the server."));
-    out.add(simple("Colored Fire", "coloredFire", "Fire on players in the colour the server sets."));
-    out.add(simple("Limbs", "limbs", "Hides or shows body parts when the server asks."));
-    out.add(simple("Vignette", "vignette", "The coloured screen-edge effect the server can trigger."));
-    out.add(simple("Custom Models", "customModels", "Server-provided custom player and mob models."));
-    out.add(simple("Hex Chat Colours", "chat", "Full hex colours in chat and server text."));
-    out.add(simple("Lightning", "lightning", "Server-triggered lightning effects."));
     out.add(simple("Boss Bars", "bossBars", "Boss bars sent by the server."));
     out.add(simple("Titles", "titles", "Large on-screen titles sent by the server."));
     out.add(simple("Server TNT Timer", "tntCountdown", "The fuse timer the server sends for primed TNT."));
@@ -42,7 +34,7 @@ public final class BridgeFeatures {
     dev.cbui.feature.FeatureModule nametags = null, staffCard = null;
     BridgeModule server = null, staffTags = null;
     for (AbstractHudModule m : all) {
-      if (m instanceof dev.cbui.feature.polynametag.PolyNametagModule) nametags = (dev.cbui.feature.FeatureModule) m;
+      if (m instanceof dev.cbui.feature.labels.LabelsModule) nametags = (dev.cbui.feature.FeatureModule) m;
       if (m instanceof dev.cbui.feature.staff.StaffModeModule) staffCard = (dev.cbui.feature.FeatureModule) m;
       if (m instanceof BridgeModule && m.name().equals("Nametags (server)")) server = (BridgeModule) m;
       if (m instanceof BridgeModule && m.name().equals("Staff nametags (server)")) staffTags = (BridgeModule) m;

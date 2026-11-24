@@ -1,59 +1,41 @@
 # Third-party notices for luka
 
-luka is free software under the GNU General Public License v3.0 or later, with the additional terms in `NOTICE` (see `LICENSE`). The Vulkan renderer is AGPL-3.0, custom sky is MIT and custom colours is LGPL-3.0, each in its own source bundle.
+luka is free software under the GNU General Public License v3.0 or later, with the additional terms in `NOTICE`
+(its source code is at https://github.com/lukalul/luka-client). The third-party parts below keep their own licences.
+Releases made between 2026-11-12 and 2026-11-24 were shipped as "all rights reserved"; the source published here covers
+them too. The Vulkan renderer is the GNU AGPL v3 fork at https://github.com/lukalul/luka-vulkan. The shipped licence and
+notice are `LICENSE-luka.txt` and `NOTICE-luka.txt` in every jar.
 
-## 1. Code and ideas luka's features are based on
+## 1. Third-party code in luka
 
-These luka features are inspired by the mods below, under permissive licences (Unlicense/MIT) that impose no copyleft obligation on luka. The original copyright notices belong to the authors named here.
-
-| Original mod | Author(s) | Licence | Source | luka feature |
+| Part | Author | Licence | Where in luka | What ships |
 |---|---|---|---|---|
-| Old Animations | awruff | Unlicense | https://modrinth.com/mods/oam | 1.7 animations |
-| BetterHurtCam | uku, thecount | MIT | https://modrinth.com/mod/betterhurtcam | Hurt camera |
-| framejob | Z1xus | MIT | https://github.com/Z1xus/framejob | Between-tick smoothing in Motion Blur (licence file kept in the jar) |
-| FastPacks / McPacks | its authors | MIT | https://modrinth.com/mod/fastpacks | Idea for the fast resource-pack browser |
+| Artemis | Natsu91 / CrystallicDev | Artemis terms: free, modified or not, with a link to the original (https://github.com/CrystallicDev/Artemis) | Envoy (the Apollo/Lunar protocol mod) is based on it | credit and link in `NOTICE-luka.txt` and Envoy's `fabric.mod.json`; luka is free |
+| Old Animations | awruff | Unlicense | cbui 1.7 animations are based on its code | credit (no notice required) |
+| BetterHurtCam | uku | MIT | cbui hurt camera is based on its code | `META-INF/LICENSE.betterhurtcam` in the cbui jars |
+| framejob | Z1xus | MIT | Motion Blur's between-tick smoothing | `META-INF/LICENSE.framejob` in the motionblur jars |
+| legacy-custom-sky, MCPatcher Better Skies | oery; MCPatcher authors | MIT | customsky | `LICENSE-customsky.txt` in the customsky jars |
+| Protocol Buffers for Java 3.25.5 | Google | BSD-3-Clause | bundled unchanged in the Envoy jars | `META-INF/LICENSE.protobuf` |
+| Roboto | Google | Apache-2.0 | fonts in cbui and the launcher | licence text in both |
+| OneConfig | Polyfrost | LGPL-3.0 + Additional Terms | not included; luka's menu uses it when the player has it installed | notice, GPL and LGPL texts in the cbui jars |
+| Eclipse Temurin (OpenJDK) | Adoptium | GPLv2 + Classpath Exception | the Java runtime inside `Luka.exe` / the installer | its `legal/` folder; source at https://github.com/adoptium/jdk21u |
+| NSIS | NSIS authors | zlib | builds the Windows installer | nothing required |
 
-## 1a. Features independently reimplemented (no longer licensed code)
+Ideas only (no code): FastPacks / McPacks (MIT) for the fast resource-pack browser.
 
-luka used to ship ports of the copyleft-licensed mods below. Their code has since been replaced end to end with independently written implementations that reach the same player-facing behaviour, so none of this table's entries constrain luka's own licence any more. The rows are kept here only as a credit for the original idea/feature concept, which is not itself copyrightable.
+## 1a. Rewritten clean-room (no longer licensed code)
 
-| Feature | Original idea from | Licence of the original (no longer applicable) |
-|---|---|---|
-| PolyZoom (smooth zoom key) | Polyfrost's PolyZoom | GPL-3.0-or-later |
-| CrashPatch (render-crash recovery screen) | Polyfrost's CrashPatch | GPL-3.0-or-later |
-| Nametags (render-distance/own-tag options) | Polyfrost's PolyNametag | GPL-3.0 |
-| PolyTime (forced world time / real-world time) | Polyfrost's PolyTime | GPL-3.0 |
-| Screenshot Message Enhancer (clickable screenshot chat buttons) | Tomeko's Screenshot Message Enhancer | GPL-3.0 |
-| TNTCountdown (fuse countdown over primed TNT) | chromatic's TNTCountdown | GPL-3.0 |
-| SoundTweaks (per-category volume sliders) | Polyfrost's SoundTweaks | GPL-3.0 |
-| Hitboxes | Polyfrost's PolyHitbox | LGPL-3.0-or-later |
-| Crosshair | Polyfrost's PolyCrosshair | LGPL-3.0-or-later |
-| Damage tint | Polyfrost's DamageTint | LGPL-3.0 |
-| Freelook | chromatic's Freelook | LGPL-3.0 |
-| FOV changer | chromatic's FOVChanger | LGPL-3.0 |
-| Disconnect confirmation | Microcontrollers' Confirm Disconnect | LGPL-3.0 |
-| Dropped items | Microcontrollers' Dropped Item Tweaks | LGPL-3.0 |
-| Enchantment levels | Microcontrollers' Numerical Enchantments | LGPL-3.0 |
-| Overlays | Microcontrollers' Overlay Tweaks | LGPL-3.0 |
-| Render options | Microcontrollers' Render Tweaks | LGPL-3.0 |
-| Scrolling | Microcontrollers' Scroll Tweaks | LGPL-3.0 |
-| Shake options | Microcontrollers' Shake Tweaks | LGPL-3.0 |
-| Sky smoothing | Microcontrollers' Smooth Skies | LGPL-3.0 |
-| Envoy — Apollo protocol (waypoints, glow, nametags, team view, cooldowns, chat, markers, ...) | Natsu / CrystallicDev's "Artemis" (and the parts they adapted from Eterion) | Redistribution allowed if it stays free and links the original (no longer applicable — see note below) |
+These luka features began as ports of copyleft mods. A first "rewrite" (2026-11-07/08) only edited the ports and did not
+remove the derivation; on 2026-11-17 they were written again from behaviour specs by people who never saw the old
+code or the originals, and an independent audit compared the result with the old code and the originals:
 
-The 13 LGPL rows above were rewritten on 2026-11-08 in `cbui-ornithe` (clean-room: behaviour read, not code; new
-internal structure; public surface, persisted setting names and mixin injection targets kept byte-identical).
-See `cbui-ornithe/PROGRESS.md` for the file-by-file detail and the checks run on each one.
-
-Credit: Envoy began as a port of Artemis by Natsu / CrystallicDev (https://modrinth.com/mod/lunar-artemis).
-
-Envoy was renamed from "Artemis" on 2026-11-07 (identifiers only, at that point still the original port), then
-clean-room rewritten end to end across 11 waves, finishing 2026-11-07. Every one of its ~12,610 lines —
-protocol dispatch, every module, rendering, GUI, mixins, and the root files — is now independently written,
-verified build-by-build against the real Gradle build and `javap` API-shape checks after each wave. The public
-class names, `register(ApolloNetwork)` signatures, and the Apollo wire-protocol strings were kept stable
-throughout so nothing else in luka broke, but none of the implementation is copied from the original any more.
-
+- GPL originals: PolyZoom, CrashPatch, PolyNametag, PolyTime, SoundTweaks, PolyHitbox, PolyCrosshair (Polyfrost / Wyvest),
+  FOVChanger (awruff), TNTCountdown (chromatic), Screenshot Message Enhancer (Tomeko).
+- LGPL originals: DamageTint (Polyfrost), Freelook (chromatic), Confirm Disconnect, Dropped Item Tweaks, Numerical
+  Enchantments, Overlay Tweaks, Render Tweaks, Scroll Tweaks, Shake Tweaks, Smooth Skies (Microcontrollers), the 1.7.10
+  held-keys fix (Sarcio's idea).
+- customcolors (MCPatcher via Angelica, LGPL), rewritten from the public OptiFine/MCPatcher format documentation; it
+  is now luka's own code, under luka's licence.
 ## 2. Mods the launcher downloads from their official pages
 
 The launcher does **not** contain these files. On first run it downloads them from the author's own Modrinth page and checks the file hash. Their licences are the authors' own. Argentum, Argentum Extras and Cera are "All Rights Reserved" by their author and are only downloaded from the official page, never redistributed by luka.
@@ -88,7 +70,7 @@ The launcher downloads Minecraft 1.8.9, its libraries and its assets directly fr
 
 ## 4. Fonts
 
-Roboto Regular and Bold, copyright Google LLC, licensed under the Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0). The font files in `assets/cbui/font/` are unchanged.
+Roboto Regular and Bold, copyright Google LLC, licensed under the Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0). The font files in `assets/cbui/font/` are unchanged; the licence text ships in the cbui jar (`META-INF/LICENSE.roboto-apache-2.0`) and in the launcher jar (`LICENSE-roboto-apache-2.0.txt`).
 
 ## 5. Artwork
 

@@ -37,11 +37,17 @@ configurations.configureEach {
 
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    // Keep the working Forge implementation's MCP source names while Ploceus remaps the
-    // output through Calamus gen2. See PORTING_NOTES.md.
     mappings ploceus.mcpMappings('stable', project.minecraft_version, '22')
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 }
+
+tasks.register('plainJavaChecks', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.customcolors.FormatChecks'
+}
+test { failOnNoDiscoveredTests = false }
+check.dependsOn plainJavaChecks
 
 processResources {
     inputs.property 'version', project.version
@@ -58,3 +64,4 @@ tasks.withType(JavaCompile).configureEach {
 java {
     withSourcesJar()
 }
+

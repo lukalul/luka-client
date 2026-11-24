@@ -11,7 +11,7 @@ import java.util.List;
 public final class GlobalStyle {
   private static final String[] NAMES = {
     "Background", "Background color", "Corner radius", "Padding", "Border", "Border color", "Chroma border",
-    "Text color", "Chroma text", "Chroma speed", "Minecraft font"
+    "Text color", "Chroma text", "Chroma speed", "Minecraft font", "Brackets"
   };
 
   public static List<Setting<?>> build(List<AbstractHudModule> modules) {
@@ -48,6 +48,12 @@ public final class GlobalStyle {
     if (s instanceof Setting.Color) {
       Setting.Color c = new Setting.Color(s.name(), (Integer) s.defaultValue(), s.tooltip());
       c.set((Integer) s.get());
+      return c;
+    }
+    if (s instanceof Setting.Choice) {
+      Setting.Choice o = (Setting.Choice) s;
+      Setting.Choice c = Setting.tip(new Setting.Choice(o.name(), o.defaultValue(), o.choices().toArray(new String[0])), o.tooltip());
+      c.set(o.get());
       return c;
     }
     return null;

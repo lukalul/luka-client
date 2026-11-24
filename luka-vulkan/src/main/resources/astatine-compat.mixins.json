@@ -1,9 +1,0 @@
-{
-  "required": true,
-  "minVersion": "0.8",
-  "package": "yt.ren.astatine.mixin.compat",
-  "plugin": "yt.ren.astatine.compat.GLCompatPlugin",
-  "compatibilityLevel": "JAVA_8",
-  "client": ["GL11Stub", "GL12Stub", "GL13Stub", "GL14Stub", "GL15Stub", "GL20Stub", "GL21Stub", "GL30Stub", "GL31Stub", "GL32Stub", "GL33Stub"],
-  "injectors": {"defaultRequire": 1}
-}

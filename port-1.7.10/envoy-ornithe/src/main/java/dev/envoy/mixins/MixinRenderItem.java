@@ -1,9 +1,6 @@
 package dev.envoy.mixins;
 
-import dev.envoy.EnvoySettings;
-import dev.envoy.module.model.ModelRegistry;
 import dev.envoy.render.GlintRenderer;
-import dev.envoy.render.JemItemRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.renderer.ItemRenderer;
@@ -20,27 +17,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** GUI and dropped items: custom JEM models and the coloured glint. */
+/** GUI and dropped items: the coloured glint. */
 @Mixin(RenderItem.class)
 public abstract class MixinRenderItem {
     @Shadow public float zLevel;
 
     private ItemStack envoy$droppedGlintStack;
-
-    private static boolean envoy$hasCustomModel(ItemStack stack) {
-        return EnvoySettings.customModels && stack != null && ModelRegistry.hasItems();
-    }
-
-    @Inject(method = "renderItemIntoGUI(Lnet/minecraft/client/gui/FontRenderer;Lnet/minecraft/client/renderer/texture/TextureManager;Lnet/minecraft/item/ItemStack;II)V",
-        at = @At("HEAD"), cancellable = true, require = 0)
-    private void envoy$replaceGuiItem(FontRenderer font, TextureManager textures, ItemStack stack, int x, int y, CallbackInfo callback) {
-        if (envoy$hasCustomModel(stack) && JemItemRenderer.renderGui(stack, x, y, this.zLevel)) callback.cancel();
-    }
-
-    @Inject(method = "doRender(Lnet/minecraft/entity/item/EntityItem;DDDFF)V", at = @At("HEAD"), cancellable = true, require = 0)
-    private void envoy$replaceDroppedItem(EntityItem item, double x, double y, double z, float yaw, float partialTicks, CallbackInfo callback) {
-        if (envoy$hasCustomModel(item.getEntityItem()) && JemItemRenderer.renderDropped(item, x, y, z, partialTicks)) callback.cancel();
-    }
 
     @Inject(method = "renderItemAndEffectIntoGUI(Lnet/minecraft/client/gui/FontRenderer;Lnet/minecraft/client/renderer/texture/TextureManager;Lnet/minecraft/item/ItemStack;II)V",
         at = @At("TAIL"), require = 0)

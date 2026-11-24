@@ -52,8 +52,6 @@ public final class LayoutMath {
         }
         return best;
     }
-    /** Scaled size of a CBUI box hosted by OneConfig: always derived from the module's own box, never OneConfig's (possibly unmeasured) size. */
-    public static float hostedSize(float moduleSize,float effectiveScale){return moduleSize<=0?0:moduleSize*(effectiveScale>0?effectiveScale:1);}
     private static float clamp(float value,float min,float max){return Math.max(min,Math.min(max,value));}
     private LayoutMath(){ }
 }

@@ -20,7 +20,7 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "FileDescription" "luka installer"
 VIAddVersionKey "CompanyName" "luka"
-VIAddVersionKey "LegalCopyright" "GPL-3.0-or-later"
+VIAddVersionKey "LegalCopyright" "Copyright (C) 2026 the luka contributors. GPL-3.0-or-later."
 
 !define MUI_ICON "..\res\luka.ico"
 !define MUI_UNICON "..\res\luka.ico"

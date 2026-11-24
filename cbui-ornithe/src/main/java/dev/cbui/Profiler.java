@@ -465,7 +465,7 @@ public final class Profiler {
         Set<String> seen = new HashSet<>();
         for (StackTraceElement e : stack) {
           String name = e.getClassName();
-          if ((name.contains("argentum") || name.contains("artemis") || name.contains("celeritas") || name.contains("embeddium") || name.contains("cera") || name.contains("cbui") || name.contains("motionblur") || name.contains("oneconfig")) && seen.add(describe(e))) parts.merge(describe(e), 1, Integer::sum);
+          if ((name.contains("argentum") || name.contains("artemis") || name.contains("celeritas") || name.contains("embeddium") || name.contains("cera") || name.contains("cbui") || name.contains("motionblur")) && seen.add(describe(e))) parts.merge(describe(e), 1, Integer::sum);
         }
       }
       if (count == 0) {

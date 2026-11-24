@@ -3,7 +3,7 @@ package dev.cbui.hud;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ScaledResolution;
 
-/** A CBUI module placed by CBUI itself (anchor + offset), used when OneConfig does not host it. */
+/** A CBUI module placed by CBUI itself (anchor + offset). */
 final class NativeHudElement implements HudElement {
   private final AbstractHudModule module;
 
@@ -38,5 +38,4 @@ final class NativeHudElement implements HudElement {
   public void hudVisible(boolean visible) { module.hudVisible(visible); }
   public void resetLayout() { module.resetLayout(); }
   public AbstractHudModule module() { return module; }
-  public boolean oneConfig() { return false; }
 }

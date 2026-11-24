@@ -14,6 +14,7 @@ import java.util.Arrays;
 
 public final class CheckSuite {
   public static void main(String[] args) throws Exception {
+    dev.cbui.skins.SkinImageChecks.run();
     cpsWindow();
     atlasPacking();
     layoutScalesAndOverlap();
@@ -23,12 +24,16 @@ public final class CheckSuite {
     profileRoundTrip();
     combinedSearch();
     hudEditorSnapping();
+    renamedCards();
     timerBook();
     chatMacroText();
     mentions();
+    SoundAndSkyChecks.run();
+    WheelAndLevelChecks.run();
     System.out.println(
         "CBUI plain-Java checks passed: CPS, atlas packing, GUI scales/layout, config/profile"
-            + " round-trips, combined search, HUD editor snapping, chat macro expansion/sanitising");
+            + " round-trips, combined search, HUD editor snapping, renamed-card migration,"
+            + " chat macro expansion/sanitising");
   }
 
   private static void mentions() {
@@ -174,6 +179,32 @@ public final class CheckSuite {
     truth(d[0] == -1 && d[1] == 0, "editor snaps left edges");
     d = LayoutMath.snap(new float[] {100, 60, 40, 19}, java.util.Collections.singletonList(new float[] {10, 61.5f, 20, 19}), 427, 240, 3, 2);
     truth(d[0] == 0 && d[1] == 1.5f, "editor snaps top edges");
+  }
+
+  /** 2026-11-22 card renames: old saved entries, hold keys and bound keys move to the new names. */
+  private static void renamedCards() {
+    JsonObject modules = new JsonObject();
+    JsonObject zoom = new JsonObject();
+    zoom.addProperty("enabled", false);
+    modules.add("PolyZoom", zoom);
+    JsonObject both = new JsonObject();
+    both.addProperty("enabled", true);
+    modules.add("PolyTime", new JsonObject());
+    modules.add("Time Changer", both);
+    dev.cbui.config.CardRenames.moveCards(modules);
+    truth(!modules.has("PolyZoom") && modules.has("Zoom"), "old card entry moves to the new name");
+    truth(!modules.getAsJsonObject("Zoom").get("enabled").getAsBoolean(), "moved entry keeps its values");
+    truth(modules.getAsJsonObject("Time Changer").get("enabled").getAsBoolean(), "an entry under the new name wins");
+    java.util.Map<String, Integer> hold = new java.util.HashMap<String, Integer>();
+    hold.put("PolyCrosshair", 42);
+    dev.cbui.config.CardRenames.moveCards(hold);
+    truth(Integer.valueOf(42).equals(hold.get("Crosshair")) && !hold.containsKey("PolyCrosshair"), "hold key moves");
+    java.util.List<String> options = Arrays.asList("key_PolyZoom: magnify:46", "key_Flip hitboxes (PolyHitbox):35",
+        "key_Flip hitboxes:36", "key_PolyTime - push clock ahead:bad");
+    truth(Integer.valueOf(46).equals(dev.cbui.config.CardRenames.savedKeyCode(options, "Zoom: magnify")), "old bound key is read");
+    truth(Integer.valueOf(36).equals(dev.cbui.config.CardRenames.savedKeyCode(options, "Flip hitboxes")), "new bound key wins");
+    truth(dev.cbui.config.CardRenames.savedKeyCode(options, "Time Changer - push clock ahead") == null, "damaged line is ignored");
+    truth("Zoom: step back".equals(dev.cbui.config.CardRenames.newKey("PolyZoom: step back")), "old key name maps to new");
   }
 
   private static void profileRoundTrip() throws Exception {

@@ -2,7 +2,6 @@ package dev.envoy.render;
 
 import dev.envoy.module.glint.GlintState;
 import dev.envoy.module.glint.GlintTexture;
-import dev.envoy.module.model.ModelRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ItemRenderer;
 import net.minecraft.client.renderer.OpenGlHelper;
@@ -24,7 +23,7 @@ public final class GlintRenderer {
     private GlintRenderer() { }
 
     public static boolean wants(ItemStack stack) {
-        return stack != null && GlintState.hasGlint(stack) && ModelRegistry.findForItem(stack) == null;
+        return stack != null && GlintState.hasGlint(stack);
     }
 
     /** Glint for the 3D item mesh of renderItemIn2D (held and dropped items); call right after the mesh is drawn. */

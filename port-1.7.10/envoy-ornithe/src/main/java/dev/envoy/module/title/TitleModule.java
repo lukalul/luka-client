@@ -79,12 +79,30 @@ public final class TitleModule {
     }
 
     private static void appendColored(StringBuilder target, int rgb, String text) {
-        String digits = String.format("%06X", rgb & 0xFFFFFF);
-        target.append('\u00A7').append('x');
-        for (int index = 0; index < digits.length(); index++) {
-            target.append('\u00A7').append(digits.charAt(index));
-        }
+        // 1.7.10 and 1.8.9 fonts only know the 16 colour codes, not the newer hex form (§x§r§r§g§g§b§b): an unknown code there
+        // turns the rest of the text into the wrong colour. Use the nearest of the 16.
+        target.append('\u00A7').append(nearestColorCode(rgb & 0xFFFFFF));
         target.append(text);
+    }
+
+    /** The game's 16 text colours, in code order 0-9 then a-f. */
+    private static final int[] CODE_COLORS = {0x000000, 0x0000AA, 0x00AA00, 0x00AAAA, 0xAA0000, 0xAA00AA, 0xFFAA00, 0xAAAAAA,
+        0x555555, 0x5555FF, 0x55FF55, 0x55FFFF, 0xFF5555, 0xFF55FF, 0xFFFF55, 0xFFFFFF};
+
+    private static char nearestColorCode(int rgb) {
+        int r = rgb >> 16 & 255, g = rgb >> 8 & 255, b = rgb & 255;
+        int best = 15;
+        long bestDistance = Long.MAX_VALUE;
+        for (int code = 0; code < CODE_COLORS.length; code++) {
+            int c = CODE_COLORS[code];
+            long dr = r - (c >> 16 & 255), dg = g - (c >> 8 & 255), db = b - (c & 255);
+            long distance = dr * dr * 3 + dg * dg * 4 + db * db * 2;
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = code;
+            }
+        }
+        return "0123456789abcdef".charAt(best);
     }
 
     private static String flattenComponent(ByteString root) throws Exception {

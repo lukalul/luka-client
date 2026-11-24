@@ -25,25 +25,51 @@ public final class UiWidgets {
   }
 
   /** Original modules-GUI button: dark base, red outline, coloured hover fill rising from below. */
+  // ---- glass look: see-through fills, a thin light outline and a brighter top edge, so the blurred game shows
+  // through every panel and button (the transparent card menu style, kept subtle) ----
+
+  /** A 1 px outline around (x,y)-(x2,y2). */
+  public static void outline(float x, float y, float x2, float y2, int color) {
+    Draw.rect(x, y, x2, y + 1, color);
+    Draw.rect(x, y2 - 1, x2, y2, color);
+    Draw.rect(x, y + 1, x + 1, y2 - 1, color);
+    Draw.rect(x2 - 1, y + 1, x2, y2 - 1, color);
+  }
+
+  /** Frosted glass: tinted see-through fill, faint outline, a brighter line along the top like light on glass. */
+  public static void glass(float x, float y, float x2, float y2, float radius, int fill) {
+    Draw.rounded(x, y, x2, y2, radius, fill);
+    outline(x, y, x2, y2, 0x24FFFFFF);
+    Draw.rect(x + 1, y, x2 - 1, y + 1, 0x40FFFFFF);
+  }
+
+  /** An outlined glass button: clear fill that lightens on hover; {@code active} adds luka's accent. */
+  public static void glassButton(String label, float x, float y, float w, float h, boolean hover, boolean active, boolean bold) {
+    Draw.rounded(x, y, x + w, y + h, 2, active ? (hover ? 0x8C7A45B8 : 0x736C36A9) : hover ? 0x33FFFFFF : 0x14FFFFFF);
+    outline(x, y, x + w, y + h, hover ? 0x80FFFFFF : 0x4DFFFFFF);
+    if (label == null || label.isEmpty()) return;
+    int text = hover || active ? 0xFFFFFFFF : 0xE6F2F2F2;
+    if (bold) Fonts.bold().drawCentered(label, x + w / 2, y + (h - 9) / 2, text);
+    else if (Fonts.regular().getStringWidth(label) > w - 6)
+      // a label that would touch the edges ("ADD TO HUD" in half a card) uses the 8 pt face
+      Fonts.regular(8f).drawCentered(label, x + w / 2, y + (h - 8) / 2, text);
+    else Fonts.regular().drawCentered(label, x + w / 2, y + (h - 9) / 2, text);
+  }
+
   public static void cbButton(
       String label, float x, float y, float w, float h, boolean hover, boolean active) {
-    if (hover) Draw.rounded(x - 2, y - 2, x + w + 2, y + h + 2, 2, RED);
-    Draw.rounded(x, y, x + w, y + h, 2, active ? 0xFF49286E : 0xFF1D1A20);
-    if (hover) Draw.rounded(x, y + h * .42f, x + w, y + h, 1, active ? RED : 0xFF4E287A);
-    if (label != null && !label.isEmpty())
-      Fonts.bold().drawCentered(label, x + w / 2, y + (h - 9) / 2, 0xBFFFFFFF);
+    glassButton(label, x, y, w, h, hover, active, true);
   }
 
   public static void stateButton(
       String label, float x, float y, float w, float h, boolean on, boolean hover) {
-    Draw.rounded(x, y, x + w, y + h, 2, on ? 0xFF6C36A9 : hover ? 0xFF41295D : 0xFF1F1B23);
-    Fonts.regular().drawCentered(label, x + w / 2, y + (h - 9) / 2, 0xFFFFFFFF);
+    glassButton(label, x, y, w, h, hover, false, false);
   }
 
   public static void pill(
       String label, float x, float y, float w, float h, boolean active, boolean hover) {
-    Draw.rounded(x, y, x + w, y + h, h / 2, active ? RED : hover ? 0xFF312A37 : 0xFF1F1B23);
-    Fonts.regular().drawCentered(label, x + w / 2, y + 3, active ? 0xFFFFFFFF : MUTED);
+    Draw.rounded(x, y, x + w, y + h, h / 2, active ? 0xB36C36A9 : hover ? 0x33FFFFFF : 0x1AFFFFFF);
+    Fonts.regular().drawCentered(label, x + w / 2, y + 3, active || hover ? 0xFFFFFFFF : MUTED);
   }
 
   public static void toggleSwitch(float x, float y, float w, float h, boolean on, boolean hover) {

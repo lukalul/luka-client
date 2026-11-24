@@ -71,8 +71,51 @@ public final class IconTextRenderer {
         return darken ? (opaque & 0xFCFCFC) >> 2 | opaque & 0xFF000000 : opaque;
     }
 
+    /*
+     * Chat icons are drawn after the chat text, not in the middle of it. Argentum (on the 1.8.9 rig and in many
+     * players' packs) collects the chat's line backgrounds and text while drawChat runs and draws both at the end of
+     * the method; an icon drawn on the spot ended up UNDER the half-transparent black line background and came out at
+     * half brightness (255,0,255 seen as 128,0,128). MixinGuiNewChat opens the queue at the start of drawChat and
+     * paints it after Argentum's flush (before the scroll bar moves the matrix, and before the chat's popMatrix).
+     */
+    private static final int QUEUE_LIMIT = 256;
+    private static final java.util.List<Object[]> QUEUED = new java.util.ArrayList<Object[]>();
+    private static boolean queueing;
+
+    public static void beginChat() {
+        QUEUED.clear();
+        queueing = true;
+    }
+
+    public static void paintQueued() {
+        if (QUEUED.isEmpty()) return;
+        try {
+            for (Object[] entry : QUEUED) {
+                paintNow((IconRegistry.Icon) entry[0], ((Float) entry[1]).floatValue(), ((Float) entry[2]).floatValue(),
+                    ((Integer) entry[3]).intValue());
+            }
+        } finally {
+            QUEUED.clear();
+            GlStateManager.disableBlend();
+        }
+    }
+
+    public static void endChat() {
+        queueing = false;
+        QUEUED.clear();
+    }
+
     private static void paint(IconRegistry.Icon icon, float left, float baseline, int alpha) {
+        if (!queueing) {
+            paintNow(icon, left, baseline, alpha);
+        } else if (QUEUED.size() < QUEUE_LIMIT) {
+            QUEUED.add(new Object[] {icon, Float.valueOf(left), Float.valueOf(baseline), Integer.valueOf(alpha)});
+        }
+    }
+
+    private static void paintNow(IconRegistry.Icon icon, float left, float baseline, int alpha) {
         Minecraft.getMinecraft().getTextureManager().bindTexture(icon.texture);
+        GlStateManager.enableTexture2D();
         GlStateManager.enableBlend();
         GlStateManager.tryBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, GL11.GL_ONE, GL11.GL_ZERO);
         GlStateManager.color(1, 1, 1, alpha / 255.0F);

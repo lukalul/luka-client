@@ -19,8 +19,8 @@ import dev.luka.compat.GlStateManager;
  * coordinates (0,0 to content width/height). This class adds the shared box frame:
  * padding, a flat rounded translucent background, an optional border, and the text helpers that
  * give every module the same font, colour and shadow. {@link #renderBox} draws the whole box at the
- * current origin, so both CBUI's native path and OneConfig's HUD renderer (which applies its own
- * position and scale) draw exactly the same thing.
+ * current origin; {@link #renderAt} places and scales it, so the HUD and the editor's previews draw
+ * exactly the same thing.
  */
 public abstract class AbstractHudModule {
   public static final float MIN_SCALE = .5f, MAX_SCALE = 2f;
@@ -37,6 +37,13 @@ public abstract class AbstractHudModule {
   private float offsetX, offsetY, contentWidth, contentHeight, scale = 1;
   private final Anchor defaultAnchor;
   private final float defaultX, defaultY;
+  /** True while the hold key is down: the box's visibility is flipped. Never saved; {@link #hudVisible} keeps the real value. */
+  private boolean held;
+  /** The hold key's code (0 = none), mirrored from {@link HoldKeys} so the per-frame check is a field read. */
+  private int holdCode;
+  /** Second key next to the on/off switch: while held (no screen open) a hidden box shows and a shown box hides. */
+  private final Setting.Key holdKey =
+      add(new Setting.Key("Hold to show", 0, "While this key is held, a hidden box shows and a shown box hides (only with no screen open)"));
   protected final Setting.Toggle background =
       grouped("Background", add(new Setting.Toggle("Background", true, "A dark box behind the module")));
   protected final Setting.Color backgroundColor =
@@ -74,6 +81,14 @@ public abstract class AbstractHudModule {
     this.contentWidth = width;
     this.contentHeight = height;
     common.addAll(settings);
+    holdCode = HoldKeys.get(name);
+    holdKey.bind(new Setting.Key.Binding() {
+      @Override public int get() { return holdCode; }
+      @Override public void set(int key) {
+        holdCode = key;
+        HoldKeys.set(AbstractHudModule.this.name, key);
+      }
+    });
   }
 
   protected final <T extends Setting<?>> T add(T setting) {
@@ -90,9 +105,11 @@ public abstract class AbstractHudModule {
   /** What the menu shows first: this module's own settings, then the shared basics (background, text colour). */
   public List<Setting<?>> basicSettings() {
     List<Setting<?>> out = new ArrayList<>();
+    // the hold key sits right under the on/off switch and the scale
+    if (hasHud()) out.add(holdKey);
     for (Setting<?> s : settings()) if (!s.isAdvanced() && !common.contains(s)) out.add(s);
     // a module without a HUD box has no use for the box's background/border/text settings
-    if (hasHud()) for (Setting<?> s : settings()) if (!s.isAdvanced() && common.contains(s)) out.add(s);
+    if (hasHud()) for (Setting<?> s : settings()) if (!s.isAdvanced() && common.contains(s) && s != holdKey) out.add(s);
     return out;
   }
 
@@ -136,7 +153,7 @@ public abstract class AbstractHudModule {
   public final void renderBox(float partialTicks, boolean editor) {
     float w = width(), h = height();
     if (w <= 0 || h <= 0) return;
-    if (!editor && (!hudVisible || nothingToShow())) return;
+    if (!editor && (!shownOnHud() || nothingToShow())) return;
     GlStateManager.color(1, 1, 1, 1);
     GlStateManager.enableBlend();
     if (background.get()) Draw.rounded(0, 0, w, h, radius.get(), backgroundColor.get());
@@ -218,6 +235,27 @@ public abstract class AbstractHudModule {
 
   public void hudVisible(boolean value) {
     hudVisible = value;
+  }
+
+  /** Whether the box is drawn right now: the saved visibility, flipped while the hold key is down. */
+  public boolean shownOnHud() {
+    return hudVisible != held;
+  }
+
+  /** The hold key's code (0 = none; mouse buttons are -100 + button). Modules without a box have none. */
+  public int holdKeyCode() {
+    return hasHud() ? holdCode : 0;
+  }
+
+  public boolean held() {
+    return held;
+  }
+
+  /** Called by the HUD every frame with whether the hold key is down; returns true when that changed. */
+  public boolean held(boolean down) {
+    if (held == down) return false;
+    held = down;
+    return true;
   }
 
   /** Re-anchors to the screen region (3x3 grid) the box centre is in, keeping it exactly where it is. */
@@ -325,7 +363,7 @@ public abstract class AbstractHudModule {
   }
 
   private boolean useVanilla() {
-    return minecraftFont.get() && mc.fontRendererObj != null;
+    return (minecraftFont.get() || dev.cbui.font.LukaFontRenderer.minecraft) && mc.fontRendererObj != null;
   }
 
   protected final int textWidth(String text) {

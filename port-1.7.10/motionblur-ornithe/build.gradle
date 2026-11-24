@@ -86,3 +86,4 @@ tasks.named('check') {
 tasks.named('test') {
     failOnNoDiscoveredTests = false
 }
+

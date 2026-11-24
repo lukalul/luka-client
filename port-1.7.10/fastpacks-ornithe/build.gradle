@@ -65,3 +65,4 @@ tasks.register('selfTest', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'dev.fastpacks.index.PackIndexSelfTest'
 }
+

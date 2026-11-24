@@ -51,8 +51,25 @@ public final class LukaFontRenderer {
         g.dispose();texture=new DynamicTexture(image);built=m;
         GlStateManager.bindTexture(texture.getGlTextureId());GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_MIN_FILTER,GL11.GL_LINEAR);GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_MAG_FILTER,GL11.GL_LINEAR);
     }
-    public float drawString(String text,float x,float y,int color){return draw(text,x,y,color,false);}
-    public float drawStringWithShadow(String text,float x,float y,int color){return draw(text,x,y,color,true);}
+    /**
+     * luka draws all its text with Minecraft's own font (owner's choice, 2026-11-13): every LukaFontRenderer forwards to it
+     * at a whole-number scale (1x, 2x for the big brand text), snapped to whole pixels so the pixel font stays crisp. Bold
+     * faces use Minecraft's bold style. False brings back the Roboto glyph atlas below. Measured: no FPS cost (HUD A/B).
+     */
+    public static volatile boolean minecraft=true;
+    private boolean vanilla(){return minecraft&&Minecraft.getMinecraft().fontRendererObj!=null;}
+    private int vanillaScale(){return requestedSize>=15?2:1;}
+    private String vanillaText(String text){return source.getResourcePath().contains("Bold")?"§l"+text:text;}
+    private float drawVanilla(String text,float x,float y,int color,boolean shadow){
+        net.minecraft.client.gui.FontRenderer f=Minecraft.getMinecraft().fontRendererObj;int s=vanillaScale();
+        GlStateManager.pushMatrix();GlStateManager.translate(Math.round(x),Math.round(y),0);if(s!=1)GlStateManager.scale(s,s,1);
+        float end;
+        try{end=shadow?f.drawStringWithShadow(vanillaText(text),0,0,color):f.drawString(vanillaText(text),0,0,color,false);}
+        finally{GlStateManager.popMatrix();GlStateManager.color(1,1,1,1);}
+        return Math.round(x)+end*s;
+    }
+    public float drawString(String text,float x,float y,int color){if(text!=null&&!text.isEmpty()&&vanilla())return drawVanilla(text,x,y,color,false);return draw(text,x,y,color,false);}
+    public float drawStringWithShadow(String text,float x,float y,int color){if(text!=null&&!text.isEmpty()&&vanilla())return drawVanilla(text,x,y,color,true);return draw(text,x,y,color,true);}
     public float drawCentered(String text,float center,float y,int color){return drawString(text,center-getStringWidth(text)/2f,y,color);}
     private float draw(String text,float x,float y,int baseColor,boolean shadow){
         if(text==null||text.isEmpty())return x;ensure();if(texture==null)return x;
@@ -99,9 +116,9 @@ public final class LukaFontRenderer {
         return cursor;
     }
     private String lastText;private int lastWidth;
-    public int getStringWidth(String text){if(text==null)return 0;if(text==lastText)return lastWidth;int w=measure(text);lastText=text;lastWidth=w;return w;}
+    public int getStringWidth(String text){if(text==null)return 0;if(vanilla())return Minecraft.getMinecraft().fontRendererObj.getStringWidth(vanillaText(text))*vanillaScale();if(text==lastText)return lastWidth;int w=measure(text);lastText=text;lastWidth=w;return w;}
     private int measure(String text){Integer cached=widthCache.get(text);if(cached!=null)return cached;ensure();int width=0;for(int i=0;i<text.length();i++){char c=text.charAt(i);if(c=='\u00a7'&&i+1<text.length()){i++;continue;}if(c>=COUNT)c='?';Glyph g=glyphs[c];if(g!=null)width+=g.advance;}width=(int)Math.ceil(width/(float)built);if(widthCache.size()>1024)widthCache.clear();widthCache.put(text,width);return width;}
-    public int lineHeight(){ensure();return lineHeight;}
+    public int lineHeight(){if(vanilla())return Minecraft.getMinecraft().fontRendererObj.FONT_HEIGHT*vanillaScale();ensure();return lineHeight;}
     private static int formatColor(char c,int fallback){int i="0123456789abcdef".indexOf(Character.toLowerCase(c));if(i<0)return c=='r'?fallback:fallback;int dark=(i>>3)*85,r=(i>>2&1)*170+dark,g=(i>>1&1)*170+dark,b=(i&1)*170+dark;if(i==6)r+=85;return (fallback&0xFF000000)|(r<<16)|(g<<8)|b;}
     private static final class Glyph{final int x,y,w,h,advance;final float u,v,u2,v2,w2,h2,adv2;Glyph(int x,int y,int w,int h,int advance,int atlas,int m){this.x=x;this.y=y;this.w=w;this.h=h;this.advance=advance;u=x/(float)atlas;v=y/(float)atlas;u2=(x+w)/(float)atlas;v2=(y+h)/(float)atlas;w2=w/(float)m;h2=h/(float)m;adv2=advance/(float)m;}}
 }

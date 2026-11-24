@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>luka | Minecraft 1.8.9 and 1.7.10 client</title>
-  <meta name="description" content="A fast, open-source Minecraft 1.8.9 and 1.7.10 client for PvP and faction servers, on Windows and Linux.">
+  <meta name="description" content="A fast Minecraft 1.8.9 and 1.7.10 client for PvP and faction servers, on Windows and Linux.">
   <meta name="theme-color" content="#0c0910">
   <meta property="og:type" content="website">
   <meta property="og:title" content="luka client">
-  <meta property="og:description" content="A fast, open-source Minecraft 1.8.9 and 1.7.10 client for PvP and faction servers, on Windows and Linux.">
+  <meta property="og:description" content="A fast Minecraft 1.8.9 and 1.7.10 client for PvP and faction servers, on Windows and Linux.">
   <meta property="og:url" content="https://client.luka.wtf/">
   <meta property="og:image" content="https://client.luka.wtf/og.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -22,7 +22,7 @@
     <nav>
       <a href="#features">Features</a>
       <a href="#performance">Performance</a>
-      <a href="https://github.com/lukalul/luka-client">GitHub</a>
+      <a href="/privacy.html">Privacy</a>
     </nav>
   </header>
 
@@ -30,13 +30,12 @@
     <section class="hero wrap">
       <img class="hero-logo" src="/logo.png" alt="" width="112" height="112">
       <h1>The Minecraft 1.8.9 and 1.7.10 client built for&nbsp;PvP.</h1>
-      <p class="lead">Fast, open source, and ready for big fights. Pick 1.8.9 or 1.7.10, Normal or Vulkan, on Windows or Linux.</p>
+      <p class="lead">Fast and ready for big fights. Pick 1.8.9 or 1.7.10, Normal or Vulkan, on Windows or Linux.</p>
       <div class="actions">
-        <a class="button primary" href="https://github.com/lukalul/luka-client/releases/latest/download/Luka-Setup.exe">Download for Windows</a>
+        <a class="button primary" href="https://client.luka.wtf/Luka-Setup.exe">Download for Windows</a>
         <a class="button" href="/luka-launcher-linux.tar.gz">Download for Linux</a>
-        <a class="button" href="#prism">Use Prism Launcher</a>
       </div>
-      <p class="small">Version 1.0.0. Free and open source.</p>
+      <p class="small">Version 1.4.1. Free and open source: <a href="https://github.com/lukalul/luka-client">source code</a> under the GNU GPL v3, the Vulkan renderer <a href="https://github.com/lukalul/luka-vulkan">under the GNU AGPL v3</a>.</p>
     </section>
 
     <section id="features" class="wrap">
@@ -69,14 +68,6 @@
       <p class="section-lead">Minecraft 1.7.10 in an automated test window at 1080p: the game on its own 720 to 910 FPS, luka with Vulkan 2,090 to 2,120.</p>
     </section>
 
-    <section id="prism" class="wrap">
-      <h2>Prefer Prism Launcher?</h2>
-      <p class="section-lead">Click Add Instance, open the Import tab, then paste one of these links. It keeps itself up to date. These are for 1.8.9; for 1.7.10 use the luka launcher.</p>
-      <div class="links">
-        <div class="link"><span>Normal</span><code>https://github.com/lukalul/luka-client/releases/latest/download/luka-1.8.9-prism.zip</code><button type="button" data-copy="https://github.com/lukalul/luka-client/releases/latest/download/luka-1.8.9-prism.zip">Copy</button></div>
-        <div class="link"><span>Vulkan</span><code>https://github.com/lukalul/luka-client/releases/latest/download/luka-1.8.9-vulkan-prism.zip</code><button type="button" data-copy="https://github.com/lukalul/luka-client/releases/latest/download/luka-1.8.9-vulkan-prism.zip">Copy</button></div>
-      </div>
-    </section>
 
     <section class="wrap notes">
       <div>
@@ -85,17 +76,21 @@
       </div>
       <div>
         <h3>Is it safe?</h3>
-        <p>You don't have to take our word for it. <a href="https://github.com/lukalul/luka-client">All of the code is public</a>, and every release is built from it. See <a href="https://github.com/lukalul/luka-client/blob/main/PRIVACY.md">what luka connects to</a>.</p>
+        <p>luka has no analytics or tracking, and every update is signed so only luka's own files get installed. See <a href="/privacy.html">exactly what luka connects to</a>.</p>
       </div>
       <div>
         <h3>Luka Online</h3>
-        <p>Friends and the luka icon use luka's own service, api.luka.wtf. It gets your Minecraft name, that you are online, and (if you allow it) the server you are on, for your friends. Your sign-in token goes to Mojang only. Switch off the Luka Online card in the luka menu to turn it off. <a href="https://github.com/lukalul/luka-client/blob/main/PRIVACY.md#luka-online-apilukawtf">Details</a>.</p>
+        <p>Friends and the luka icon use luka's own service, api.luka.wtf. It gets your Minecraft name, that you are online, and (if you allow it) the server you are on, for your friends. Your sign-in token goes to Mojang only. Switch off the Luka Online card in the luka menu to turn it off. <a href="/privacy.html#luka-online">Details</a>.</p>
+      </div>
+      <div id="vulkan-source">
+        <h3>Vulkan renderer source code</h3>
+        <p>luka's Vulkan renderer is free software under the GNU Affero General Public License v3, based on Astatine by Ren Karuizawa. Its source code is at <a href="https://github.com/lukalul/luka-vulkan">github.com/lukalul/luka-vulkan</a>, free of charge.</p>
       </div>
     </section>
   </main>
 
   <footer class="wrap">
-    <span>luka is free software under the <a href="https://github.com/lukalul/luka-client/blob/main/LICENSE">GPL-3.0</a>.</span>
+    <span>&copy; 2026 the luka contributors. <a href="https://github.com/lukalul/luka-client">Free software</a> under the GNU GPL v3; the <a href="https://github.com/lukalul/luka-vulkan">Vulkan renderer</a> under the GNU AGPL v3.</span>
     <span>Not affiliated with Mojang or Microsoft.</span>
   </footer>
 </body>

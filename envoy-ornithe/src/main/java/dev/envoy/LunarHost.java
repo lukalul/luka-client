@@ -21,7 +21,7 @@ public final class LunarHost {
             boolean answer = resolveHost();
             cachedAnswer = Boolean.valueOf(answer);
             Envoy.LOGGER.info(answer
-                ? "[Envoy] Lunar Client detected: running the Lunar profile (glow, chat, lightning, models, icons, boss bars)"
+                ? "[Envoy] Lunar Client detected: running the Lunar profile (icons, boss bars)"
                 : "[Envoy] standalone Ornithe client: running the full profile");
             return answer;
         }

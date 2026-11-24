@@ -1,6 +1,6 @@
 package dev.cbui.mixin;
 
-import dev.cbui.hud.module.ToggleSneakModule;
+import dev.cbui.hud.module.ToggleSprintModule;
 import net.minecraft.util.MovementInput;
 import net.minecraft.util.MovementInputFromOptions;
 import org.spongepowered.asm.mixin.Mixin;
@@ -8,15 +8,15 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Lets the Toggle sneak module decide the sneak state after vanilla has read the keys. */
+/** Lets the Toggle sprint module (its toggle sneak) decide the sneak state after vanilla has read the keys. */
 @Mixin(MovementInputFromOptions.class)
 public abstract class MovementInputMixin extends MovementInput {
   @Inject(method = "updatePlayerMoveState", at = @At("RETURN"), require = 0)
   private void cbui$toggleSneak(CallbackInfo ci) {
     try {
-      if (!ToggleSneakModule.overriding()) return;
+      if (!ToggleSprintModule.overriding()) return;
       boolean before = this.sneak;
-      boolean after = ToggleSneakModule.sneaking();
+      boolean after = ToggleSprintModule.sneaking();
       this.sneak = after;
       // vanilla slows movement to 30 percent inside updatePlayerMoveState when sneak was set; redo that for the changed state
       // (without it a toggled sneak moved at full speed, and sprint stayed on while "sneaking")

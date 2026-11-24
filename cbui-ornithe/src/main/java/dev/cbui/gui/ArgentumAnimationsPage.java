@@ -9,7 +9,6 @@ import net.minecraft.util.EnumParticleTypes;
 import org.embeddedt.embeddium.impl.gui.framework.TextComponent;
 import org.taumc.celeritas.api.OptionGUIConstructionEvent;
 import org.taumc.celeritas.api.options.OptionIdentifier;
-import org.taumc.celeritas.api.options.control.CyclingControl;
 import org.taumc.celeritas.api.options.control.TickBoxControl;
 import org.taumc.celeritas.api.options.structure.OptionGroup;
 import org.taumc.celeritas.api.options.structure.OptionImpl;
@@ -38,7 +37,6 @@ public final class ArgentumAnimationsPage {
 
   private static OptionPage create() {
     OptionGroup.Builder particles = OptionGroup.createBuilder().setId(id("particles"));
-    particles.add(particleLevel());
     for (EnumParticleTypes type : EnumParticleTypes.values()) {
       final String key = AnimationOptions.particleKey(type);
       particles.add(toggle(key, AnimationOptions.readable(type)));
@@ -50,20 +48,6 @@ public final class ArgentumAnimationsPage {
 
     return new OptionPage(id("animations"), TextComponent.literal("Animations"),
         Arrays.asList(particles.build(), other.build()));
-  }
-
-  private static OptionImpl<Data, Integer> particleLevel() {
-    TextComponent[] names = {TextComponent.literal("All"), TextComponent.literal("Decreased"),
-        TextComponent.literal("None")};
-    return OptionImpl.createBuilder(Integer.class, STORAGE)
-        .setId(OptionIdentifier.create(MOD_ID, "particle_level", Integer.class))
-        .setName(TextComponent.literal("Particle level"))
-        .setTooltip(TextComponent.literal("None fully disables particles."))
-        .setBinding((data, value) -> Minecraft.getMinecraft().gameSettings.particleSetting = value,
-            data -> Minecraft.getMinecraft().gameSettings.particleSetting)
-        .setControl(option -> new CyclingControl<Integer>(option,
-            new Integer[] {0, 1, 2}, names))
-        .build();
   }
 
   private static OptionImpl<Data, Boolean> toggle(final String key, String name) {

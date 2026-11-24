@@ -4,13 +4,12 @@ import com.google.gson.JsonObject;
 import dev.cbui.Cbui;
 import dev.cbui.config.ProfileFiles;
 import dev.cbui.font.Fonts;
+import dev.cbui.font.LukaFontRenderer;
 import dev.cbui.hud.AbstractHudModule;
 import dev.cbui.hud.Anchor;
 import dev.cbui.hud.HudElement;
 import dev.cbui.hud.LayoutMath;
 import dev.cbui.hud.Setting;
-import dev.cbui.oneconfig.ConfigSnapshot;
-import dev.cbui.oneconfig.OneConfigFacade;
 import dev.cbui.render.Draw;
 import java.awt.Color;
 import java.io.File;
@@ -70,9 +69,18 @@ public class ModuleMenu extends GuiScreen {
   private GuiTextField search, editField, profileField;
   private ProfileFiles profiles;
   private List<String> profileNames = Collections.emptyList();
+  /** Lunar Client profiles found on this PC ({folder, display name}), offered for import in the profiles view. */
+  private List<String[]> lunarProfiles = Collections.emptyList();
+  private String lunarStatus = "";
   private String activeProfile = activeProfileName, category = "ALL", profileError = "";
   private Card selected;
   private View view = View.CARDS;
+
+  /** True while the luka menu shows the HUD editor (for the HUD editor frame rate cap). */
+  public static boolean hudEditorOpen() {
+    net.minecraft.client.gui.GuiScreen s = net.minecraft.client.Minecraft.getMinecraft().currentScreen;
+    return s instanceof ModuleMenu && ((ModuleMenu) s).view == View.HUD;
+  }
   private float scroll, targetScroll, settingsScroll, settingsTarget;
   private HudElement dragging;
   private float dragX, dragY;
@@ -86,6 +94,9 @@ public class ModuleMenu extends GuiScreen {
   private Object editing;
   private Object editOriginal;
   private boolean renameProfile;
+  /** The name popup is for a style preset (STYLE tab), not a profile. */
+  private boolean presetModal;
+  private List<String> presetNames = Collections.emptyList();
   private long openedAt;
   /** GUI scale factor: this screen is laid out in framebuffer pixels (width/height are scaled up by it), as the original is. */
   private int sf = 1;
@@ -144,7 +155,10 @@ public class ModuleMenu extends GuiScreen {
       sf = Math.max(1, new ScaledResolution(mc).getScaleFactor());
       baseW = width * sf;
       baseH = height * sf;
-      menuZoom = Math.max(1f, Math.min(2.5f, (float) Math.floor(Math.min(baseW / 700f, baseH / 540f) * 4) / 4f));
+      // The menu is drawn at Minecraft's own GUI scale (Video Settings > GUI Scale), a whole number: pixel fonts, the live
+      // HUD previews and icons stay crisp, and it is the size the player picked for every other screen. (It used to
+      // zoom with the window in 0.25 steps, which blurred the Minecraft font at 1.25x, 1.75x...)
+      menuZoom = sf;
       zoom = view == View.HUD ? 1f : menuZoom;
       UiWidgets.zoom = zoom;
       width = (int) Math.ceil(baseW / zoom);
@@ -173,62 +187,22 @@ public class ModuleMenu extends GuiScreen {
     Collections.sort(ordered, (m1, m2) -> Integer.compare(usefulness(m1.name()), usefulness(m2.name())));
     for (AbstractHudModule module : ordered) {
       if (module instanceof dev.cbui.feature.FeatureModule && !((dev.cbui.feature.FeatureModule) module).visible()) continue;
+      if (livesInSettings(module)) continue; // on a settings tab instead (SETTINGS_HOME)
       allCards.add(new Card(module, nativeCategory(module)));
     }
-    // other mods' OneConfig HUDs (EvergreenHUD etc.) get HUD cards; their trees are not repeated under MODS
-    for (HudElement hud : Cbui.hud().oneConfigElements())
-      if (hud.module() == null) allCards.add(new Card(hud, Cbui.hud().oneConfigOptions(hud)));
-    Set<String> hudTrees = Cbui.hud().oneConfigTreeIds();
-    ConfigSnapshot bridge = OneConfigFacade.snapshot();
-    java.util.Map<String, List<ConfigSnapshot.Mod>> grouped = new java.util.LinkedHashMap<>();
-    for (String group : GROUPS) grouped.put(group, new ArrayList<ConfigSnapshot.Mod>());
-    List<ConfigSnapshot.Mod> bridgeMods = bridge.mods;
-    try { bridgeMods = ModKeys.merge(bridge.mods); } catch (Throwable error) { Cbui.reportOnce("mod keybinds", error); }
-    for (ConfigSnapshot.Mod mod : bridgeMods) {
-      if (hudTrees.contains(mod.id) || mod.id.contains("cbui_")) continue;
-      String group = groupOf(mod.name);
-      if (group == null) allCards.add(new Card(mod));
-      else grouped.get(group).add(mod);
+    // keybinds other mods register with Minecraft go onto one "Keybinds" card under MODS
+    try {
+      ConfigSnapshot.Mod keys = ModKeys.card();
+      if (keys != null) allCards.add(new Card(keys));
+    } catch (Throwable error) {
+      Cbui.reportOnce("mod keybinds", error);
     }
-    for (java.util.Map.Entry<String, List<ConfigSnapshot.Mod>> entry : grouped.entrySet()) {
-      List<ConfigSnapshot.Mod> members = entry.getValue();
-      if (members.size() == 1) allCards.add(new Card(members.get(0)));
-      else if (members.size() > 1) allCards.add(new Card(merge(entry.getKey(), members)));
-    }
-  }
-
-  /** Related small mods share one card, with a heading per mod inside it. */
-  private static final String[] GROUPS = {"Mouse & Camera", "Visual Tweaks", "Quality of Life"};
-
-  private static final String[][] GROUP_MEMBERS = {
-    {"Scroll Tweaks", "Freelook", "PolyZoom", "FOVChanger", "Shake Tweaks", "BetterHurtCam"},
-    {"Overlay Tweaks", "Render Tweaks", "Smooth Skies", "Block Overlay", "DamageTint", "Dropped Item Tweaks",
-     "Numerical Enchantments", "PolyCrosshair", "PolyHitbox", "PolyNametag"},
-    {"Confirm Disconnect", "Screenshot Message Enhancer", "CrashPatch", "PolyTime", "SoundTweaks", "Old Animations", "TNTCountdown"}
-  };
-
-  private static String groupOf(String modName) {
-    for (int g = 0; g < GROUP_MEMBERS.length; g++)
-      for (String member : GROUP_MEMBERS[g]) if (member.equalsIgnoreCase(modName)) return GROUPS[g];
-    return null;
-  }
-
-  private static ConfigSnapshot.Mod merge(String name, List<ConfigSnapshot.Mod> members) {
-    List<ConfigSnapshot.Section> sections = new ArrayList<>();
-    for (ConfigSnapshot.Mod mod : members)
-      for (ConfigSnapshot.Section section : mod.sections)
-        sections.add(new ConfigSnapshot.Section(
-            mod.sections.size() == 1 || section.name.equalsIgnoreCase("General") || section.name.equalsIgnoreCase(mod.name)
-                ? mod.name
-                : mod.name + ": " + section.name,
-            section.rows));
-    return new ConfigSnapshot.Mod("group:" + name, name, "Mods", sections);
   }
 
   /** Most useful first for HCF: timers and status, then movement, then info readouts, then looks. */
   private static final String[] USEFULNESS = {
-    "Cooldowns", "Potion status", "Armour status", "Alerts", "Team HUD", "Potion counter", "Scoreboard", "Coordinates", "Toggle sneak",
-    "Always sprint", "Toggle sprint", "Keystrokes", "CPS", "Combo", "Reach", "FPS", "Ping", "Direction",
+    "Cooldowns", "Potion status", "Armour status", "Alerts", "Team HUD", "Potion counter", "Scoreboard", "Coordinates",
+    "Toggle sprint", "Keystrokes", "CPS", "Combo", "Reach", "FPS", "Ping", "Direction",
     "Server address", "Clock", "Memory", "Resource packs", "GUI blur"
   };
 
@@ -240,7 +214,7 @@ public class ModuleMenu extends GuiScreen {
   private static String nativeCategory(AbstractHudModule module) {
     if (module instanceof dev.cbui.feature.FeatureModule) return ((dev.cbui.feature.FeatureModule) module).category();
     String n = module.name();
-    if (n.equalsIgnoreCase("Always sprint") || n.equals("Toggle sneak")) return "UTILITY";
+    if (n.equals("Toggle sprint")) return "UTILITY";
     if (n.equals("GUI blur")) return "VISUALS";
     return "HUD";
   }
@@ -319,19 +293,20 @@ public class ModuleMenu extends GuiScreen {
         drawHub(mouseX, mouseY, partialTicks);
         return;
       }
-      drawGradientRect(0, 0, width, height, 0xB0100C13, 0xE017121C);
+      drawGradientRect(0, 0, width, height, 0x59100C13, 0x9917121C);
       float intro = Math.min(1f, (System.currentTimeMillis() - openedAt) / 240f);
       GlStateManager.pushMatrix();
       GlStateManager.translate(0, (1 - intro) * 8, 0);
       drawBrand();
       drawToolbar(mouseX, mouseY);
-      Draw.rounded(
+      // see-through glass: the blurred game shows behind the cards
+      UiWidgets.glass(
           layout.panelX,
           layout.panelY,
           layout.panelX + layout.panelWidth,
           layout.panelY + layout.panelHeight,
           8,
-          0xF5080709);
+          view == View.CARDS ? 0x4D08070A : 0xB308070A);
       if (view == View.CARDS) drawCards(mouseX, mouseY);
       else if (view == View.SETTINGS) drawSettings(mouseX, mouseY);
       else drawProfiles(mouseX, mouseY);
@@ -348,10 +323,18 @@ public class ModuleMenu extends GuiScreen {
   private void drawBrand() {
     float alpha = Math.min(1f, (System.currentTimeMillis() - openedAt) / 350f);
     int color = ((int) (alpha * 255) << 24) | 0xD9C2FF;
-    float lockup = 25 + Fonts.bold(16).getStringWidth("luka");
+    boolean hero = layout.toolbarY >= 70;
+    // fontSize must stay near what's proven safe in LukaFontRenderer's glyph atlas: 30pt overflowed it
+    // at high GUI scale (atlas full, font silently disabled) - nothing above 16 is used elsewhere in cbui.
+    float logoSize = hero ? 36 : 20;
+    float fontSize = hero ? 20 : 16;
+    float gap = hero ? 9 : 5;
+    LukaFontRenderer font = Fonts.bold(fontSize);
+    float lockup = logoSize + gap + font.getStringWidth("luka");
     float lx = Math.round(width / 2f - lockup / 2f);
-    Draw.texture(LOGO, lx, layout.toolbarY - 31, 20, 20, alpha);
-    Fonts.bold(16).drawString("luka", lx + 25, layout.toolbarY - 29, color);
+    float ly = hero ? Math.max(14, layout.toolbarY - logoSize - 18) : layout.toolbarY - 31;
+    Draw.texture(LOGO, lx, ly, logoSize, logoSize, alpha);
+    font.drawStringWithShadow("luka", lx + logoSize + gap, ly + (logoSize - fontSize) / 2f, color);
   }
 
   private void drawToolbar(int mx, int my) {
@@ -399,29 +382,27 @@ public class ModuleMenu extends GuiScreen {
     if (wheel != 0
         && Draw.inside(mx, my, layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight))
       targetScroll -= wheel / 6f;
-    int strip = 49,
+    int strip = layout.strip,
         max = Math.max(0, layout.contentHeight(visibleCards.size()) - (layout.panelHeight - strip));
     targetScroll = clamp(targetScroll, 0, max);
     scroll += (targetScroll - scroll) * .32f;
-    Draw.rect(
-        layout.panelX,
-        layout.panelY,
-        layout.panelX + layout.panelWidth,
-        layout.panelY + strip,
-        0xFF100C13);
-    Draw.rounded(
+    Draw.rect(layout.panelX + 6, layout.panelY + strip - 1, layout.panelX + layout.panelWidth - 6, layout.panelY + strip, 0x1FFFFFFF);
+    UiWidgets.glass(
         layout.panelX + 6,
         layout.panelY + 5,
         layout.panelX + layout.panelWidth - 6,
         layout.panelY + 23,
         3,
-        0xFF1F1A25);
+        search.isFocused() ? 0x33FFFFFF : 0x1AFFFFFF);
     if (search.getText().isEmpty() && !search.isFocused())
       fontRendererObj.drawString("Search modules...", layout.panelX + 11, layout.panelY + 10, 0xFF737D8D);
     search.drawTextBox();
-    drawCategoryBar(mx, my);
-    UiWidgets.beginClipPx(
-        layout.panelX, layout.panelY + strip, layout.panelWidth, layout.panelHeight - strip);
+    if (!layout.compact) drawCategoryBar(mx, my);
+    clipX = layout.panelX;
+    clipY = layout.panelY + strip;
+    clipW = layout.panelWidth;
+    clipH = layout.panelHeight - strip;
+    UiWidgets.beginClipPx(clipX, clipY, clipW, clipH);
     if (visibleCards.isEmpty())
       Fonts.regular().drawCentered("NO MODULES MATCH", width / 2f, layout.panelY + 66, MUTED);
     long now = System.currentTimeMillis();
@@ -444,48 +425,94 @@ public class ModuleMenu extends GuiScreen {
     }
   }
 
+  // glass card tints: green while a module is on, red while it is off, neutral for cards with no switch
+  private static final int CARD_ON = 0x8C3B5A34, CARD_ON_HOVER = 0xA6486C40;
+  private static final int CARD_OFF = 0x8C642A29, CARD_OFF_HOVER = 0xA6773634;
+  private static final int CARD_PLAIN = 0x73201C26, CARD_PLAIN_HOVER = 0x8C2C2733;
+
+  /** A HUD card's buttons: "ADD TO HUD" (left) and the switch (right) share the first row. */
+  private static boolean hudCard(Card card) {
+    return card.nativeModule != null && card.nativeModule.hasHud() && card.toggleable();
+  }
+
   private void drawCard(Card card, int index, int x, int y, int mx, int my, long now) {
     int w = layout.cardWidth, h = layout.cardHeight;
     boolean hover = Draw.inside(mx, my, x, y, w, h);
     float fade = cardFades.get(index).update(hover, now);
-    int base = card.enabled() ? 0xFF36254A : CARD;
-    Draw.rounded(
-        x, y, x + w, y + h, 2, Draw.lerpColor(base, card.enabled() ? RED : 0xEE2C2533, fade));
-    if (card.toggleable() && card.enabled()) Draw.rect(x, y, x + w, y + 2, RED);
-    int[] icon = card.nativeModule == null ? null : MODULE_ICON_SIZE.get(card.name);
-    if (icon != null) {
-      float scale = Math.min(44f / icon[0], 26f / icon[1]);
-      float iw = icon[0] * scale, ih = icon[1] * scale;
-      Draw.texture(
-          new ResourceLocation("cbui", "icons/mods/" + MODULE_ICON_FILE.get(card.name)),
-          x + (w - iw) / 2f, y + 4 + (28 - ih) / 2f, iw, ih, card.enabled() ? 1f : .6f);
-    } else {
-      String modId = card.bridgeMod != null ? card.bridgeMod.id : null;
-      ResourceLocation tile = ModIcons.get(modId, card.name);
-      Draw.texture(tile, x + w / 2f - 14, y + 3, 28, 28, card.enabled() || !card.toggleable() ? 1f : .6f);
+    boolean on = card.enabled();
+    int base = !card.toggleable() ? CARD_PLAIN : on ? CARD_ON : CARD_OFF;
+    int lit = !card.toggleable() ? CARD_PLAIN_HOVER : on ? CARD_ON_HOVER : CARD_OFF_HOVER;
+    UiWidgets.glass(x, y, x + w, y + h, 3, Draw.lerpColor(base, lit, fade));
+    // top: the module itself, drawn live where it has a HUD (as it looks on screen), its icon otherwise
+    if (!drawPreview(card, x, y, w)) {
+      int[] icon = card.nativeModule == null ? null : MODULE_ICON_SIZE.get(card.name);
+      if (icon != null) {
+        float scale = Math.min(44f / icon[0], 26f / icon[1]);
+        float iw = icon[0] * scale, ih = icon[1] * scale;
+        Draw.texture(
+            new ResourceLocation("cbui", "icons/mods/" + MODULE_ICON_FILE.get(card.name)),
+            x + (w - iw) / 2f, y + 4 + (28 - ih) / 2f, iw, ih, on ? 1f : .7f);
+      } else {
+        String modId = card.bridgeMod != null ? card.bridgeMod.id : null;
+        ResourceLocation tile = ModIcons.get(modId, card.name);
+        Draw.texture(tile, x + w / 2f - 14, y + 3, 28, 28, on || !card.toggleable() ? 1f : .7f);
+      }
     }
-    Fonts.bold().drawCentered(ellipsize(card.name, w - 10), x + w / 2f, y + 37, 0xFFFFFFFF);
-    if (card.serverBlocked()) Fonts.regular().drawCentered("DISABLED BY SERVER", x + w / 2f, y + 49, 0xFFFF7A7A);
-    else Fonts.regular().drawCentered(card.category, x + w / 2f, y + 49, 0xFFB2BAC7);
+    Fonts.regular().drawCentered(ellipsize(card.name, w - 10), x + w / 2f, y + 38, 0xFFF4F4F4);
+    if (card.serverBlocked()) Fonts.regular().drawCentered("DISABLED BY SERVER", x + w / 2f, y + 49, 0xFFFF9A9A);
     int bottom = y + h - 38;
-    if (card.toggleable())
-      UiWidgets.stateButton(
-          card.enabled() ? "DISABLE" : "ENABLE",
-          x + 4,
-          bottom,
-          w - 8,
-          14,
-          card.enabled(),
-          Draw.inside(mx, my, x + 4, bottom, w - 8, 14));
-    UiWidgets.cbButton(
-        "OPTIONS",
-        x + 4,
-        y + h - 20,
-        w - 8,
-        15,
-        Draw.inside(mx, my, x + 4, y + h - 20, w - 8, 15),
-        false);
+    if (hudCard(card)) {
+      int half = (w - 8 - 3) / 2;
+      // the pixel font has no smaller crisp size: a half-width button too narrow for "ADD TO HUD" says "+ HUD"
+      String add = Fonts.regular().getStringWidth("ADD TO HUD") <= half - 4 ? "ADD TO HUD" : "+ HUD";
+      UiWidgets.glassButton(add, x + 4, bottom, half, 14,
+          Draw.inside(mx, my, x + 4, bottom, half, 14), false, false);
+      UiWidgets.glassButton(on ? "DISABLE" : "ENABLE", x + 4 + half + 3, bottom, w - 8 - half - 3, 14,
+          Draw.inside(mx, my, x + 4 + half + 3, bottom, w - 8 - half - 3, 14), false, false);
+    } else if (card.toggleable()) {
+      UiWidgets.glassButton(on ? "DISABLE" : "ENABLE", x + 4, bottom, w - 8, 14,
+          Draw.inside(mx, my, x + 4, bottom, w - 8, 14), false, false);
+    }
+    UiWidgets.glassButton("OPTIONS", x + 4, y + h - 20, w - 8, 15,
+        Draw.inside(mx, my, x + 4, y + h - 20, w - 8, 15), false, false);
   }
+
+  /** Draws a HUD module's own box, scaled to fit the top of its card. False when there is nothing to draw. */
+  private boolean drawPreview(Card card, int x, int y, int w) {
+    AbstractHudModule m = card.nativeModule;
+    // Armour status reports a smaller box than the column of items it draws: icon only
+    if (m == null || !m.hasHud() || previewFailed.contains(card.name) || "Armour status".equals(card.name)) return false;
+    try {
+      float bw = m.width(), bh = m.height();
+      if (bw <= 0 || bh <= 0) return false;
+      float scale = Math.min(Math.min((w - 14) / bw, 28f / bh), 1.25f);
+      // only compact boxes (one or two lines) read well at card size; taller ones (lists, armour, scoreboard) show
+      // the icon instead
+      if (scale < .7f || bh > 24) return false;
+      float px = x + (w - bw * scale) / 2f, py = y + 4 + (28 - bh * scale) / 2f;
+      // keep it inside the card's top area even if the module draws more than its box says
+      int clipTop = Math.max(y + 2, clipY), clipBottom = Math.min(y + 34, clipY + clipH);
+      if (clipBottom <= clipTop) return true;
+      UiWidgets.beginClipPx(x + 2, clipTop, w - 4, clipBottom - clipTop);
+      try {
+        m.renderAt(px, py, scale, 0f, true);
+      } finally {
+        UiWidgets.beginClipPx(clipX, clipY, clipW, clipH); // the card grid's own clip again
+        GlStateManager.color(1f, 1f, 1f, 1f);
+        GlStateManager.enableBlend();
+      }
+      return true;
+    } catch (Throwable error) {
+      // one broken preview must not take the menu down: that card shows its icon from now on
+      previewFailed.add(card.name);
+      Cbui.reportOnce("module preview " + card.name, error);
+      return false;
+    }
+  }
+
+  private final java.util.Set<String> previewFailed = new java.util.HashSet<>();
+  /** The card grid's clip rectangle (drawCards), restored after each preview's own clip. */
+  private int clipX, clipY, clipW, clipH;
 
   private void drawSettings(int mx, int my) {
     if (selected == null) {
@@ -527,7 +554,6 @@ public class ModuleMenu extends GuiScreen {
         layout.panelX + 34, layout.panelY + 22, layout.panelWidth - 36, layout.panelHeight - 24);
     float y = layout.panelY + 27 - settingsScroll;
     if (selected.nativeModule != null) drawNativeSettings(selected.nativeModule, mx, my, y);
-    else if (selected.external != null) drawExternalSettings(selected, mx, my, y);
     else drawBridgeSettings(selected.bridgeMod, mx, my, y);
     UiWidgets.endClip();
     drawScrollbar(max, settingsScroll, layout.panelY + 24, layout.panelHeight - 28);
@@ -538,6 +564,61 @@ public class ModuleMenu extends GuiScreen {
   private static <S extends Setting<?>> S withGroup(String group, S setting) {
     setting.setGroup(group);
     return setting;
+  }
+
+  /**
+   * Modules that live on a settings tab (STYLE 0, PERFORMANCE 2, GENERAL 3) instead of having a card in the mods grid:
+   * module name, tab, heading. Each gets a box on its tab: an on/off row, then its own options. The module itself is
+   * unchanged (same saved settings, server rules and Lunar import).
+   */
+  private static final String[][] SETTINGS_HOME = {
+      {"GUI blur", "0", "Menu background blur"},
+      {"FPS Profiler", "2", "FPS Profiler"},
+      {"Chat", "3", "Chat"},
+      {"Numerical Enchantments", "3", "Numerical Enchantments"},
+      {"Raw Input", "3", "Raw Input"},
+      {"Scroll Tweaks", "3", "Scroll Tweaks"},
+      {"SoundTweaks", "3", "Sound Tweaks"},
+      {"Auto Reconnect", "3", "Auto Reconnect"},
+      {"Confirm Disconnect", "3", "Confirm Disconnect"},
+      {"Auto Center Inventory", "3", "Auto center inventory"},
+      {"Screenshot Message Enhancer", "3", "Screenshots"},
+      {"Discord Status", "3", "Discord Status"},
+      {"Luka Online", "3", "Luka Online"},
+      {"CrashPatch", "3", "Crash Patch"},
+  };
+
+  /** True when the module is listed on a settings tab, so it gets no card. */
+  private static boolean livesInSettings(AbstractHudModule module) {
+    for (String[] home : SETTINGS_HOME) if (home[0].equals(module.name())) return true;
+    return false;
+  }
+
+  /** The on/off rows of the modules on the current settings tab, and the module each one switches. */
+  private final java.util.Map<Setting<?>, AbstractHudModule> homeSwitches = new java.util.IdentityHashMap<>();
+  /** Every row that belongs to a module on the current settings tab (its own settings, not client-wide ones). */
+  private final java.util.Set<Setting<?>> homeRows = Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+  private void addHomedModules(List<Setting<?>> list, int tab) {
+    homeSwitches.clear();
+    homeRows.clear();
+    for (String[] home : SETTINGS_HOME) {
+      if (Integer.parseInt(home[1]) != tab) continue;
+      AbstractHudModule module = null;
+      for (AbstractHudModule m : Cbui.hud().modules()) if (m.name().equals(home[0])) module = m;
+      if (module == null) continue;
+      Setting.Toggle on = new Setting.Toggle("Enabled", true, "Turn " + home[2] + " on or off");
+      on.set(module.userEnabled());
+      list.add(withGroup(home[2], on));
+      homeSwitches.put(on, module);
+      homeRows.add(on);
+      List<Setting<?>> own = new ArrayList<>(module.basicSettings());
+      if (!module.hasHud()) own.addAll(module.advancedSettings());
+      for (Setting<?> s : own) {
+        list.add(withGroup(home[2], s));
+        homeRows.add(s);
+      }
+    }
   }
 
   private static final String[] SETTINGS_TABS = dev.cbui.Release.COSMETICS
@@ -560,16 +641,19 @@ public class ModuleMenu extends GuiScreen {
     List<Setting<?>> list = new ArrayList<>();
     switch (settingsTab) {
       case 0:
+        presetNames = dev.cbui.config.StylePresets.list();
         list.addAll(dev.cbui.hud.GlobalStyle.build(Cbui.hud().modules()));
         textShadowToggle = new Setting.Toggle("Text shadow", true, "Drop shadow on all text: chat, hotbar counts, tooltips and every HUD module");
         textShadowToggle.set(dev.cbui.config.GlobalOptions.textShadow);
         list.add(withGroup("Text", textShadowToggle));
+        addHomedModules(list, 0);
         break;
       case 1:
         // the VIDEO tab is not shown (tabShown)
         break;
       case 2:
         list.addAll(dev.cbui.config.PerfOptions.build());
+        addHomedModules(list, 2);
         break;
       case 3:
         borderlessToggle = new Setting.Toggle("Borderless fullscreen", false, "Remove the window frame and cover the whole screen (keeps alt-tab and other windows working)");
@@ -578,6 +662,7 @@ public class ModuleMenu extends GuiScreen {
         achievementsToggle = new Setting.Toggle("Hide achievement popups", false, "Never show the achievement toast");
         achievementsToggle.set(dev.cbui.config.GlobalOptions.hideAchievements);
         list.add(withGroup("Popups", achievementsToggle));
+        addHomedModules(list, 3);
         break;
       default:
         break;
@@ -621,7 +706,7 @@ public class ModuleMenu extends GuiScreen {
           Draw.inside(mx, my, tabX(i), layout.panelY + TAB_Y, tabW(i), 16), i == settingsTab);
     int wheel = takeWheel();
     if (wheel != 0 && editField == null && paletteTarget == null) settingsTarget -= wheel / 6f;
-    int content = (int) rowsHeight(globalSettings) + 12 + 0;
+    int content = (int) rowsHeight(globalSettings) + 12 + (settingsTab == 0 ? presetsHeight() : 0);
     int viewport = layout.panelHeight - ROWS_Y - 4;
     settingsTarget = clamp(settingsTarget, 0, Math.max(0, content - viewport));
     settingsScroll += (settingsTarget - settingsScroll) * .32f;
@@ -633,7 +718,9 @@ public class ModuleMenu extends GuiScreen {
       float by = layout.panelY + ROWS_Y + 40 - settingsScroll;
       UiWidgets.cbButton("OPEN CAPE SELECTION", x, by, w, 19, Draw.inside(mx, my, x, by, w, 19), false);
     } else {
-      drawSettingRows(globalSettings, x, layout.panelY + ROWS_Y - settingsScroll, w, mx, my);
+      float top = layout.panelY + ROWS_Y - settingsScroll;
+      if (settingsTab == 0) top = drawPresets(x, top, w, mx, my);
+      drawSettingRows(globalSettings, x, top, w, mx, my);
     }
     UiWidgets.endClip();
     drawScrollbar(Math.max(0, content - viewport), settingsScroll, layout.panelY + ROWS_Y, viewport);
@@ -730,17 +817,6 @@ public class ModuleMenu extends GuiScreen {
     return y;
   }
 
-  /** Another mod's OneConfig HUD: its visibility switch, then whatever settings its tree exposes. */
-  private float drawExternalSettings(Card card, int mx, int my, float y) {
-    int x = layout.panelX + 42, w = layout.panelWidth - 54;
-    y = drawToggleRow("ENABLED", card.external.enabled(), x, y, w, mx, my);
-    if (card.bridgeMod == null) {
-      Fonts.regular().drawString("THIS HUD EXPOSES NO EDITABLE SETTINGS", x + 2, y + 4, MUTED);
-      return y + 18;
-    }
-    return drawBridgeSettings(card.bridgeMod, mx, my, y);
-  }
-
   private static final int ROW_LIMIT = 7;
 
   private static boolean changed(Setting<?> setting) {
@@ -756,7 +832,7 @@ public class ModuleMenu extends GuiScreen {
             && ((Number) now).doubleValue() == ((Number) row.defaultValue).doubleValue());
   }
 
-  /** Rows that work in this menu (not hidden, not OneConfig-only), without the part folded behind "show more". */
+  /** Rows that work in this menu (not hidden, not unsupported), without the part folded behind "show more". */
   private List<ConfigSnapshot.Row> rowsOf(ConfigSnapshot.Section section) {
     List<ConfigSnapshot.Row> all = supportedRows(section);
     if (all.size() <= ROW_LIMIT + 1 || openSections.contains(section.name + "#more")) return all;
@@ -772,14 +848,6 @@ public class ModuleMenu extends GuiScreen {
 
   private int foldedRows(ConfigSnapshot.Section section) {
     return supportedRows(section).size() - rowsOf(section).size();
-  }
-
-  private static List<ConfigSnapshot.Row> oneConfigOnly(ConfigSnapshot.Mod mod) {
-    List<ConfigSnapshot.Row> out = new ArrayList<>();
-    for (ConfigSnapshot.Section section : mod.sections)
-      for (ConfigSnapshot.Row row : section.rows)
-        if (row.display() != ConfigSnapshot.Display.HIDDEN && row.kind == ConfigSnapshot.Kind.UNSUPPORTED) out.add(row);
-    return out;
   }
 
   private float drawBridgeSettings(ConfigSnapshot.Mod mod, int mx, int my, float y) {
@@ -836,9 +904,6 @@ public class ModuleMenu extends GuiScreen {
             y += 18;
             break;
           case UNSUPPORTED:
-            Fonts.regular().drawString(ellipsize(row.label, w - 100), x, y + 4, 0xFF69717F);
-            Fonts.regular().drawString("OPEN IN ONECONFIG", x + w - 96, y + 4, 0xFFA271DA);
-            y += 20;
             break;
         }
         if (row.kind != ConfigSnapshot.Kind.INFO
@@ -854,12 +919,6 @@ public class ModuleMenu extends GuiScreen {
         UiWidgets.cbButton("SHOW LESS", x, y, w, 19, Draw.inside(mx, my, x, y, w, 19), false);
         y += 24;
       }
-    }
-    int onlyOneConfig = oneConfigOnly(mod).size();
-    if (onlyOneConfig > 0) {
-      UiWidgets.cbButton(
-          onlyOneConfig + " MORE IN ONECONFIG", x, y, w, 19, Draw.inside(mx, my, x, y, w, 19), false);
-      y += 24;
     }
     return y;
   }
@@ -916,6 +975,103 @@ public class ModuleMenu extends GuiScreen {
     return y + 23;
   }
 
+  // ---- style presets (top of the STYLE tab) ----
+
+  private static final int PRESET_ROW = 23;
+
+  /** Height of the presets box: heading, one row per preset, the save button, the gap below. */
+  private int presetsHeight() {
+    return GROUP_HEAD + presetNames.size() * PRESET_ROW + 24 + GROUP_GAP;
+  }
+
+  /** The presets box, drawn like a settings group; returns the y below it. */
+  private float drawPresets(int x, float y, int w, int mx, int my) {
+    float inner = presetNames.size() * PRESET_ROW + 22;
+    Draw.rounded(x - 6, y + GROUP_HEAD - 3, x + w + 6, y + GROUP_HEAD + inner + 1, 4, 0xFF130F19);
+    Fonts.bold().drawString("PRESETS", x, y + 3, 0xFFB57BFF);
+    y += GROUP_HEAD;
+    String active = dev.cbui.config.StylePresets.active();
+    for (int i = 0; i < presetNames.size(); i++) {
+      String name = presetNames.get(i);
+      boolean on = name.equals(active), hover = Draw.inside(mx, my, x - 2, y, w + 4, 20);
+      Draw.rounded(x - 2, y, x + w + 2, y + 20, 2, on ? 0xFF49286E : hover ? 0xFF221D28 : 0xCC1A151F);
+      Fonts.regular().drawString(ellipsize(name, w - 130), x + 4, y + 6, 0xFFFFFFFF);
+      if (on) Fonts.bold().drawString("ACTIVE", x + w - 106, y + 6, 0xFFD9C2FF);
+      Fonts.regular().drawString("RENAME", x + w - 56, y + 6, Draw.inside(mx, my, x + w - 60, y, 40, 20) ? 0xFFFFFFFF : MUTED);
+      Fonts.bold().drawString("X", x + w - 10, y + 6, Draw.inside(mx, my, x + w - 16, y, 18, 20) ? 0xFFFF6F8A : 0xFFA271DA);
+      hint("Use this look on every HUD module", mx, my, x, y, w - 64, 20);
+      y += PRESET_ROW;
+    }
+    hint("Save the style below as a new preset", mx, my, x, y, w, 19);
+    UiWidgets.cbButton("SAVE CURRENT LOOK AS PRESET", x, y, w, 19, Draw.inside(mx, my, x, y, w, 19), false);
+    return y + 24 + GROUP_GAP;
+  }
+
+  /** A click in the presets box; true when it was used. Same layout as {@link #drawPresets}. */
+  private boolean presetsClick(int mx, int my, int x, float y, int w) {
+    y += GROUP_HEAD;
+    for (int i = 0; i < presetNames.size(); i++) {
+      String name = presetNames.get(i);
+      if (Draw.inside(mx, my, x + w - 16, y, 18, 20)) {
+        deletePreset(name);
+        return true;
+      }
+      if (Draw.inside(mx, my, x + w - 60, y, 40, 20)) {
+        beginPresetEdit(name, true);
+        return true;
+      }
+      if (Draw.inside(mx, my, x - 2, y, w + 4, 20)) {
+        applyPreset(name);
+        return true;
+      }
+      y += PRESET_ROW;
+    }
+    if (Draw.inside(mx, my, x, y, w, 19)) {
+      beginPresetEdit(null, false);
+      return true;
+    }
+    return false;
+  }
+
+  private void beginPresetEdit(String name, boolean rename) {
+    beginProfileEdit(name, rename);
+    presetModal = true;
+  }
+
+  private void commitPresetEdit() {
+    String name = profileField.getText().trim();
+    try {
+      ProfileFiles.ensureName(name, "Preset");
+      if (renameProfile) dev.cbui.config.StylePresets.rename((String) editing, name);
+      else dev.cbui.config.StylePresets.create(name, Cbui.hud().modules());
+      profileField = null;
+      presetModal = false;
+      editing = null;
+      globalSettings = buildGlobalSettings();
+    } catch (Exception error) {
+      profileError = error.getMessage() == null ? "Could not save preset" : error.getMessage();
+    }
+  }
+
+  private void applyPreset(String name) {
+    try {
+      dev.cbui.config.StylePresets.apply(name, Cbui.hud().modules());
+      saveCurrent();
+    } catch (Exception error) {
+      Cbui.reportOnce("style preset apply", error);
+    }
+    globalSettings = buildGlobalSettings();
+  }
+
+  private void deletePreset(String name) {
+    try {
+      dev.cbui.config.StylePresets.delete(name);
+    } catch (Exception error) {
+      Cbui.reportOnce("style preset delete", error);
+    }
+    globalSettings = buildGlobalSettings();
+  }
+
   private void drawProfiles(int mx, int my) {
     Fonts.bold().drawString("LOCAL PROFILES", layout.panelX + 10, layout.panelY + 11, 0xFFFFFFFF);
     UiWidgets.cbButton(
@@ -934,10 +1090,28 @@ public class ModuleMenu extends GuiScreen {
       y += 25;
       if (y > layout.panelY + layout.panelHeight - 24) break;
     }
-    if (profileNames.isEmpty())
+    if (profileNames.isEmpty() && lunarProfiles.isEmpty())
       Fonts.regular()
           .drawCentered(
               "CREATE A LOCAL PROFILE TO SAVE THIS LAYOUT", width / 2f, layout.panelY + 68, MUTED);
+    // Lunar Client profiles on this PC: a click copies one into a new local profile
+    int bottom = layout.panelY + layout.panelHeight - 24;
+    if (!lunarProfiles.isEmpty() && y + 14 <= bottom) {
+      y += 4;
+      Fonts.bold().drawString("COPY FROM LUNAR CLIENT", layout.panelX + 10, y, MUTED);
+      y += 13;
+      for (String[] lunar : lunarProfiles) {
+        if (y > bottom) break;
+        boolean hover = Draw.inside(mx, my, layout.panelX + 6, y, layout.panelWidth - 12, 21);
+        Draw.rounded(layout.panelX + 6, y, layout.panelX + layout.panelWidth - 6, y + 21, 2, hover ? 0xFF221D28 : 0xCC1A151F);
+        Fonts.regular().drawString(ellipsize(lunar[1], layout.panelWidth - 100), layout.panelX + 13, y + 7, 0xFFFFFFFF);
+        Fonts.bold().drawString("COPY", layout.panelX + layout.panelWidth - 40, y + 7, hover ? RED : MUTED);
+        y += 25;
+      }
+    }
+    if (!lunarStatus.isEmpty())
+      Fonts.regular().drawString(ellipsize(lunarStatus, layout.panelWidth - 20), layout.panelX + 10,
+          layout.panelY + layout.panelHeight - 14, 0xFFD9C2FF);
   }
 
   private void drawProfileRow(String name, int y, int mx, int my, boolean editable) {
@@ -966,17 +1140,15 @@ public class ModuleMenu extends GuiScreen {
     int x = width / 2 - 78, y = height / 2 - 24;
     Draw.rounded(x, y, x + 156, y + 55, 4, 0xFF201B27);
     Fonts.bold()
-        .drawString(renameProfile ? "RENAME PROFILE" : "CREATE PROFILE", x + 8, y + 8, 0xFFFFFFFF);
+        .drawString(presetModal ? (renameProfile ? "RENAME PRESET" : "SAVE STYLE PRESET") : renameProfile ? "RENAME PROFILE" : "CREATE PROFILE", x + 8, y + 8, 0xFFFFFFFF);
     profileField.drawTextBox();
     if (!profileError.isEmpty())
       Fonts.regular().drawString(ellipsize(profileError, 145), x + 7, y + 42, 0xFFAB71EE);
   }
 
   /**
-   * The HUD layout editor. It edits every HUD box in one place: CBUI modules (placed by
-   * OneConfig's HUD system when available, otherwise natively) and every other mod's OneConfig HUD.
-   * Other mods' HUDs are drawn live by OneConfig underneath this screen; CBUI's own boxes are drawn
-   * here with their sample content. Drag to move, scroll to scale, right click to switch on/off.
+   * The HUD layout editor. It edits every HUD box in one place; each box is drawn here with its
+   * sample content. Drag to move, scroll to scale, right click to switch on/off.
    */
   private void drawHudEditor(int mx, int my, float partial) {
     boolean peek = Mouse.isButtonDown(1); // hold right click to see the real HUD without guides or buttons
@@ -1004,8 +1176,7 @@ public class ModuleMenu extends GuiScreen {
       AbstractHudModule m = e.module();
       if (m == null || e.width() <= 0) continue;
       try {
-        if (e.oneConfig()) m.renderAt(e.x(), e.y(), e.drawScale(), partial, true);
-        else m.render(resolution, partial, true);
+        m.render(resolution, partial, true);
       } catch (Throwable error) {
         Cbui.reportOnce("HUD editor preview: " + m.name(), error);
       }
@@ -1362,7 +1533,7 @@ public class ModuleMenu extends GuiScreen {
     boolean inSearchBox = Draw.inside(mx, my, layout.panelX + 6, layout.panelY + 5, layout.panelWidth - 12, 18);
     search.mouseClicked(mx, inSearchBox ? layout.panelY + 12 : my, 0);
     int x = layout.panelX + 7, y = layout.panelY + 28;
-    for (String item : categories) {
+    for (String item : layout.compact ? java.util.Collections.<String>emptyList() : categories) {
       int w = Math.max(37, Fonts.regular().getStringWidth(item) + 10);
       if (x + w > layout.panelX + layout.panelWidth - 5) break;
       if (Draw.inside(mx, my, x, y, w, 15)) {
@@ -1373,14 +1544,29 @@ public class ModuleMenu extends GuiScreen {
       x += w + 3;
     }
     // the search bar and category chips sit over the top of the scrolled grid: a click there must not reach a card behind them
-    if (my < layout.panelY + 49 || my > layout.panelY + layout.panelHeight) return;
+    if (my < layout.panelY + layout.strip || my > layout.panelY + layout.panelHeight) return;
     for (int i = 0; i < visibleCards.size(); i++) {
       Card card = visibleCards.get(i);
       int cx = layout.cardX(i),
-          cy = layout.panelY + 53 + (i / layout.columns) * layout.cardPitchY - (int) scroll;
+          cy = layout.panelY + layout.strip + 4 + (i / layout.columns) * layout.cardPitchY - (int) scroll;
       if (!Draw.inside(mx, my, cx, cy, layout.cardWidth, layout.cardHeight)) continue;
-      if (card.toggleable()
-          && Draw.inside(mx, my, cx + 4, cy + layout.cardHeight - 38, layout.cardWidth - 8, 14)) {
+      int row = cy + layout.cardHeight - 38, w = layout.cardWidth;
+      if (hudCard(card)) {
+        int half = (w - 8 - 3) / 2;
+        if (Draw.inside(mx, my, cx + 4, row, half, 14)) {
+          // ADD TO HUD: switch it on if needed and open the HUD editor to place it
+          if (!card.enabled()) card.toggle();
+          saveCurrent();
+          view = View.HUD;
+          Cbui.hud().editorOpen(true);
+          return;
+        }
+        if (Draw.inside(mx, my, cx + 4 + half + 3, row, w - 8 - half - 3, 14)) {
+          card.toggle();
+          saveCurrent();
+          return;
+        }
+      } else if (card.toggleable() && Draw.inside(mx, my, cx + 4, row, w - 8, 14)) {
         card.toggle();
         saveCurrent();
         return;
@@ -1418,8 +1604,14 @@ public class ModuleMenu extends GuiScreen {
         mc.displayGuiScreen(new CosmeticsScreen(this));
         return;
       }
-      if (globalSettings != null && settingsTab != 4 && my >= layout.panelY + ROWS_Y - 2 && my < layout.panelY + layout.panelHeight - 2)
-        nativeRowsClick(globalSettings, mx, my, layout.panelX + 12, layout.panelY + ROWS_Y - settingsScroll, layout.panelWidth - 24);
+      if (globalSettings != null && settingsTab != 4 && my >= layout.panelY + ROWS_Y - 2 && my < layout.panelY + layout.panelHeight - 2) {
+        float top = layout.panelY + ROWS_Y - settingsScroll;
+        if (settingsTab == 0) {
+          if (presetsClick(mx, my, layout.panelX + 12, top, layout.panelWidth - 24)) return;
+          top += presetsHeight();
+        }
+        nativeRowsClick(globalSettings, mx, my, layout.panelX + 12, top, layout.panelWidth - 24);
+      }
       return;
     }
     if (Draw.inside(mx, my, layout.panelX + 3, layout.panelY + 4, 27, 27)) {
@@ -1434,13 +1626,7 @@ public class ModuleMenu extends GuiScreen {
     float y = layout.panelY + 27 - settingsScroll;
     int x = layout.panelX + 42, w = layout.panelWidth - 54;
     if (selected.nativeModule != null) nativeSettingsClick(selected.nativeModule, mx, my, x, y, w);
-    else if (selected.external != null) {
-      if (hit(mx, my, x, y, w, 21)) {
-        selected.toggle();
-        return;
-      }
-      if (selected.bridgeMod != null) bridgeSettingsClick(selected.bridgeMod, mx, my, x, y + 23, w);
-    } else bridgeSettingsClick(selected.bridgeMod, mx, my, x, y, w);
+    else bridgeSettingsClick(selected.bridgeMod, mx, my, x, y, w);
   }
 
   private void nativeSettingsClick(
@@ -1489,6 +1675,12 @@ public class ModuleMenu extends GuiScreen {
 
   /** A change on the global style page is written to every module. */
   private void afterChange(Setting<?> setting) {
+    AbstractHudModule switched = homeSwitches.get(setting);
+    if (switched != null) {
+      switched.enabled(((Setting.Toggle) setting).get());
+      return;
+    }
+    if (homeRows.contains(setting)) return; // a module's own option: the module reads it itself
     if ((settingsTab == 1 || settingsTab == 2) && globalSettings != null && globalSettings.contains(setting)) {
       dev.cbui.config.PerfOptions.apply(setting);
       return;
@@ -1503,11 +1695,7 @@ public class ModuleMenu extends GuiScreen {
       return;
     }
     if (setting == textShadowToggle) {
-      boolean on = textShadowToggle.get();
-      dev.cbui.config.GlobalOptions.textShadow = on;
-      for (AbstractHudModule m : Cbui.hud().modules())
-        for (Setting<?> s : m.settings())
-          if (s instanceof Setting.Toggle && s.name().equals("Text shadow")) ((Setting.Toggle) s).set(on);
+      dev.cbui.config.StylePresets.textShadow(textShadowToggle.get(), Cbui.hud().modules());
       return;
     }
     if (globalSettings != null && globalSettings.contains(setting))
@@ -1755,8 +1943,6 @@ public class ModuleMenu extends GuiScreen {
         y += 24;
       }
     }
-    List<ConfigSnapshot.Row> only = oneConfigOnly(mod);
-    if (!only.isEmpty() && hit(mx, my, x, y, w, 21)) only.get(0).openFallback();
   }
 
   private void profilesClick(int mx, int my) {
@@ -1784,6 +1970,20 @@ public class ModuleMenu extends GuiScreen {
         return;
       }
       y += 25;
+      if (y > layout.panelY + layout.panelHeight - 24) break; // same cut-off as drawProfiles
+    }
+    // the Lunar rows, laid out exactly as drawProfiles draws them
+    int bottom = layout.panelY + layout.panelHeight - 24;
+    if (!lunarProfiles.isEmpty() && y + 14 <= bottom) {
+      y += 17;
+      for (String[] lunar : lunarProfiles) {
+        if (y > bottom) break;
+        if (Draw.inside(mx, my, layout.panelX + 6, y, layout.panelWidth - 12, 21)) {
+          importLunar(lunar);
+          return;
+        }
+        y += 25;
+      }
     }
   }
 
@@ -1867,8 +2067,7 @@ public class ModuleMenu extends GuiScreen {
       AbstractHudModule m = e.module();
       if (m == null || e.width() <= 0) continue;
       try {
-        if (e.oneConfig()) m.renderAt(e.x(), e.y(), e.drawScale(), partial, true);
-        else m.render(resolution, partial, true);
+        m.render(resolution, partial, true);
       } catch (Throwable error) {
         Cbui.reportOnce("HUD preview: " + m.name(), error);
       }
@@ -2088,6 +2287,7 @@ public class ModuleMenu extends GuiScreen {
   }
 
   private void beginProfileEdit(String name, boolean rename) {
+    presetModal = false;
     renameProfile = rename;
     editing = name;
     profileError = "";
@@ -2097,6 +2297,10 @@ public class ModuleMenu extends GuiScreen {
   }
 
   private void commitProfileEdit() {
+    if (presetModal) {
+      commitPresetEdit();
+      return;
+    }
     String name = profileField.getText().trim();
     try {
       ProfileFiles.ensureName(name);
@@ -2143,6 +2347,35 @@ public class ModuleMenu extends GuiScreen {
 
   private void refreshProfiles() {
     profileNames = profiles == null ? Collections.<String>emptyList() : profiles.list();
+    try {
+      lunarProfiles = dev.cbui.config.LunarImport.profiles();
+    } catch (Throwable error) {
+      lunarProfiles = Collections.emptyList();
+    }
+  }
+
+  /** Copies a Lunar profile into a new local profile and switches to it; the layout that was active stays as it was. */
+  private void importLunar(String[] lunar) {
+    String name = lunarProfileName(lunar[1]);
+    try {
+      saveCurrent();
+      int changed = dev.cbui.config.LunarImport.apply(lunar[0], Cbui.hud());
+      profiles.save(name, Cbui.config().snapshot(Cbui.hud()));
+      activeProfile = activeProfileName = name;
+      refreshProfiles();
+      lunarStatus = "COPIED " + changed + " MODULES FROM LUNAR INTO \"" + name.toUpperCase(java.util.Locale.ROOT) + "\"";
+    } catch (Exception error) {
+      lunarStatus = "COULD NOT READ THAT LUNAR PROFILE";
+      Cbui.reportOnce("lunar import", error);
+    }
+  }
+
+  private String lunarProfileName(String display) {
+    String clean = ("Lunar " + display).replaceAll("[^a-zA-Z0-9 _\\-\\[\\]]", "").trim();
+    if (clean.length() > 34) clean = clean.substring(0, 34).trim();
+    String name = clean;
+    for (int n = 2; profileNames.contains(name); n++) name = clean + " " + n;
+    return name;
   }
 
   private void saveCurrent() {
@@ -2253,7 +2486,6 @@ public class ModuleMenu extends GuiScreen {
       return 100 - (m.hasHud() ? 0 : 46) + (int) (rowsHeight(m.basicSettings()) + (adv ? rowsHeight(m.advancedSettings()) + 23 : 0)) + 23;
     }
     int h = 30;
-    if (selected.external != null) h += 23;
     if (selected.bridgeMod == null) return h + 18;
     for (ConfigSnapshot.Section s : selected.bridgeMod.sections) {
       h += 16;
@@ -2261,7 +2493,6 @@ public class ModuleMenu extends GuiScreen {
       h += rowsOf(s).size() * 23;
       if (supportedRows(s).size() > ROW_LIMIT + 1) h += 24;
     }
-    if (!oneConfigOnly(selected.bridgeMod).isEmpty()) h += 24;
     return h;
   }
 
@@ -2396,13 +2627,10 @@ public class ModuleMenu extends GuiScreen {
     final String name, category, search, initials;
     final AbstractHudModule nativeModule;
     final ConfigSnapshot.Mod bridgeMod;
-    /** Another mod's OneConfig HUD (category HUD); its settings, if any, are in {@link #bridgeMod}. */
-    final HudElement external;
 
     Card(AbstractHudModule module, String category) {
       nativeModule = module;
       bridgeMod = null;
-      external = null;
       name = module.name();
       this.category = category;
       StringBuilder s = new StringBuilder(name);
@@ -2412,23 +2640,8 @@ public class ModuleMenu extends GuiScreen {
       initials = initials(name);
     }
 
-    Card(HudElement hud, ConfigSnapshot.Mod options) {
-      nativeModule = null;
-      bridgeMod = options;
-      external = hud;
-      name = hud.name();
-      category = "HUD";
-      StringBuilder s = new StringBuilder(name).append(" hud oneconfig");
-      if (options != null)
-        for (ConfigSnapshot.Section section : options.sections)
-          for (ConfigSnapshot.Row row : section.rows) s.append(' ').append(row.label);
-      search = s.toString();
-      initials = initials(name);
-    }
-
     Card(ConfigSnapshot.Mod mod) {
       nativeModule = null;
-      external = null;
       bridgeMod = mod;
       name = mod.name;
       category = "MODS";
@@ -2455,13 +2668,12 @@ public class ModuleMenu extends GuiScreen {
     }
 
     boolean toggleable() {
-      return nativeModule != null || external != null;
+      return nativeModule != null;
     }
 
     void toggle() {
       try {
         if (nativeModule != null) nativeModule.enabled(!nativeModule.userEnabled());
-        else if (external != null) external.enabled(!external.enabled());
       } catch (Throwable error) {
         Cbui.reportOnce("HUD toggle: " + name, error);
       }
@@ -2474,12 +2686,6 @@ public class ModuleMenu extends GuiScreen {
 
     boolean enabled() {
       if (nativeModule != null) return nativeModule.userEnabled();
-      if (external != null)
-        try {
-          return external.enabled();
-        } catch (Throwable error) {
-          return false;
-        }
       for (ConfigSnapshot.Section s : bridgeMod.sections)
         for (ConfigSnapshot.Row r : s.rows)
           if (r.kind == ConfigSnapshot.Kind.TOGGLE

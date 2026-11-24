@@ -1,6 +1,6 @@
 package dev.cbui.mixin;
 
-import dev.cbui.oneconfig.KeyText;
+import dev.cbui.gui.KeyText;
 import net.minecraft.client.resources.I18n;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;

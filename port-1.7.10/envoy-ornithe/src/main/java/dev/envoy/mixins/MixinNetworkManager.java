@@ -5,9 +5,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import dev.envoy.module.chat.EnvoyChat;
 import dev.envoy.Envoy;
-import dev.envoy.module.lightning.EnvoyLightning;
 import dev.envoy.net.ApolloNetwork;
 import dev.envoy.net.ApolloProtocol;
 import io.netty.channel.ChannelHandlerContext;
@@ -63,7 +61,7 @@ public class MixinNetworkManager {
         if (!(packet instanceof C01PacketChatMessage)) return false;
         String message = ((C01PacketChatMessage) packet).getMessage().trim();
         if (!message.equalsIgnoreCase("/envoy") && !message.toLowerCase().startsWith("/envoy ")) return false;
-        String arguments = message.length() == 8 ? "" : message.substring(9).trim();
+        String arguments = message.length() <= "/envoy".length() ? "" : message.substring("/envoy".length()).trim();
         EnvoyCommand.execute(arguments.isEmpty() ? new String[0] : arguments.split("\\s+"));
         return true;
     }
@@ -100,8 +98,6 @@ public class MixinNetworkManager {
         if (ApolloProtocol.CHANNEL.equals(channel)) return PayloadKind.APOLLO;
         if (channel.equalsIgnoreCase("badlion:mods") || channel.equalsIgnoreCase("badlion:modapi")) return PayloadKind.BADLION;
         if (channel.equalsIgnoreCase("apollo:json")) return PayloadKind.APOLLO_JSON;
-        if (EnvoySettings.chat && EnvoyChat.CHANNEL.equals(channel)) return PayloadKind.CHAT;
-        if (EnvoySettings.lightning && EnvoyLightning.CHANNEL.equals(channel)) return PayloadKind.LIGHTNING;
         return PayloadKind.OTHER;
     }
 
@@ -117,12 +113,6 @@ public class MixinNetworkManager {
                 return false;
             case APOLLO:
                 return ApolloNetwork.getInstance().handleIncomingIfOwned(bytes);
-            case CHAT:
-                EnvoyChat.handleIncoming(bytes);
-                return true;
-            case LIGHTNING:
-                EnvoyLightning.handleIncoming(bytes);
-                return true;
             default:
                 return false;
         }
@@ -156,6 +146,6 @@ public class MixinNetworkManager {
     }
 
     private enum PayloadKind {
-        APOLLO, BADLION, APOLLO_JSON, CHAT, LIGHTNING, OTHER
+        APOLLO, BADLION, APOLLO_JSON, OTHER
     }
 }

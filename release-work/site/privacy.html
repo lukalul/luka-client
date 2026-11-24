@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>luka | What luka connects to</title>
+  <meta name="description" content="What the luka client connects to, and what Luka Online sends.">
+  <meta name="theme-color" content="#0c0910">
+  <link rel="icon" type="image/png" href="/logo.png">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="nav wrap">
+    <a class="brand" href="/"><img src="/logo.png" alt="" width="32" height="32"><span>luka</span></a>
+    <nav>
+      <a href="/#features">Features</a>
+      <a href="/#performance">Performance</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="wrap">
+      <h2>What luka connects to</h2>
+      <p class="section-lead">luka has no analytics or tracking. It connects to these places, and only for these reasons:</p>
+      <div class="table">
+        <table>
+          <thead><tr><th>Where</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td>client.luka.wtf</td><td>The signed list of what to install, luka's own mods and the Vulkan renderer</td></tr>
+            <tr><td>api.luka.wtf</td><td>Luka Online: friends and the luka icon over other luka players (see below, and you can switch it off). Also, with no switch: a crash report when luka fails (see below)</td></tr>
+            <tr><td>Mojang (minecraft.net, mojang.com)</td><td>Minecraft itself, its assets, and joining online-mode servers</td></tr>
+            <tr><td>Microsoft (microsoft.com, xboxlive.com)</td><td>Signing in, only if you choose a Microsoft account</td></tr>
+            <tr><td>Modrinth</td><td>Mods by other authors, and Argentum</td></tr>
+            <tr><td>Adoptium (its downloads are hosted on GitHub), or Amazon Corretto as a backup</td><td>Java</td></tr>
+            <tr><td>Minecraft servers</td><td>The ones you join, and the ones listed on the launcher's Servers page, which it pings to show player counts</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Apart from Luka Online and the crash reports described below, these are the downloads and connections luka needs to work, so there is no switch to turn them off. Your Microsoft sign-in stays on your PC and is sent only to Microsoft and Mojang.</p>
+      <p>luka is open source: its code is at <a href="https://github.com/lukalul/luka-client">github.com/lukalul/luka-client</a> (GNU GPL v3), and the Vulkan renderer's at <a href="https://github.com/lukalul/luka-vulkan">github.com/lukalul/luka-vulkan</a> (GNU AGPL v3), so anyone can check what this page says.</p>
+      <p>luka checks client.luka.wtf for updates every time you press Play. Without an internet connection it still starts for up to a day, with the list from its last check.</p>
+    </section>
+
+    <section class="wrap">
+      <h3>Nvidia graphics cards</h3>
+      <p>On an Nvidia card, the launcher sets Nvidia's "Vulkan/OpenGL present method" to Prefer native in a driver profile named <code>luka</code>, for luka's own copy of Java only. No other program is affected. To undo it, untick <b>Optimize Nvidia settings</b> on the launcher's Settings page and press Play once, which deletes that profile.</p>
+    </section>
+
+    <section class="wrap" id="luka-online">
+      <h3>Luka Online (api.luka.wtf)</h3>
+      <p>Luka Online gives you a friends list and puts the purple luka icon beside the nametag of other players who use luka. It runs on luka's own service at api.luka.wtf, and it is on by default.</p>
+      <p><b>What it sends, while you play with it on:</b></p>
+      <ul>
+        <li>Your Minecraft name and UUID, when you start the game.</li>
+        <li>That you are online, about once a minute.</li>
+        <li>The address of the multiplayer server you are on, so your friends can see it and join you. Untick <b>Show friends my server</b> (or turn on <b>Streamer mode</b>) and it is not sent.</li>
+        <li>The UUIDs of the players around you, to find out which of them use luka. The service only answers which of them are luka players.</li>
+        <li>Your friend requests and your friends list.</li>
+      </ul>
+      <p><b>How sign-in works:</b> your game asks Mojang for two things: its player certificate (the key Mojang gives every account for signed chat in newer Minecraft versions) and its own profile, which Mojang signs and which holds your name. It signs a one-time code from luka with that certificate and sends luka the certificate, the signature and the signed profile. luka checks Mojang's signatures with Mojang's published keys. Your Microsoft or Minecraft access token goes to Mojang only, never to luka, and the certificate's private key never leaves your PC.</p>
+      <p><b>Who sees what:</b> other players can see that you use luka (the icon) while you are online. Only your friends see that you are online and, if you allow it, which server you are on. luka's team can see who has signed in, who is online and the server they share with friends, to run the service.</p>
+      <p><b>What it does not do:</b> no chat logs, no recordings, no ads, and nothing is sold to anyone.</p>
+      <p><b>Turning it off:</b> open the luka menu and switch off the <b>Luka Online</b> card. The client then stops sending friends and presence data to api.luka.wtf (it still sends the crash reports described below, which are not part of Luka Online). To have your account removed from the service, ask in the luka Discord.</p>
+    </section>
+
+    <section class="wrap">
+      <h3>Crash reports (api.luka.wtf)</h3>
+      <p>The launcher generates a random id once, when you first install luka, and keeps it in your install - it does not identify you and is not your Minecraft account. There is no switch for this; it is about luka's own stability, not about you.</p>
+      <p><b>What it sends:</b></p>
+      <ul>
+        <li>That random install id.</li>
+        <li>When luka fails internally or the game crashes: which part failed, the error message, and the stack trace - never anything you typed or any personal data.</li>
+      </ul>
+      <p><b>What it does not do:</b> known, harmless noise (a flaky network connection, an optional feature that is not installed) is filtered out before anything is sent.</p>
+    </section>
+
+    <section class="wrap">
+      <h3>Copying a Lunar Client profile</h3>
+      <p>Only when you click Copy in the luka menu's Profiles view, luka reads Lunar Client's settings files on your PC (the profile list and that profile's mod settings) and copies mod switches and HUD positions into a new luka profile. Nothing is sent anywhere, and Lunar Client's files are never changed.</p>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    <span>&copy; 2026 the luka contributors. Free software under the GNU GPL v3.</span>
+    <span>Not affiliated with Mojang or Microsoft.</span>
+  </footer>
+</body>
+</html>

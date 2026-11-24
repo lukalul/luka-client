@@ -14,7 +14,8 @@
     ]
   },
   "mixins": [
-    "cbui.mixins.json"
+    "cbui.mixins.json",
+    "cbui-skins.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=0.20.1",

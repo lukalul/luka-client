@@ -78,3 +78,4 @@ tasks.named('test') {
     failOnNoDiscoveredTests = false
 }
 check.dependsOn combatProtocolCheck, serverRulesCheck
+

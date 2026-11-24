@@ -5,34 +5,26 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import dev.envoy.module.chat.HexTextRenderer;
-import dev.envoy.EnvoySettings;
-import dev.envoy.module.chat.LunarFontBridge;
 import dev.envoy.module.icon.IconTextRenderer;
+import dev.envoy.module.icon.LunarFontBridge;
 import net.minecraft.client.gui.FontRenderer;
 
+/** Draws and measures server icons (":name:") inside text. */
 @Mixin(FontRenderer.class)
 public class MixinFontRenderer {
-
-    private static final char SECTION = '§';
 
     @Inject(
         method = "renderString(Ljava/lang/String;IIIZ)I",
         at = @At("HEAD"), cancellable = true, require = 0)
-    private void envoy$renderExtendedFormatting(String text, int x, int y, int color, boolean shadowPass,
+    private void envoy$renderIconText(String text, int x, int y, int color, boolean shadowPass,
             CallbackInfoReturnable<Integer> result) {
-        if (!EnvoySettings.chat || text == null) return;
+        if (text == null || !IconTextRenderer.contains(text)) return;
         FontRenderer self = (FontRenderer) (Object) this;
-        boolean hasIcon = IconTextRenderer.contains(text);
-        if (!hasIcon && !hasRgbSequence(text)) return;
         Object lunarContext = LunarFontBridge.current(self);
         int adjustedColor = adjustedColor(self, lunarContext, x, y, color);
         if (adjustedColor == Integer.MIN_VALUE) return;
         try {
-            int rightEdge = hasIcon
-                ? IconTextRenderer.draw(self, text, x, y, adjustedColor, false, shadowPass)
-                : HexTextRenderer.draw(self, text, x, y, adjustedColor, false, shadowPass);
-            result.setReturnValue(rightEdge);
+            result.setReturnValue(IconTextRenderer.draw(self, text, x, y, adjustedColor, false, shadowPass));
         } finally {
             LunarFontBridge.restore(self, lunarContext);
         }
@@ -48,22 +40,8 @@ public class MixinFontRenderer {
 
     @Inject(method = "getStringWidth", at = @At("HEAD"), cancellable = true, require = 0)
     private void envoy$measureIconText(String text, CallbackInfoReturnable<Integer> result) {
-        if (!EnvoySettings.chat || text == null || !IconTextRenderer.contains(text)) return;
+        if (text == null || !IconTextRenderer.contains(text)) return;
         FontRenderer renderer = (FontRenderer) (Object) this;
         result.setReturnValue(IconTextRenderer.width(renderer, text));
-    }
-
-    private static boolean hasRgbSequence(String text) {
-        for (int marker = text.indexOf(SECTION); marker >= 0 && marker + 1 < text.length();
-             marker = text.indexOf(SECTION, marker + 1)) {
-            if (Character.toLowerCase(text.charAt(marker + 1)) == 'x') return true;
-        }
-        return false;
-    }
-
-    @Inject(method = "getFormatFromString", at = @At("HEAD"), cancellable = true, require = 0)
-    private static void envoy$preserveRgbFormat(String text, CallbackInfoReturnable<String> result) {
-        if (!EnvoySettings.chat || text == null || text.indexOf(SECTION + "x") < 0) return;
-        result.setReturnValue(HexTextRenderer.activeFormat(text));
     }
 }

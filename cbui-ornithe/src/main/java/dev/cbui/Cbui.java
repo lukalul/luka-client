@@ -33,7 +33,6 @@ public final class Cbui implements ClientModInitializer {
             hud = new HudManager();
             config = new ConfigStore(new java.io.File(Minecraft.getMinecraft().mcDataDir,"config/cbui.json"));
             config.load(hud);
-            hud.attachOneConfig();
         }
         catch (Throwable error) { reportOnce("HUD initialization", error); }
     }
@@ -117,6 +116,7 @@ public final class Cbui implements ClientModInitializer {
         if (!REPORTED.add(area)) return;
         System.err.println("[CBUI] Disabled failing " + area + "; vanilla behavior remains available.");
         error.printStackTrace();
+        dev.cbui.report.CrashReporter.report(area, error);
     }
 
     public Cbui() { }

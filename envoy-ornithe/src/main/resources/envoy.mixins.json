@@ -1,6 +1,7 @@
 {
   "required": true,
   "package": "dev.envoy.mixins",
+  "plugin": "dev.envoy.MixinAudit",
   "compatibilityLevel": "JAVA_8",
   "minVersion": "0.7.11",
   "client": [
@@ -10,16 +11,14 @@
     "MixinGuiIngame",
     "MixinNetHandlerLoginClient",
     "MixinNetworkManager",
-    "MixinRenderGlobal",
     "MixinRendererLivingEntity",
     "MixinRenderItem",
     "MixinRenderFire",
-    "MixinModelPlayer",
-    "MixinLayerArmor",
+    "MixinFireOverlay",
     "MixinGuiContainer",
     "MixinGuiScreen",
     "MixinFontRenderer",
+    "MixinGuiNewChat",
     "MixinS3EPacketTeams"
-  ],
-  "mixins": ["MixinEntity"]
+  ]
 }

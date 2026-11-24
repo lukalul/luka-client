@@ -1,6 +1,45 @@
-Custom Colors for Minecraft 1.8.9 is free software, licensed under the GNU Lesser
-General Public License version 3 (see COPYING.LESSER and COPYING).
+luka
+Copyright (C) 2026 the luka contributors
 
-It is adapted from the com.prupe.mcpatcher.cc code in Angelica
-(https://github.com/GTNewHorizons/Angelica, primarily LGPL-3.0), which ports
-MCPatcher by prupe and MCPatcher: Forge by mist475.
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General
+Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
+option) any later version. The full text is in the LICENSE file.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+for more details.
+
+Additional terms under section 7 of the GNU General Public License version 3:
+
+1. Separately distributed game and mods. You may convey this program together with, or have it load or link
+   against, Minecraft, its mod loaders, and mods that are distributed separately under their own licences
+   (including Argentum, Argentum Extras and Cera), without those separate works having to be licensed under
+   this License. The source code of this program must still be made available as this License requires.
+
+2. Names and logos (section 7(e)). This License grants no right to use the name "luka", the luka logo, or the
+   luka.wtf domain, except to describe truthfully where a work came from.
+
+3. Modified versions (section 7(c)). A modified version that you make available to others must use a different
+   name and logo, and must state that it is a modified version and is not the official luka.
+
+luka is an independent project. It is not affiliated with, endorsed by, or sponsored by Mojang Studios,
+Microsoft, Lunar Client, or any Minecraft server network. "Minecraft" is a trademark of Mojang AB.
+
+Third-party parts and credits
+
+- Envoy (luka's Apollo/Lunar protocol mod) is based on Artemis by Natsu91 / CrystallicDev, which allows modified
+  versions that stay fully free and keep a link to the original: https://github.com/CrystallicDev/Artemis
+- Old Animations by awruff (Unlicense, https://modrinth.com/mods/oam): luka's 1.7 animations are based on its code.
+- BetterHurtCam, copyright (c) 2022 uku (MIT, https://modrinth.com/mod/betterhurtcam): luka's hurt camera is based on
+  its code. Its licence is kept in the luka UI mod's jar (META-INF/LICENSE.betterhurtcam).
+- framejob by Z1xus (MIT, https://github.com/Z1xus/framejob): the between-tick smoothing in Motion Blur. Its licence
+  is kept in that mod's jar (META-INF/LICENSE.framejob).
+- FastPacks / McPacks (MIT, https://modrinth.com/mod/fastpacks): the idea for the fast resource-pack browser.
+- Custom sky: blend modes, fade curves and rotation are ported from MCPatcher's Better Skies and legacy-custom-sky
+  (MIT); their licence is kept in that mod's jar (LICENSE-customsky.txt).
+- Roboto Regular and Bold, copyright 2011 Google LLC, under the Apache License 2.0, unchanged. The licence text is in
+  the luka UI mod's jar (META-INF/LICENSE.roboto-apache-2.0).
+- Protocol Buffers for Java (protobuf-java 3.25.5), copyright 2008 Google Inc., under the BSD 3-Clause licence, bundled
+  unchanged in the luka Envoy mod's jar; its licence text is kept there (META-INF/LICENSE.protobuf).
+
+The full list of third-party parts and their licences is in THIRD_PARTY_NOTICES.md in the source repository.

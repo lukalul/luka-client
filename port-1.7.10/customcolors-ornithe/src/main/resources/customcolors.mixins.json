@@ -3,10 +3,32 @@
   "package": "dev.customcolors.mixin",
   "compatibilityLevel": "JAVA_8",
   "client": [
-    "AbstractResourcePackAccessor", "FontRendererSpaceMixin", "RenderMixin", "RenderManagerMixin", "BlockLiquidMixin", "BiomeGenSwampMixin", "BlockLilyPadMixin", "BlockOldLeafMixin", "RenderBlocksRedstoneMixin",
-    "BlockStemMixin", "EntityAuraFXMixin", "EntityDropParticleFXMixin", "EntityRainFXMixin", "EntityRendererMixin",
-    "FontRendererMixin", "ItemMonsterPlacerMixin", "MinecraftMixin", "PotionHelperAccessor", "PotionHelperMixin", "PotionMixin",
-    "RenderXPOrbMixin", "WorldMixin", "WorldProviderMixin"
+    "CcAuraParticleMixin",
+    "CcDripParticleMixin",
+    "CcFluidFogMixin",
+    "CcFontRendererMixin",
+    "CcLightmapMixin",
+    "CcLilyPadMixin",
+    "CcLiquidColorMixin",
+    "CcMinecraftMixin",
+    "CcOldLeafMixin",
+    "CcPackFileAccess",
+    "CcPotionCacheAccess",
+    "CcPotionHelperMixin",
+    "CcPotionMixin",
+    "CcRainParticleMixin",
+    "CcRedstoneRenderMixin",
+    "CcRenderManagerMixin",
+    "CcRenderMixin",
+    "CcSpawnEggMixin",
+    "CcStemMixin",
+    "CcSwampBiomeMixin",
+    "CcTextureManagerMixin",
+    "CcWorldProviderFogMixin",
+    "CcWorldSkyMixin",
+    "CcXpOrbRenderMixin"
   ],
-  "injectors": { "defaultRequire": 1 }
+  "injectors": {
+    "defaultRequire": 1
+  }
 }

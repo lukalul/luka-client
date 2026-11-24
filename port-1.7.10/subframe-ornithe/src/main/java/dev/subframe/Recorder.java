@@ -241,7 +241,7 @@ final class Recorder {
                 try {
                     spool.flushAndWait();
                     assemble(outF, takeF);
-                    chat("Saved " + outF.getName() + ". Leave the world and press F9 to watch it.");
+                    chat("Saved " + outF.getName() + ". Watch it from the Replays button on the main menu (or F8 there).");
                 } catch (Exception e) {
                     SubFrameMod.LOG.error("Could not save the recording", e);
                     chat("Could not save the recording: " + e);

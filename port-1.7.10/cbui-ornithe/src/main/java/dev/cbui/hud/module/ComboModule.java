@@ -9,14 +9,14 @@ import net.minecraft.util.MovingObjectPosition;
  * Display-only combo counter: consecutive swings at the same entity under the crosshair within the timeout. The count resets when you take damage
  * (hurtTime restarts), when the target changes, or when the timeout passes without another hit.
  */
-public final class ComboModule extends LabelModule {
+public final class ComboModule extends ValueModule {
     private final Setting.Slider timeout = grouped("Behaviour", add(new Setting.Slider("Timeout (s)", 2, 0.5f, 5, 0.5f, "The combo resets after this many seconds without landing a hit")));
 
     private boolean wasSwinging;
     private int prevHurt, combo, shown = -1, idle;
     private Entity target;
 
-    public ComboModule() { super("Combo", Anchor.TOP_CENTER, 0, 27, "0 combo"); }
+    public ComboModule() { super("Combo", false, Anchor.TOP_CENTER, 0, 27, "combo", "0", new Range(50, 1, 0, RED, 3, GREEN)); }
 
     @Override public void tick() {
         if (mc.thePlayer == null) return;
@@ -37,7 +37,7 @@ public final class ComboModule extends LabelModule {
         wasSwinging = swinging;
 
         if (combo > 0 && ++idle > timeout.get() * 20) reset();
-        if (combo != shown) { shown = combo; label(combo + " combo"); }
+        if (combo != shown) { shown = combo; value(combo); }
     }
 
     private void reset() { combo = 0; idle = 0; target = null; }

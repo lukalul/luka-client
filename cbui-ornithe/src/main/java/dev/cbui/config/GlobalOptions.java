@@ -40,10 +40,20 @@ public final class GlobalOptions {
   public static volatile boolean highPriority = true;
   /** Cap the frame rate at 30 while the window is not focused. */
   public static volatile boolean unfocusedLimit = true;
+  /** Performance tab: frame rate caps for the main menu, pause menu, containers and HUD editor (0 = off). See FpsContexts. */
+  public static volatile int menuFps, pauseFps, containerFps, hudEditorFps;
   /** Chunk meshing skips tall grass, flowers, ferns, dead bushes, vines and mushrooms. */
   public static volatile boolean hideFoliage;
   /** Performance tab: arrows stuck in players and mobs are not drawn. */
   public static volatile boolean hideStuckArrows;
+  /** Performance tab: arrows lying in blocks are not drawn. */
+  public static volatile boolean hideGroundArrows;
+  /** Performance tab: arrows in the air are not drawn. */
+  public static volatile boolean hideFlyingArrows;
+  /** Performance tab: ambient block effects (drips, flames, void particles) try 100 spots a tick instead of 1,000. */
+  public static volatile boolean fewerAmbientEffects;
+  /** Performance tab: false lets new particles move through blocks without collision checks. */
+  public static volatile boolean particleCollisions = true;
   /** Players and mobs fully behind solid blocks are not drawn; their names still are. */
   public static volatile boolean entityCulling = true;
   /** Borderless fullscreen window. */

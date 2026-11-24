@@ -62,7 +62,9 @@ final class LauncherFrame extends JFrame {
   };
   private static final String[] LAUNCH_OPTIONS = {"keep", "hide", "close"};
   private static final String[] LAUNCH_LABELS = {"KEEP OPEN", "HIDE LAUNCHER", "CLOSE LAUNCHER"};
-  private static final String VERSION = "1.0.0";
+  /** Public source of the Vulkan renderer (AGPL-3.0-only); the About page links to it. */
+  static final String VULKAN_SOURCE_URL = "https://github.com/lukalul/luka-vulkan";
+  static final String VERSION = "1.0.0"; // package-visible: GameRunner reports it with launch telemetry
 
   private final File root;
   private final Settings settings;
@@ -92,6 +94,12 @@ final class LauncherFrame extends JFrame {
   private final JTextArea logArea = new JTextArea();
   private final JScrollPane logScroll;
   private boolean showLog;
+  /** Log lines from other threads (the game prints thousands), added to the log box in batches by {@link #tick}. */
+  private final java.util.concurrent.ConcurrentLinkedQueue<String> pendingLog = new java.util.concurrent.ConcurrentLinkedQueue<>();
+  private static final int MAX_LOG_CHARS = 200_000;
+  private int ticks;
+  /** The fixed part of the window (header picture and gradients), painted once instead of every frame. */
+  private BufferedImage background;
 
   /** True when the game opened this window only to pick or add an account: it closes as soon as that is done. */
   private final boolean accountMode;
@@ -152,8 +160,12 @@ final class LauncherFrame extends JFrame {
     Thread hw = new Thread(LauncherFrame::loadHardware, "hardware-info");
     hw.setDaemon(true);
     hw.start();
-    javax.swing.Timer repaint = new javax.swing.Timer(40, e -> stage.repaint());
+    javax.swing.Timer repaint = new javax.swing.Timer(40, e -> tick());
     repaint.start();
+    addWindowFocusListener(new java.awt.event.WindowFocusListener() {
+      public void windowGainedFocus(java.awt.event.WindowEvent e) { stage.repaint(); }
+      public void windowLostFocus(java.awt.event.WindowEvent e) { stage.repaint(); }
+    });
     startSync(false);
     checkUpdates();
   }
@@ -378,7 +390,9 @@ final class LauncherFrame extends JFrame {
     if (running || value.equals(settings.renderer())) return;
     settings.set("renderer", value);
     settings.save();
-    status = ("vulkan".equals(value) ? "Vulkan" : "Normal") + " selected. Press PLAY to use it.";
+    status = "vulkan".equals(value)
+        ? "Vulkan selected. Press PLAY to use it. Vulkan source code: see About."
+        : "Normal selected. Press PLAY to use it.";
     fraction = 0;
   }
 
@@ -505,7 +519,41 @@ final class LauncherFrame extends JFrame {
   }
 
   private void appendLog(String line) {
-    SwingUtilities.invokeLater(() -> logArea.append(line + "\n"));
+    pendingLog.add(line);
+  }
+
+  /**
+   * Every 40 ms on the Swing thread. Status, progress, pings and friends change on other threads, so the window
+   * redraws on this clock, but only when someone can look at it: never while hidden or minimised, never while the game
+   * runs and another window (the game) has focus, and 4 times a second when unfocused otherwise. Redrawing the whole
+   * window 25 times a second while the game ran cost players hundreds of frames per second.
+   */
+  private void tick() {
+    ticks++;
+    if (!pendingLog.isEmpty() && (showLog || ticks % 25 == 0)) flushLog();
+    if (!isShowing() || (getExtendedState() & JFrame.ICONIFIED) != 0) return;
+    if (!isActive()) {
+      GameRunner game = activeRunner;
+      if (game != null && game.isGameRunning()) return;
+      if (ticks % 6 != 0) return;
+    }
+    stage.repaint();
+  }
+
+  private void flushLog() {
+    StringBuilder text = new StringBuilder();
+    for (String line; (line = pendingLog.poll()) != null; ) text.append(line).append('\n');
+    logArea.append(text.toString());
+    javax.swing.text.Document doc = logArea.getDocument();
+    int extra = doc.getLength() - MAX_LOG_CHARS;
+    if (extra > 0) {
+      try {
+        int cut = logArea.getText(extra, Math.min(4096, doc.getLength() - extra)).indexOf('\n');
+        doc.remove(0, extra + Math.max(cut + 1, 0));
+      } catch (javax.swing.text.BadLocationException ignored) {
+        // the length was just read on this thread; cannot happen
+      }
+    }
   }
 
   private void setStatus(String text, double f) {
@@ -549,6 +597,7 @@ final class LauncherFrame extends JFrame {
               if (id != hover) {
                 hover = id;
                 setCursor(Cursor.getPredefinedCursor(id >= 0 ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+                repaint(); // the clock redraws an unfocused window rarely; hover should still show at once
               }
             }
 
@@ -625,7 +674,22 @@ final class LauncherFrame extends JFrame {
       g.dispose();
     }
 
-    private void drawBackground(Graphics2D g) {
+    private void drawBackground(Graphics2D target) {
+      // at the screen's own scale (Windows display scaling), so the cached picture stays as sharp as before
+      double sx = target.getTransform().getScaleX(), sy = target.getTransform().getScaleY();
+      int pw = (int) Math.ceil(W * sx), ph = (int) Math.ceil(H * sy);
+      if (background == null || background.getWidth() != pw || background.getHeight() != ph) {
+        background = new BufferedImage(pw, ph, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = background.createGraphics();
+        g.setRenderingHints(target.getRenderingHints());
+        g.scale(sx, sy);
+        paintBackground(g);
+        g.dispose();
+      }
+      target.drawImage(background, 0, 0, W, H, null);
+    }
+
+    private void paintBackground(Graphics2D g) {
       g.setColor(BG);
       g.fillRect(0, 0, W, H);
       if (headerImage != null) {
@@ -1000,24 +1064,32 @@ final class LauncherFrame extends JFrame {
       header(g, x, y, "ABOUT");
       g.setFont(regular.deriveFont(13f));
       g.setColor(new Color(0xB9B0C6));
-      wrapped(
+      int end = wrapped(
           g,
           "luka launcher starts the luka client for Minecraft 1.8.9 on Fabric (Ornithe). The first press of PLAY downloads Minecraft "
-              + "from Mojang, Java from Adoptium, luka's mods from client.luka.wtf, and open-source parts from GitHub and Modrinth. Your game, mods "
+              + "from Mojang, Java from Adoptium, luka's mods from client.luka.wtf, and other mods from Modrinth. Your game, mods "
               + "and settings stay in your own user folder. Sign in with Microsoft or an offline name. luka is free software "
-              + "under the GPL-3.0 licence, and its source code is published with every release.",
+              + "under the GNU GPL v3 or later (github.com/lukalul/luka-client); third-party parts keep their own licences.",
           x + 24, y + 52, CENTER_W - 48 - 48, 20);
+      // AGPL source offer for the Vulkan renderer (github.com/lukalul/luka-vulkan); keep it on this page.
+      end = wrapped(
+          g,
+          "luka's Vulkan renderer is free software under the GNU Affero General Public License v3, based on Astatine by "
+              + "Ren Karuizawa. Its source code is at " + VULKAN_SOURCE_URL.replace("https://", "") + ".",
+          x + 24, end + 8, CENTER_W - 48 - 48, 20);
+      int row = Math.max(y + 150, end + 24);
       g.setFont(bold.deriveFont(12f));
       g.setColor(MUTED);
-      g.drawString("LAUNCHER VERSION", x, y + 150);
-      g.drawString("LOCALE", x, y + 176);
+      g.drawString("LAUNCHER VERSION", x, row);
+      g.drawString("LOCALE", x, row + 26);
       g.setFont(regular.deriveFont(13f));
       g.setColor(new Color(0xA5A5B5));
-      g.drawString(VERSION + "  (newest)", x + 140, y + 150);
-      g.drawString(java.util.Locale.getDefault().toLanguageTag(), x + 140, y + 176);
-      linkButton(g, x + 430, y + 134, 240, "OPEN GAME FOLDER", () -> open(new File(settings.version().home(root), "game")));
-      linkButton(g, x + 430, y + 172, 240, "OPEN LAUNCHER FOLDER", () -> open(root));
-      if (!Manifests.changelog().isEmpty()) linkButton(g, x + 430, y + 210, 240, "WHAT'S NEW", () -> overlay = 3);
+      g.drawString(VERSION + "  (newest)", x + 140, row);
+      g.drawString(java.util.Locale.getDefault().toLanguageTag(), x + 140, row + 26);
+      linkButton(g, x, row + 48, 240, "VULKAN RENDERER SOURCE", () -> openBrowser(VULKAN_SOURCE_URL));
+      linkButton(g, x + 430, row - 16, 240, "OPEN GAME FOLDER", () -> open(new File(settings.version().home(root), "game")));
+      linkButton(g, x + 430, row + 22, 240, "OPEN LAUNCHER FOLDER", () -> open(root));
+      if (!Manifests.changelog().isEmpty()) linkButton(g, x + 430, row + 60, 240, "WHAT'S NEW", () -> overlay = 3);
     }
 
     private void linkButton(Graphics2D g, int x, int y, int w, String text, Runnable action) {

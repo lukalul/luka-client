@@ -1,8 +1,8 @@
 package dev.cbui.render;
 
+import dev.cbui.feature.hideblocks.HideBlocksModule;
 import dev.cbui.Cbui;
 import dev.cbui.config.GlobalOptions;
-import dev.cbui.feature.hideblocks.HideBlocksModule;
 import dev.cbui.feature.staff.XRayState;
 import java.util.Arrays;
 import java.util.List;

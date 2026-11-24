@@ -22,7 +22,7 @@ final class Updater {
   static synchronized void check(File root, String manifestUrl, String currentVersion, Listener listener) throws Exception {
     if (manifestUrl == null || manifestUrl.trim().isEmpty()) { listener.status("Updates off"); return; }
     listener.status("Checking for updates...");
-    String json = Manifests.open(Http.get(manifestUrl.trim(), null), new File(root, "manifest.json"));
+    String json = Manifests.open(Http.get(manifestUrl.trim(), null), new File(root, "manifest.json"), manifestUrl.trim());
     Map<String,String> launcher = object(json, "launcher");
     String clientId = Http.str(json, "msClientId");
     if (clientId != null && !clientId.trim().isEmpty()) listener.clientId(clientId.trim());

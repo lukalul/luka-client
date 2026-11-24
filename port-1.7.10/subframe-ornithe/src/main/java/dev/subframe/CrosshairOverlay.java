@@ -93,7 +93,7 @@ public final class CrosshairOverlay {
         try {
             Minecraft mc = Minecraft.getMinecraft();
             mc.entityRenderer.setupOverlayRendering();
-            Class<?> c = Class.forName("dev.cbui.feature.polycrosshair.CrosshairRenderer");
+            Class<?> c = Class.forName("dev.cbui.feature.crosshair.CrosshairRenderer");
             return (Boolean) c.getMethod("render", boolean.class).invoke(null, true);
         } catch (Throwable t) {
             return false;

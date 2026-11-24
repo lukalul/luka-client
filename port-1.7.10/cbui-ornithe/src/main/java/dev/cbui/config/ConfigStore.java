@@ -28,8 +28,18 @@ public final class ConfigStore {
     if (setting instanceof Setting.Toggle) setting.set(value.getAsBoolean());
     else if (setting instanceof Setting.Slider) setting.set(value.getAsFloat());
     else if (setting instanceof Setting.Color) setting.set(value.getAsInt());
-    else if (setting instanceof Setting.Choice) setting.set(value.getAsString());
+    else if (setting instanceof Setting.Choice) setting.set(choiceValue(value, (Setting.Choice) setting));
     else if (setting instanceof Setting.Text) setting.set(value.getAsString());
+  }
+
+  /**
+   * A choice's saved value. A switch saved by an older version (Brackets was on/off until 2026-11-13) reads as "Always"
+   * (or "On") for true and "Off" for false; a value the choice does not have is ignored by {@code Choice.set}.
+   */
+  private static String choiceValue(JsonElement value, Setting.Choice choice) {
+    if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean())
+      return !value.getAsBoolean() ? "Off" : choice.choices().contains("Always") ? "Always" : "On";
+    return value.getAsString();
   }
 
   public void save(HudManager manager) {
@@ -64,7 +74,7 @@ public final class ConfigStore {
       modules.add(module.name(), data);
     }
     JsonObject root = new JsonObject();
-    root.addProperty("version", 1);
+    root.addProperty("version", 2);
     JsonObject options = new JsonObject();
     options.addProperty("hideAchievements", GlobalOptions.hideAchievements);
     options.addProperty("textShadow", GlobalOptions.textShadow);
@@ -77,8 +87,17 @@ public final class ConfigStore {
     options.addProperty("glintDistance", GlobalOptions.glintDistance);
     options.addProperty("hudRefresh", GlobalOptions.hudRefresh);
     options.addProperty("unfocusedLimit", GlobalOptions.unfocusedLimit);
+    options.addProperty("menuFps", GlobalOptions.menuFps);
+    options.addProperty("pauseFps", GlobalOptions.pauseFps);
+    options.addProperty("containerFps", GlobalOptions.containerFps);
+    options.addProperty("hudEditorFps", GlobalOptions.hudEditorFps);
     options.addProperty("hideFoliage", GlobalOptions.hideFoliage);
     options.addProperty("hideStuckArrows", GlobalOptions.hideStuckArrows);
+    options.addProperty("hideGroundArrows", GlobalOptions.hideGroundArrows);
+    options.addProperty("hideFlyingArrows", GlobalOptions.hideFlyingArrows);
+    options.addProperty("fewerAmbientEffects", GlobalOptions.fewerAmbientEffects);
+    options.addProperty("particleCollisions", GlobalOptions.particleCollisions);
+    options.addProperty("entityShadows", GlobalOptions.entityShadows);
     options.addProperty("fogStart", GlobalOptions.fogStart);
     options.addProperty("fogEnd", GlobalOptions.fogEnd);
     options.addProperty("cloudHeight", GlobalOptions.cloudHeight);
@@ -111,6 +130,10 @@ public final class ConfigStore {
         for (JsonElement c : options.getAsJsonArray("recentColors")) GlobalOptions.recentColors.add(c.getAsInt());
       }
       if (options.has("unfocusedLimit")) GlobalOptions.unfocusedLimit = options.get("unfocusedLimit").getAsBoolean();
+      if (options.has("menuFps")) GlobalOptions.menuFps = options.get("menuFps").getAsInt();
+      if (options.has("pauseFps")) GlobalOptions.pauseFps = options.get("pauseFps").getAsInt();
+      if (options.has("containerFps")) GlobalOptions.containerFps = options.get("containerFps").getAsInt();
+      if (options.has("hudEditorFps")) GlobalOptions.hudEditorFps = options.get("hudEditorFps").getAsInt();
       if (options.has("entityCulling")) GlobalOptions.entityCulling = options.get("entityCulling").getAsBoolean();
       if (options.has("leavesMode")) GlobalOptions.leavesMode = options.get("leavesMode").getAsInt();
       if (options.has("resolution")) GlobalOptions.resolution = options.get("resolution").getAsString();
@@ -122,6 +145,11 @@ public final class ConfigStore {
       if (options.has("highPriority")) GlobalOptions.highPriority = options.get("highPriority").getAsBoolean();
       if (options.has("hideFoliage")) GlobalOptions.hideFoliage = options.get("hideFoliage").getAsBoolean();
       if (options.has("hideStuckArrows")) GlobalOptions.hideStuckArrows = options.get("hideStuckArrows").getAsBoolean();
+      if (options.has("hideGroundArrows")) GlobalOptions.hideGroundArrows = options.get("hideGroundArrows").getAsBoolean();
+      if (options.has("hideFlyingArrows")) GlobalOptions.hideFlyingArrows = options.get("hideFlyingArrows").getAsBoolean();
+      if (options.has("fewerAmbientEffects")) GlobalOptions.fewerAmbientEffects = options.get("fewerAmbientEffects").getAsBoolean();
+      if (options.has("particleCollisions")) GlobalOptions.particleCollisions = options.get("particleCollisions").getAsBoolean();
+      if (options.has("entityShadows")) GlobalOptions.entityShadows = options.get("entityShadows").getAsBoolean();
       if (options.has("fogStart")) GlobalOptions.fogStart = options.get("fogStart").getAsInt();
       if (options.has("fogEnd")) GlobalOptions.fogEnd = options.get("fogEnd").getAsInt();
       if (options.has("cloudHeight")) GlobalOptions.cloudHeight = options.get("cloudHeight").getAsInt();
@@ -142,6 +170,9 @@ public final class ConfigStore {
     }
     JsonObject modules = root == null ? null : root.getAsJsonObject("modules");
     if (modules == null) return;
+    migrateSprintSneak(modules);
+    CardRenames.moveCards(modules);
+    resetRewrittenCards(root, modules);
     for (AbstractHudModule module : manager.modules()) {
       JsonObject data = modules.getAsJsonObject(module.name());
       if (data == null) continue;
@@ -159,6 +190,70 @@ public final class ConfigStore {
       if (settings != null)
         for (Setting<?> setting : module.settings()) readSetting(settings, setting);
     }
+  }
+
+  /**
+   * 2026-11-18: twenty cards were rewritten from scratch (clean-room) and their settings were redesigned. A config saved
+   * before that (version below 2) has their old values dropped once, so those cards start from their new defaults;
+   * whether each card is on, its HUD place and size, and its shared HUD look are kept.
+   */
+  private static final String[] REWRITTEN_CARDS = {"Zoom", "Time Changer", "Nametags", "CrashPatch", "Hitboxes",
+      "Crosshair", "FOVChanger", "SoundTweaks", "Screenshot Message Enhancer", "TNTCountdown", "DamageTint", "Freelook",
+      "Overlay Tweaks", "Render Tweaks", "Dropped Item Tweaks", "Confirm Disconnect", "Scroll Tweaks", "Shake Tweaks",
+      "Smooth Skies", "Numerical Enchantments"};
+
+  private static java.util.List<String> names(JsonObject object) {
+    java.util.List<String> out = new java.util.ArrayList<>();
+    for (java.util.Map.Entry<String, JsonElement> entry : object.entrySet()) out.add(entry.getKey());
+    return out;
+  }
+
+  private static final java.util.Set<String> SHARED_LOOK = new java.util.HashSet<>(java.util.Arrays.asList("Hold to show",
+      "Background", "Background color", "Corner radius", "Padding", "Border", "Border color", "Chroma border", "Text color",
+      "Chroma text", "Chroma speed", "Text shadow", "Minecraft font", "Brackets"));
+
+  private static void resetRewrittenCards(JsonObject root, JsonObject modules) {
+    int version = root.has("version") && root.get("version").isJsonPrimitive() ? root.get("version").getAsInt() : 0;
+    if (version >= 2) return;
+    for (String card : REWRITTEN_CARDS) {
+      JsonObject data = modules.getAsJsonObject(card);
+      JsonObject settings = data == null ? null : data.getAsJsonObject("settings");
+      if (settings == null) continue;
+      // the shared HUD look (box, border, colours, shadow, font) follows the player's style and is kept
+      for (String key : names(settings))
+        if (!SHARED_LOOK.contains(key)) settings.remove(key);
+    }
+  }
+
+  /**
+   * 2026-11-13: "Always sprint" and "Toggle sneak" became one "Toggle sprint" module. A config saved before that gets a
+   * "Toggle sprint" entry with what the player had: on if either was on, sprint "Always" or "Off", toggle sneak as it was,
+   * and the position of the one that was on.
+   */
+  private static void migrateSprintSneak(JsonObject modules) {
+    if (modules.has("Toggle sprint")) return;
+    JsonObject sneak = modules.getAsJsonObject("Toggle sneak"), always = modules.getAsJsonObject("Always sprint");
+    if (sneak == null && always == null) return;
+    boolean sneakOn = isOn(sneak), alwaysOn = isOn(always);
+    if (!sneakOn && !alwaysOn) return; // neither was used: the new module starts with its own defaults
+    JsonObject place = sneakOn || always == null ? sneak : always;
+    JsonObject merged = new JsonObject();
+    merged.addProperty("enabled", sneakOn || alwaysOn);
+    for (String key : new String[] {"hudVisible", "anchor", "x", "y", "scale"})
+      if (place != null && place.has(key)) merged.add(key, place.get(key));
+    JsonObject settings = new JsonObject();
+    settings.addProperty("Sprint", alwaysOn ? "Always" : "Off");
+    settings.addProperty("Toggle sneak", sneakOn);
+    JsonObject old = sneak == null ? null : sneak.getAsJsonObject("settings");
+    if (old != null && old.has("Sneak in containers")) settings.add("Sneak in containers", old.get("Sneak in containers"));
+    JsonObject shown = place == null ? null : place.getAsJsonObject("settings");
+    if (shown != null && shown.has("Show label")) settings.add("Show label", shown.get("Show label"));
+    merged.add("settings", settings);
+    modules.add("Toggle sprint", merged);
+  }
+
+  private static boolean isOn(JsonObject module) {
+    return module != null && module.has("enabled") && module.get("enabled").getAsBoolean();
   }
 
   public File file() {

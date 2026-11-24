@@ -8,10 +8,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
 import dev.envoy.module.glint.GlintState;
-import dev.envoy.module.model.ModelRegistry;
-import dev.envoy.render.JemItemRenderer;
 import dev.envoy.module.glint.GlintTexture;
-import dev.envoy.EnvoySettings;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.entity.RenderItem;
@@ -27,14 +24,6 @@ public abstract class MixinRenderItem {
 
     @Inject(
         method = "renderItem(Lnet/minecraft/item/ItemStack;Lnet/minecraft/client/resources/model/IBakedModel;)V",
-        at = @At("HEAD"), cancellable = true, require = 0)
-    private void envoy$replaceHeldItem(ItemStack stack, IBakedModel model, CallbackInfo callback) {
-        boolean eligible = EnvoySettings.customModels && stack != null && ModelRegistry.hasItems();
-        if (eligible && JemItemRenderer.renderHeld(stack)) callback.cancel();
-    }
-
-    @Inject(
-        method = "renderItem(Lnet/minecraft/item/ItemStack;Lnet/minecraft/client/resources/model/IBakedModel;)V",
         at = @At("RETURN"), require = 0)
     private void envoy$overlayColoredGlint(ItemStack stack, IBakedModel model, CallbackInfo callback) {
         if (!shouldOverlay(stack, model)) return;
@@ -47,8 +36,7 @@ public abstract class MixinRenderItem {
     }
 
     private static boolean shouldOverlay(ItemStack stack, IBakedModel model) {
-        return model != null && !model.isBuiltInRenderer() && GlintState.hasGlint(stack)
-            && ModelRegistry.findForItem(stack) == null;
+        return model != null && !model.isBuiltInRenderer() && GlintState.hasGlint(stack);
     }
 
     private void drawGlintPasses(IBakedModel model, int argb) {

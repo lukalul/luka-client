@@ -17,7 +17,8 @@ New-Item -ItemType Directory -Force $obj, $payload | Out-Null
 
 & powershell -NoProfile -ExecutionPolicy Bypass -File "$launcher\build-launcher.ps1" -NoGameFiles | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'launcher build failed' }
-Copy-Item "$launcher\dist\luka-launcher.jar", "$launcher\dist\luka-boot.jar" $payload
+Copy-Item "$launcher\dist\luka-launcher.jar" "$payload\luka-launcher.jar"
+Copy-Item "$launcher\dist\luka-boot.jar" $payload
 
 & "$jdk\bin\jlink.exe" --add-modules java.base,java.desktop,java.logging,java.management,jdk.management,jdk.crypto.ec,jdk.unsupported,java.naming --strip-debug --no-man-pages --no-header-files --compress=zip-0 --vm=server --output "$payload\runtime"
 if ($LASTEXITCODE -ne 0) { throw 'jlink failed' }

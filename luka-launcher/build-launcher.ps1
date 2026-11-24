@@ -20,7 +20,7 @@ $sources = Get-ChildItem "$here\src" -Recurse -Filter *.java | ForEach-Object Fu
 if ($LASTEXITCODE -ne 0) { throw 'compile failed' }
 Copy-Item "$here\res\*" $out -Force
 "Main-Class: dev.luka.launcher.Main`r`n" | Set-Content "$out\manifest.txt" -Encoding ascii
-& "$jdk\bin\jar.exe" cfm "$dist\luka-launcher.jar" "$out\manifest.txt" -C $out dev -C $out logo.png -C $out logo_inner.png -C $out header.png -C $out Roboto-Regular.ttf -C $out Roboto-Bold.ttf -C $out classpath.txt -C $out jvmargs.txt -C $out classpath-1.7.10.txt -C $out jvmargs-1.7.10.txt
+& "$jdk\bin\jar.exe" cfm "$dist\luka-launcher.jar" "$out\manifest.txt" -C $out dev -C $out logo.png -C $out logo_inner.png -C $out header.png -C $out Roboto-Regular.ttf -C $out Roboto-Bold.ttf -C $out LICENSE-luka.txt -C $out NOTICE-luka.txt -C $out LICENSE-roboto-apache-2.0.txt -C $out classpath.txt -C $out jvmargs.txt -C $out classpath-1.7.10.txt -C $out jvmargs-1.7.10.txt
 if ($LASTEXITCODE -ne 0) { throw 'jar failed' }
 # Luka.exe's entry point: its own tiny jar (see Boot.java), so the launcher jar itself can be replaced by an update
 $bootDir = "$here\build-boot"

@@ -105,7 +105,7 @@ public final class Installer {
 
   public static int retireMods(File root, GameVersion v) {
     int removed = 0;
-    File[] jars = new File(v.home(root), "game/mods").listFiles((d, n) -> n.toLowerCase(Locale.ROOT).endsWith(".jar"));
+    File[] jars = new File(v.home(root), "game/mods").listFiles((d, n) -> modFile(n));
     if (jars == null) return 0;
     for (File jar : jars) {
       String name = jar.getName().toLowerCase(Locale.ROOT);
@@ -124,7 +124,10 @@ public final class Installer {
       if (!validJar(client)) return false;
       List<String> cp = lines(new File(home, "classpath.txt"));
       if (cp.isEmpty()) return false;
-      for (String s : cp) if (!validJar(new File(home, "libs/" + s))) return false;
+      for (String s : cp) {
+        File lib = new File(home, "libs/" + s);
+        if (s.endsWith(ENCRYPTED) ? !(lib.isFile() && lib.length() > 0) : !validJar(lib)) return false;
+      }
       for (String path : natives()) if (!validJar(new File(home, "natives/" + path.substring(path.lastIndexOf('/') + 1)))) return false;
       if (!new File(home, "jvmargs.txt").isFile() || !new File(root, "assets/indexes/" + v.assetIndex + ".json").isFile()) return false;
       return new File(home, "installed.json").isFile();
@@ -565,29 +568,31 @@ public final class Installer {
       download(str(index.get("url")), target, sha1, false);
   }
 
-  /** The list of what to download, from client.luka.wtf. The last good copy is kept so an installed game still starts offline. */
+  /** How long luka still starts from the last downloaded list when client.luka.wtf cannot be reached. */
+  private static final long OFFLINE_GRACE_MS = 24L * 60 * 60 * 1000;
+
+  /**
+   * The list of what to download, from client.luka.wtf. Without a connection, the list from the last successful check
+   * is used if it is less than a day old (its signature is checked again either way).
+   */
   private static Map<String,Object> manifest(File root) throws Exception {
     Settings settings = new Settings(new File(root, "launcher.properties"));
     File cached = new File(root, "manifest.json");
-    try {
-      String address = settings.updateUrl();
-      URL url = new URL(address);
-      boolean local = "127.0.0.1".equals(url.getHost()) || "localhost".equals(url.getHost());
-      if (!"https".equalsIgnoreCase(url.getProtocol()) && !local) throw new IOException("The download list must use HTTPS");
-      String text = getText(address);
-      Map<String,Object> parsed = obj(Json.parse(Manifests.open(text, cached)));
-      writeAtomic(cached, text.getBytes(StandardCharsets.UTF_8));
-      return parsed;
-    } catch (Exception offline) {
-      if (!cached.isFile()) throw new IOException("Could not reach the luka download server: " + offline.getMessage(), offline);
-      // a short outage must not lock everyone out, but luka has to have checked for updates recently to start
-      if (System.currentTimeMillis() - cached.lastModified() > OFFLINE_GRACE_MS)
-        throw new IOException("luka could not check for updates. Connect to the internet and press PLAY again.", offline);
-      return obj(Json.parse(Manifests.open(new String(Files.readAllBytes(cached.toPath()), StandardCharsets.UTF_8), null)));
+    String address = settings.updateUrl();
+    URL url = new URL(address);
+    boolean local = "127.0.0.1".equals(url.getHost()) || "localhost".equals(url.getHost());
+    if (!"https".equalsIgnoreCase(url.getProtocol()) && !local) throw new IOException("The download list must use HTTPS");
+    String text;
+    try { text = getText(address); }
+    catch (Exception offline) {
+      if (cached.isFile() && System.currentTimeMillis() - cached.lastModified() < OFFLINE_GRACE_MS)
+        return obj(Json.parse(Manifests.open(new String(Files.readAllBytes(cached.toPath()), StandardCharsets.UTF_8), cached, address)));
+      throw new IOException("Could not reach the luka download server: " + offline.getMessage(), offline);
     }
+    Map<String,Object> parsed = obj(Json.parse(Manifests.open(text, cached, address)));
+    writeAtomic(cached, text.getBytes(StandardCharsets.UTF_8));
+    return parsed;
   }
-
-  private static final long OFFLINE_GRACE_MS = 24L * 60 * 60 * 1000;
 
   private static final class ModFile {
     final String file, url, mirror, sha512; final File target;
@@ -615,9 +620,15 @@ public final class Installer {
     File rendererDir = new File(home, "renderers/" + settings.renderer());
     for (Object o : arr(renderers.get(settings.renderer()))) wanted.add(new ModFile(obj(o), rendererDir));
     removeRetired(home, mods, rendererDir, wanted);
+    removeLeftovers(home, mods, wanted);
+    removeTwins(wanted);
     // a renderer jar left in the shared folder would load on both paths
     for (Map.Entry<String,Object> group : renderers.entrySet())
-      for (Object o : arr(group.getValue())) Files.deleteIfExists(new File(mods, safeName(str(obj(o).get("file")))).toPath());
+      for (Object o : arr(group.getValue())) {
+        String name = safeName(str(obj(o).get("file")));
+        Files.deleteIfExists(new File(mods, name).toPath());
+        Files.deleteIfExists(new File(mods, twin(name)).toPath());
+      }
     ExecutorService pool = Executors.newFixedThreadPool(8);
     List<Throwable> errors = Collections.synchronizedList(new ArrayList<Throwable>());
     AtomicInteger done = new AtomicInteger();
@@ -642,10 +653,41 @@ public final class Installer {
   }
 
   private static void fetchMod(ModFile mod) throws IOException {
-    try { download(mod.url, mod.target, mod.sha512, true, "SHA-512"); }
+    boolean jar = !mod.file.toLowerCase(Locale.ROOT).endsWith(ENCRYPTED); // *.jar.enc is ciphertext, not a zip; its SHA-512 is still checked
+    try { download(mod.url, mod.target, mod.sha512, jar, "SHA-512"); }
     catch (IOException main) {
       if (mod.mirror.length() == 0) throw main;
-      download(mod.mirror, mod.target, mod.sha512, true, "SHA-512");
+      download(mod.mirror, mod.target, mod.sha512, jar, "SHA-512");
+    }
+  }
+
+  /**
+   * Encrypted copies of luka's mods, shipped by releases 1.4.0 and 1.4.1. This launcher no longer opens them: they are
+   * only recognised so the plain jar replaces them (see twin) and so GameRunner can refuse a list that still names one.
+   */
+  static final String ENCRYPTED = ".jar.enc";
+
+  /** A mod file the launcher manages: a plain jar or an encrypted one. */
+  private static boolean modFile(String name) {
+    String lower = name.toLowerCase(Locale.ROOT);
+    return lower.endsWith(".jar") || lower.endsWith(ENCRYPTED);
+  }
+
+  /** The other form of the same mod: "x.jar" for "x.jar.enc" and the other way round. */
+  private static String twin(String name) {
+    return name.toLowerCase(Locale.ROOT).endsWith(ENCRYPTED) ? name.substring(0, name.length() - 4) : name + ".enc";
+  }
+
+  /**
+   * When a release switches a mod between plain and encrypted, the old form must go, or the game would load the mod
+   * twice (Fabric refuses duplicate mod ids). Also covers installs from before managed-mods.txt.
+   */
+  private static void removeTwins(List<ModFile> wanted) throws IOException {
+    Set<String> names = new HashSet<String>();
+    for (ModFile mod : wanted) names.add(mod.target.getAbsolutePath().toLowerCase(Locale.ROOT));
+    for (ModFile mod : wanted) {
+      File other = new File(mod.target.getParentFile(), twin(mod.file));
+      if (!names.contains(other.getAbsolutePath().toLowerCase(Locale.ROOT))) Files.deleteIfExists(other.toPath());
     }
   }
 
@@ -660,8 +702,50 @@ public final class Installer {
     File list = new File(home, "managed-mods.txt");
     for (String old : lines(list)) if (!names.contains(old)) Files.deleteIfExists(new File(mods, safeName(old)).toPath());
     writeAtomic(list, managed.toString().getBytes(StandardCharsets.UTF_8));
-    File[] installed = rendererDir.listFiles((d, n) -> n.toLowerCase(Locale.ROOT).endsWith(".jar"));
+    File[] installed = rendererDir.listFiles((d, n) -> modFile(n));
     if (installed != null) for (File jar : installed) if (!names.contains(jar.getName())) Files.deleteIfExists(jar.toPath());
+  }
+
+  /** luka's own jar names (any version, plain or encrypted); a player's other mods never match. */
+  private static final java.util.regex.Pattern LUKA_JAR = java.util.regex.Pattern.compile(
+      "(?i)^((cbui|envoy|hcfopt|subframe|motionblur|fastpacks|fullbright|bakeplus|customsky|customcolors)-ornithe-[^/\\\\]*|astatine-[^/\\\\]*)\\.jar(\\.enc)?$");
+  /** Bumped when the cleanup below should run once more on every install. */
+  private static final String LEFTOVER_PASS = "2026-11-13";
+
+  /**
+   * Copies of older luka builds left in this install are removed. Only luka's own folders and luka's own file names are
+   * touched:
+   * <ul>
+   *   <li>luka jars in the mods folder that this release does not list (older names or versions, from installs made
+   *       before managed-mods.txt existed);</li>
+   *   <li>half-finished downloads (*.part, *.download) next to them;</li>
+   *   <li>once per {@link #LEFTOVER_PASS}: Fabric's processedMods cache, which keeps extracted copies of jars an older
+   *       release used (Fabric rebuilds it on the next start).</li>
+   * </ul>
+   */
+  private static void removeLeftovers(File home, File mods, List<ModFile> wanted) {
+    Set<String> keep = new HashSet<String>();
+    for (ModFile mod : wanted) keep.add(mod.file.toLowerCase(Locale.ROOT));
+    File[] files = mods.listFiles();
+    if (files != null)
+      for (File f : files) {
+        if (!f.isFile()) continue;
+        String name = f.getName();
+        String lower = name.toLowerCase(Locale.ROOT);
+        boolean partial = lower.endsWith(".part") || lower.endsWith(".download");
+        boolean oldLuka = LUKA_JAR.matcher(name).matches() && !keep.contains(lower);
+        if (partial || oldLuka) f.delete();
+      }
+    File marker = new File(home, "leftovers-cleaned.txt");
+    try {
+      List<String> done = lines(marker);
+      if (!done.isEmpty() && LEFTOVER_PASS.equals(done.get(0).trim())) return;
+      File processed = new File(gameDir(home), ".fabric/processedMods");
+      if (processed.isDirectory()) deleteTree(processed);
+      writeAtomic(marker, (LEFTOVER_PASS + "\n").getBytes(StandardCharsets.UTF_8));
+    } catch (IOException inUse) {
+      // a file is still open (the game is running): try again on the next Play
+    }
   }
 
   /** The default settings zip fills in only what the player does not already have. */

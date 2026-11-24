@@ -10,13 +10,9 @@ import com.google.protobuf.Any;
 
 import dev.envoy.Envoy;
 import dev.envoy.LunarHost;
-import dev.envoy.module.chat.EnvoyChat;
 import dev.envoy.module.combat.CombatModule;
 import dev.envoy.module.combat.CombatState;
 import dev.envoy.module.events.EnvoyEvents;
-import dev.envoy.module.glow.GlowModule;
-import dev.envoy.module.lightning.EnvoyLightning;
-import dev.envoy.module.vignette.VignetteModule;
 import net.minecraft.network.NetworkManager;
 import net.minecraft.network.play.client.C17PacketCustomPayload;
 
@@ -156,19 +152,15 @@ public final class ApolloNetwork {
     private static void forgetServer(String reason) {
         dev.envoy.module.staff.StaffState.clear();
         dev.envoy.module.nametag.NametagState.resetAll();
-        dev.envoy.module.glow.GlowState.resetAll();
         dev.envoy.module.team.TeamState.reset();
         dev.envoy.module.waypoint.WaypointState.resetAll();
         dev.envoy.module.beam.BeamState.resetAll();
         dev.envoy.module.border.BorderState.resetAll();
         dev.envoy.module.cooldown.CooldownState.resetAll();
-        dev.envoy.module.coloredfire.ColoredFireState.resetAll();
         dev.envoy.module.hologram.HologramState.resetAll();
-        dev.envoy.module.limb.LimbState.resetAll();
-        dev.envoy.module.marker.MarkerState.resetAll();
         dev.envoy.module.notification.NotificationState.resetAll();
         dev.envoy.module.tntcountdown.TntCountdownState.clear();
-        dev.envoy.module.vignette.VignetteState.reset();
+        dev.envoy.module.coloredfire.ColoredFireState.resetAll();
         if (reason != null) Envoy.LOGGER.info("[Apollo] forgot the last server's state: {}", reason);
     }
 
@@ -201,16 +193,17 @@ public final class ApolloNetwork {
     }
 
     private void announceChannels(NetworkManager manager) {
-        if (manager == null) return;
-        String channels = String.join(CHANNEL_SEPARATOR, advertisedChannels());
+        String[] advertised = advertisedChannels();
+        if (manager == null || advertised.length == 0) return;
+        String channels = String.join(CHANNEL_SEPARATOR, advertised);
         manager.scheduleOutboundPacket(new C17PacketCustomPayload(ApolloProtocol.REGISTER_CHANNEL,
             channels.getBytes(StandardCharsets.UTF_8)), new io.netty.util.concurrent.GenericFutureListener[0]);
         Envoy.LOGGER.info("[Apollo] announced channels to the server: {}", channels.replace(CHANNEL_SEPARATOR, ", "));
     }
 
     private String[] advertisedChannels() {
-        if (LunarHost.isLunar()) return new String[] { EnvoyChat.CHANNEL, EnvoyLightning.CHANNEL };
-        return new String[] { ApolloProtocol.CHANNEL, EnvoyChat.CHANNEL, EnvoyLightning.CHANNEL, EnvoyEvents.CHANNEL };
+        if (LunarHost.isLunar()) return new String[0];
+        return new String[] { ApolloProtocol.CHANNEL, EnvoyEvents.CHANNEL };
     }
 
     private void dispatch(Any envelope, String type, int byteCount) {
@@ -235,9 +228,7 @@ public final class ApolloNetwork {
     }
 
     private static boolean isEnvoyOwned(String type) {
-        return type.startsWith(GlowModule.MESSAGE_PREFIX)
-            || type.startsWith(VignetteModule.MESSAGE_PREFIX)
-            || CombatModule.OVERRIDE.equals(type)
+        return CombatModule.OVERRIDE.equals(type)
             || CombatModule.RESET.equals(type);
     }
 

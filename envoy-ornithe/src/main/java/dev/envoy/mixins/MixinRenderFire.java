@@ -7,6 +7,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import dev.envoy.module.coloredfire.ColoredFireState;
+import dev.envoy.module.coloredfire.FlameRenderer;
 import dev.envoy.EnvoySettings;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.entity.Render;
@@ -14,19 +15,20 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
 
 /**
- * Tints a player's flames with their Colored Fire color. Vanilla fire is drawn in {@code POSITION_TEX}
- * multiplied by {@code GlStateManager.color(1,1,1,1)}, so we redirect that color when the player has a
- * custom one.
+ * Tints a player's flames with their Colored Fire color. A tinted player's fire is drawn by FlameRenderer with a grey
+ * copy of the fire texture (the orange texture times pure blue was almost black). Only if that texture cannot be
+ * built does the game draw it, and the colour redirect below multiplies the normal fire as before.
  */
 @Mixin(Render.class)
 public class MixinRenderFire {
 
     private static int envoy$activeTint;
 
-    @Inject(method = "renderEntityOnFire", at = @At("HEAD"), require = 0)
+    @Inject(method = "renderEntityOnFire", at = @At("HEAD"), cancellable = true, require = 0)
     private void envoy$selectFlameTint(Entity entity, double x, double y, double z, float partialTicks,
                                           CallbackInfo ci) {
         envoy$activeTint = tintFor(entity);
+        if (envoy$activeTint != 0 && FlameRenderer.drawOnEntity(entity, x, y, z, envoy$activeTint)) ci.cancel();
     }
 
     private static int tintFor(Entity entity) {

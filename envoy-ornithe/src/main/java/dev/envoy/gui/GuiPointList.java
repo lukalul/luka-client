@@ -1,6 +1,5 @@
 package dev.envoy.gui;
 
-import dev.envoy.module.marker.MarkerState;
 import dev.envoy.module.waypoint.WaypointState;
 import net.minecraft.client.audio.PositionedSoundRecord;
 import net.minecraft.client.gui.GuiButton;
@@ -24,16 +23,12 @@ public final class GuiPointList extends GuiScreen {
     private final List<PointRow> rows = new ArrayList<PointRow>();
     private int scrollOffset;
 
-    private enum Source { WAYPOINT, MARKER }
-
     private static final class PointRow {
-        final Source source;
         final String key, title, subtitle;
         final int color;
         final boolean hidden;
 
-        PointRow(Source source, String key, String title, String subtitle, int color, boolean hidden) {
-            this.source = source;
+        PointRow(String key, String title, String subtitle, int color, boolean hidden) {
             this.key = key;
             this.title = title;
             this.subtitle = subtitle;
@@ -56,17 +51,11 @@ public final class GuiPointList extends GuiScreen {
 
     private void rebuildRows() {
         List<PointRow> waypoints = new ArrayList<PointRow>();
-        List<PointRow> markers = new ArrayList<PointRow>();
         EntityPlayer player = mc.thePlayer;
         for (WaypointState.Waypoint point : WaypointState.all()) {
-            waypoints.add(new PointRow(Source.WAYPOINT, point.name, point.name,
+            waypoints.add(new PointRow(point.name, point.name,
                 locationText(player, point.x + 0.5D, point.y + 0.5D, point.z + 0.5D),
                 point.colorArgb, point.hidden));
-        }
-        for (MarkerState.Marker point : MarkerState.all()) {
-            String title = point.ownerName == null || point.ownerName.isEmpty() ? point.id : point.ownerName;
-            markers.add(new PointRow(Source.MARKER, point.id, title,
-                locationText(player, point.x, point.y, point.z), point.iconArgb, false));
         }
         Comparator<PointRow> order = new Comparator<PointRow>() {
             @Override public int compare(PointRow first, PointRow second) {
@@ -74,10 +63,8 @@ public final class GuiPointList extends GuiScreen {
             }
         };
         Collections.sort(waypoints, order);
-        Collections.sort(markers, order);
         rows.clear();
         rows.addAll(waypoints);
-        rows.addAll(markers);
         scrollOffset = validScroll(scrollOffset);
     }
 
@@ -133,7 +120,7 @@ public final class GuiPointList extends GuiScreen {
         drawRect(SIDE, y, right, y + ROW - 2, 0x40FFFFFF);
         drawRect(SIDE, y, SIDE + 3, y + ROW - 2, 0xFF000000 | row.color);
         String title = row.hidden ? row.title + " " + I18n.format("envoy.list.hidden") : row.title;
-        String kind = I18n.format(row.source == Source.WAYPOINT ? "envoy.list.waypoint" : "envoy.list.marker");
+        String kind = I18n.format("envoy.list.waypoint");
         fontRendererObj.drawStringWithShadow(title, SIDE + 8, y + 3, 0xFFFFFFFF);
         fontRendererObj.drawStringWithShadow(kind + "  " + row.subtitle, SIDE + 8, y + 13, 0xFFAAAAAA);
         int buttonX = right - REMOVE_W - 4, buttonY = removeY(y);
@@ -166,8 +153,7 @@ public final class GuiPointList extends GuiScreen {
     }
 
     private void remove(PointRow row) {
-        if (row.source == Source.WAYPOINT) WaypointState.remove(row.key);
-        else MarkerState.remove(row.key);
+        WaypointState.remove(row.key);
         mc.getSoundHandler().playSound(PositionedSoundRecord.create(new ResourceLocation("gui.button.press"), 1.0F));
     }
 

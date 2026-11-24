@@ -1,6 +1,5 @@
 package dev.envoy.gui;
 
-import dev.envoy.module.marker.MarkerState;
 import dev.envoy.module.waypoint.WaypointState;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
@@ -59,6 +58,6 @@ public final class GuiEnvoyMenu extends GuiScreen {
     }
 
     private static int availablePoints() {
-        return WaypointState.all().size() + MarkerState.all().size();
+        return WaypointState.all().size();
     }
 }

@@ -25,4 +25,21 @@ Additional terms under section 7 of the GNU General Public License version 3:
 luka is an independent project. It is not affiliated with, endorsed by, or sponsored by Mojang Studios,
 Microsoft, Lunar Client, or any Minecraft server network. "Minecraft" is a trademark of Mojang AB.
 
-Third-party components keep their own licences. See THIRD_PARTY_NOTICES.md.
+Third-party parts and credits
+
+- Envoy (luka's Apollo/Lunar protocol mod) is based on Artemis by Natsu91 / CrystallicDev, which allows modified
+  versions that stay fully free and keep a link to the original: https://github.com/CrystallicDev/Artemis
+- Old Animations by awruff (Unlicense, https://modrinth.com/mods/oam): luka's 1.7 animations are based on its code.
+- BetterHurtCam, copyright (c) 2022 uku (MIT, https://modrinth.com/mod/betterhurtcam): luka's hurt camera is based on
+  its code. Its licence is kept in the luka UI mod's jar (META-INF/LICENSE.betterhurtcam).
+- framejob by Z1xus (MIT, https://github.com/Z1xus/framejob): the between-tick smoothing in Motion Blur. Its licence
+  is kept in that mod's jar (META-INF/LICENSE.framejob).
+- FastPacks / McPacks (MIT, https://modrinth.com/mod/fastpacks): the idea for the fast resource-pack browser.
+- Custom sky: blend modes, fade curves and rotation are ported from MCPatcher's Better Skies and legacy-custom-sky
+  (MIT); their licence is kept in that mod's jar (LICENSE-customsky.txt).
+- Roboto Regular and Bold, copyright 2011 Google LLC, under the Apache License 2.0, unchanged. The licence text is in
+  the luka UI mod's jar (META-INF/LICENSE.roboto-apache-2.0).
+- Protocol Buffers for Java (protobuf-java 3.25.5), copyright 2008 Google Inc., under the BSD 3-Clause licence, bundled
+  unchanged in the luka Envoy mod's jar; its licence text is kept there (META-INF/LICENSE.protobuf).
+
+The full list of third-party parts and their licences is in THIRD_PARTY_NOTICES.md in the source repository.

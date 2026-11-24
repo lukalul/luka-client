@@ -3,13 +3,13 @@ package dev.cbui.hud.module;
 import dev.cbui.hud.Anchor;
 import net.minecraft.client.Minecraft;
 
-public final class FpsModule extends LabelModule {
-  public FpsModule() { super("FPS", true, Anchor.TOP_LEFT, 5, 5, "144 FPS"); }
+public final class FpsModule extends ValueModule {
+  public FpsModule() { super("FPS", true, Anchor.TOP_LEFT, 5, 5, "FPS", "144", new Range(1000, 1, 60, RED, 144, GREEN)); }
 
   @Override public void tick() {
     // in a SubFrame replay or render: the frame rate the player had when it was recorded, not the replay's drawing speed
     int recorded = replayFps();
-    label(recorded >= 0 ? recorded : Minecraft.getDebugFPS(), " FPS");
+    value(recorded >= 0 ? recorded : Minecraft.getDebugFPS());
   }
 
   private static java.lang.reflect.Method replayFps;

@@ -22,7 +22,7 @@ public final class HudManager {
 
   public HudManager() {
     modules.add(new KeystrokesModule()); modules.add(new CpsModule()); modules.add(new FpsModule()); modules.add(new CoordinatesModule());
-    modules.add(new ArmourModule()); modules.add(new PotionModule()); modules.add(new DirectionModule()); modules.add(new AlwaysSprintModule()); modules.add(new ToggleSneakModule()); modules.add(new PotionCounterModule()); modules.add(new ItemCounterModule()); modules.add(new PearlCooldownModule()); modules.add(new ResourcePacksModule()); modules.add(new PingModule()); modules.add(new MemoryModule()); modules.add(new ClockModule()); modules.add(new ComboModule()); modules.add(new ReachModule()); modules.add(new CooldownsModule()); modules.add(new ServerAddressModule()); modules.add(new ScoreboardModule()); modules.add(new GuiBlurModule()); modules.add(new TeamHudModule()); modules.add(new AlertsModule());
+    modules.add(new ArmourModule()); modules.add(new PotionModule()); modules.add(new DirectionModule()); modules.add(new ToggleSprintModule()); modules.add(new PotionCounterModule()); modules.add(new ItemCounterModule()); modules.add(new PearlCooldownModule()); modules.add(new ResourcePacksModule()); modules.add(new PingModule()); modules.add(new MemoryModule()); modules.add(new ClockModule()); modules.add(new ComboModule()); modules.add(new ReachModule()); modules.add(new CooldownsModule()); modules.add(new ServerAddressModule()); modules.add(new ScoreboardModule()); modules.add(new BossBarModule()); modules.add(new GuiBlurModule()); modules.add(new TeamHudModule()); modules.add(new AlertsModule());
     try { modules.addAll(dev.cbui.feature.Features.create()); } catch (Throwable error) { Cbui.reportOnce("feature modules", error); }
   }
 
@@ -52,6 +52,7 @@ public final class HudManager {
 
   public void render(float partialTicks, boolean editor) {
     HudManager.partialTicks = partialTicks;
+    if (!editor) updateHolds();
     // the HUD editor draws its own preview of every box: the live HUD underneath would ghost through it
     if (editorOpen && !editor) return;
     if (mc.gameSettings.showDebugInfo && !editor) return;
@@ -92,6 +93,30 @@ public final class HudManager {
         } catch (Throwable ignored) { }
         profileNanos = 0L; profileDrawn = 0; profileFrames = 0;
       }
+    }
+  }
+
+  /**
+   * Hold-to-show keys: while a module's key is down and no screen is open, its box visibility is flipped. Read every
+   * frame so the box follows the key at once; the flipped state lives only in the module and is never saved.
+   */
+  private void updateHolds() {
+    boolean free = mc.currentScreen == null;
+    boolean changed = false;
+    for (int i = 0, n = modules.size(); i < n; i++) {
+      AbstractHudModule m = modules.get(i);
+      int code = m.holdKeyCode();
+      if (code == 0 && !m.held()) continue;
+      if (m.held(free && code != 0 && keyDown(code))) changed = true;
+    }
+    if (changed) HudCache.dirty = true;
+  }
+
+  private static boolean keyDown(int code) {
+    try {
+      return code < 0 ? Mouse.isButtonDown(code + 100) : org.lwjgl.input.Keyboard.isKeyDown(code);
+    } catch (Throwable notReady) {
+      return false;
     }
   }
 

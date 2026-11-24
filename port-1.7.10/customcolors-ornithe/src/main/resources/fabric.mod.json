@@ -3,7 +3,7 @@
   "id": "customcolors",
   "version": "${version}",
   "name": "Custom Colors and Fonts",
-  "description": "MCPatcher and OptiFine resource pack colormaps, lightmaps and HD fonts for 1.7.10.",
+  "description": "Resource pack colormaps, color.properties, lightmaps, HD fonts, texture animations and random mob skins (mcpatcher/ and optifine/ formats) for 1.7.10.",
   "authors": [
     "luka contributors"
   ],
@@ -15,5 +15,5 @@
     "fabricloader": ">=0.14.21",
     "minecraft": "1.7.10"
   },
-  "license": "LGPL-3.0-only"
+  "license": "GPL-3.0-or-later"
 }

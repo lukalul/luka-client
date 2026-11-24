@@ -3,27 +3,19 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lukalul/luka-client/releases"><img src="https://img.shields.io/github/downloads/lukalul/luka-client/total?style=for-the-badge&color=8942DA&label=downloads" alt="Downloads"></a>
-  <a href="https://github.com/lukalul/luka-client/releases/latest"><img src="https://img.shields.io/github/v/release/lukalul/luka-client?style=for-the-badge&color=8942DA&label=version" alt="Latest version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-8942DA?style=for-the-badge" alt="GPL-3.0"></a>
+  <a href="https://client.luka.wtf"><img src="https://img.shields.io/badge/download-client.luka.wtf-8942DA?style=for-the-badge" alt="Download"></a>
 </p>
 
 <p align="center"><b>A fast, open-source Minecraft 1.8.9 and 1.7.10 client for PvP and faction servers, on Windows and Linux.</b></p>
 
 ## Download
 
-**[Get the luka launcher](https://github.com/lukalul/luka-client/releases/latest/download/Luka-Setup.exe)** for Windows. Run it and press Play.
+**[Get the luka launcher](https://client.luka.wtf/Luka-Setup.exe)** for Windows. Run it and press Play.
 
 **On Linux**, download [luka-launcher-linux.tar.gz](https://client.luka.wtf/luka-launcher-linux.tar.gz), unpack it and run `luka.sh`. It uses Java 21 or newer if you have it, and otherwise downloads Java once. The Vulkan renderer needs a Vulkan driver.
 
 **Pick your version** in the launcher: 1.8.9 or 1.7.10, next to the Normal and Vulkan renderer switch.
-
-**Using Prism Launcher?** Click Add Instance, open the Import tab and paste a link (1.8.9 only):
-
-| Renderer | Link |
-|---|---|
-| Normal | `https://github.com/lukalul/luka-client/releases/latest/download/luka-1.8.9-prism.zip` |
-| Vulkan | `https://github.com/lukalul/luka-client/releases/latest/download/luka-1.8.9-vulkan-prism.zip` |
 
 **Code signing:** luka isn't code-signed yet, so Windows may warn you about an unknown publisher: click More info, then Run anyway. See the [code signing policy](CODE_SIGNING_POLICY.md).
 
@@ -32,7 +24,7 @@
 | Mod | What it does |
 |---|---|
 | **luka** | The mods menu, HUD editor, HUD modules, Chat mod and video settings |
-| **Vulkan renderer** | luka's fork of [Astatine](https://github.com/yeahhren/astatine), a Vulkan renderer, for 1.8.9 and 1.7.10 |
+| **Vulkan renderer** | luka's fork of [Astatine](https://github.com/yeahhren/astatine), a Vulkan renderer, for 1.8.9 and 1.7.10. Its source is in [lukalul/luka-vulkan](https://github.com/lukalul/luka-vulkan) (GNU AGPL v3) |
 | **Normal renderer** | On 1.8.9 [Argentum](https://modrinth.com/mod/argentum), downloaded from its authors' Modrinth page; on 1.7.10 the game's own OpenGL |
 | **SubFrame** | Replays with a free camera, and video renders with real motion blur |
 | **Envoy** | Support for Apollo server features |
@@ -70,6 +62,6 @@ On 1.7.10, in the same automated test window (1080p, render distance 12):
 
 ## Open source
 
-All of luka's code is here, and every release is built from it by GitHub Actions. See [what luka connects to](PRIVACY.md) and [how to build it](BUILDING.md).
+luka's mods and launcher, for 1.8.9 and 1.7.10, are here; the Vulkan renderer has [its own repository](https://github.com/lukalul/luka-vulkan). Releases are served from [client.luka.wtf](https://client.luka.wtf). See [what luka connects to](PRIVACY.md) and [how to build it](BUILDING.md).
 
 Licensed under [GPL-3.0](LICENSE), with the terms in [NOTICE](NOTICE). Not affiliated with Mojang or Microsoft.

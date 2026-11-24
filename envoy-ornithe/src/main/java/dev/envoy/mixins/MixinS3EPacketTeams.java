@@ -19,9 +19,9 @@ import net.minecraft.network.play.server.S3EPacketTeams;
  *
  * <p>Envoy lifts that cap: the server (which knows which players are Envoy
  * clients from the channel registration) can send a <b>normal</b> Team packet with a full hex prefix
- * to those clients only, without changing anything else. The resulting {@code §x} is rendered natively
- * by {@code MixinFontRenderer} + HexTextRenderer everywhere the name shows up (tab, nametag,
- * sidebar...). Non-Envoy players still get the usual 16-color prefix.</p>
+ * to those clients only, without changing anything else. Envoy no longer draws the {@code §x} format
+ * (Hex Chat Colours was removed), so such a prefix shows in its last plain colour code; the raised cap still
+ * keeps a long prefix from disconnecting the client. Non-Envoy players still get the usual 16-color prefix.</p>
  *
  * <p>The redirect covers every read in {@code readPacketData} (name/displayName/prefix/suffix/
  * visibility/players); raising their cap has no side effect.</p>

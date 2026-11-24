@@ -234,6 +234,7 @@ public final class Borderless {
           // the player chose real fullscreen (F11 or Video Settings): leave it alone, the borderless frame is gone with it
           applied = false;
           saved = null;
+          lwjgl2Saved = null;
         } else {
           windowed = false;
           applied = setBorderless(true);
@@ -245,6 +246,11 @@ public final class Borderless {
   }
 
   private static boolean setBorderless(boolean on) {
+    try {
+      Class.forName("org.lwjgl.glfw.GLFW");
+    } catch (Throwable noGlfw) {
+      return setBorderlessLwjgl2(on);
+    }
     try {
       long window = (Long) Class.forName("org.lwjgl.opengl.Display").getMethod("getHandle").invoke(null);
       if (window == 0) return false;
@@ -284,6 +290,70 @@ public final class Borderless {
         saved = null;
         setSize.invoke(null, window, r[2], r[3]);
         setPos.invoke(null, window, r[0], r[1]);
+      }
+      return true;
+    } catch (Throwable ignored) {
+      return false;
+    }
+  }
+
+  // ---- OpenGL on 1.7.10: real LWJGL 2, no GLFW. Its only fullscreen is exclusive (a display mode change and a window that
+  // covers the monitor exactly), which Discord's whole-screen share slows down. Borderless restyles LWJGL 2's own window
+  // instead, through the Win32 calls LWJGL 2 already has (WindowsDisplay), the same way the GLFW path does: no frame, 1 px
+  // taller than the monitor and shifted up 1 px, so it is not taken for exclusive fullscreen. The window stays resizable,
+  // so the game sees the new size the normal way (Display.wasResized). Windows only; elsewhere the setting does nothing here.
+  /** style, extended style, left, top, right, bottom of the normal window, for putting it back. */
+  private static long[] lwjgl2Saved;
+  private static final int WS_CAPTION = 0x00C00000, WS_THICKFRAME = 0x00040000, WS_SYSMENU = 0x00080000,
+      WS_MINIMIZEBOX = 0x00020000, WS_MAXIMIZEBOX = 0x00010000, WS_MAXIMIZE = 0x01000000, WS_POPUP = 0x80000000;
+  private static final int WS_EX_FRAME = 0x00000001 | 0x00000100 | 0x00000200 | 0x00020000; // DLGMODALFRAME, WINDOWEDGE, CLIENTEDGE, STATICEDGE
+  // SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW
+  private static final long SWP_FLAGS = 0x0200 | 0x0020 | 0x0040;
+
+  private static boolean setBorderlessLwjgl2(boolean on) {
+    if (!System.getProperty("os.name", "").toLowerCase().contains("win")) return false;
+    try {
+      Class<?> display = Class.forName("org.lwjgl.opengl.Display");
+      if (!(Boolean) display.getMethod("isCreated").invoke(null)) return false;
+      Method implM = display.getDeclaredMethod("getImplementation");
+      implM.setAccessible(true);
+      Object impl = implM.invoke(null);
+      Class<?> wd = Class.forName("org.lwjgl.opengl.WindowsDisplay");
+      if (!wd.isInstance(impl)) return false;
+      Method hwndM = wd.getDeclaredMethod("getHwnd");
+      Method getLong = wd.getDeclaredMethod("getWindowLongPtr", long.class, int.class);
+      Method setLong = wd.getDeclaredMethod("setWindowLongPtr", long.class, int.class, long.class);
+      Method setPos = wd.getDeclaredMethod("setWindowPos", long.class, long.class, int.class, int.class, int.class, int.class, long.class);
+      Method getRect = wd.getDeclaredMethod("getWindowRect", long.class, java.nio.IntBuffer.class);
+      for (Method m : new Method[] {hwndM, getLong, setLong, setPos, getRect}) m.setAccessible(true);
+      long hwnd = (Long) hwndM.invoke(impl);
+      if (hwnd == 0) return false;
+      if (on) {
+        Object mode = display.getMethod("getDesktopDisplayMode").invoke(null);
+        int w = (Integer) mode.getClass().getMethod("getWidth").invoke(mode);
+        int h = (Integer) mode.getClass().getMethod("getHeight").invoke(mode);
+        long style = (Long) getLong.invoke(null, hwnd, -16);  // GWL_STYLE
+        long ex = (Long) getLong.invoke(null, hwnd, -20);     // GWL_EXSTYLE
+        if (lwjgl2Saved == null) {
+          java.nio.IntBuffer r = org.lwjgl.BufferUtils.createIntBuffer(4);
+          if (!(Boolean) getRect.invoke(impl, hwnd, r)) return false;
+          lwjgl2Saved = new long[] {style, ex, r.get(0), r.get(1), r.get(2), r.get(3)};
+        }
+        long popup = (style & ~(long) (WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_MAXIMIZE)) | (WS_POPUP & 0xFFFFFFFFL);
+        setLong.invoke(null, hwnd, -16, popup);
+        setLong.invoke(null, hwnd, -20, ex & ~(long) WS_EX_FRAME);
+        setPos.invoke(null, hwnd, 0L, 0, -1, w, h + 1, SWP_FLAGS);
+      } else {
+        long[] s = lwjgl2Saved;
+        lwjgl2Saved = null;
+        if (s == null) {
+          long style = (Long) getLong.invoke(null, hwnd, -16);
+          s = new long[] {(style & ~(WS_POPUP & 0xFFFFFFFFL)) | WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX,
+              (Long) getLong.invoke(null, hwnd, -20), 100, 100, 100 + 1280, 100 + 720};
+        }
+        setLong.invoke(null, hwnd, -16, s[0] & ~(long) WS_MAXIMIZE);
+        setLong.invoke(null, hwnd, -20, s[1]);
+        setPos.invoke(null, hwnd, 0L, (int) s[2], (int) s[3], (int) (s[4] - s[2]), (int) (s[5] - s[3]), SWP_FLAGS);
       }
       return true;
     } catch (Throwable ignored) {

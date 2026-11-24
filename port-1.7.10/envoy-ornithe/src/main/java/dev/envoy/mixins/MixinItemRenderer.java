@@ -1,9 +1,6 @@
 package dev.envoy.mixins;
 
-import dev.envoy.EnvoySettings;
-import dev.envoy.module.model.ModelRegistry;
 import dev.envoy.render.GlintRenderer;
-import dev.envoy.render.JemItemRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ItemRenderer;
 import net.minecraft.client.renderer.Tessellator;
@@ -15,22 +12,16 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Held items: custom JEM models and the coloured glint. In 1.8 both went through {@code RenderItem.renderItem}. */
+/** Held items: the coloured glint. In 1.8 it went through {@code RenderItem.renderItem}. */
 @Mixin(ItemRenderer.class)
 public abstract class MixinItemRenderer {
     private static final String RENDER_ITEM = "renderItem(Lnet/minecraft/entity/EntityLivingBase;Lnet/minecraft/item/ItemStack;I)V";
 
     private ItemStack envoy$glintStack;
 
-    @Inject(method = RENDER_ITEM, at = @At("HEAD"), cancellable = true, require = 0)
-    private void envoy$replaceHeldItem(EntityLivingBase holder, ItemStack stack, int pass, CallbackInfo callback) {
+    @Inject(method = RENDER_ITEM, at = @At("HEAD"), require = 0)
+    private void envoy$noteHeldStack(EntityLivingBase holder, ItemStack stack, int pass, CallbackInfo callback) {
         this.envoy$glintStack = pass == 0 && GlintRenderer.wants(stack) ? stack : null;
-        if (!EnvoySettings.customModels || stack == null || !ModelRegistry.hasItems()) return;
-        if (pass != 0) {
-            if (ModelRegistry.findForItem(stack) != null) callback.cancel();
-            return;
-        }
-        if (JemItemRenderer.renderHeld(stack)) callback.cancel();
     }
 
     /** The first renderItemIn2D draws the item; vanilla's own glint passes are the later two. */

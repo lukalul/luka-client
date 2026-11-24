@@ -88,6 +88,12 @@ public final class HitFixModule extends FeatureModule {
     if (packet instanceof net.minecraft.network.play.server.S19PacketEntityStatus) {
       return ((net.minecraft.network.play.server.S19PacketEntityStatus) packet).m_16748207(mc.theWorld) == mc.thePlayer;
     }
+    if (packet instanceof net.minecraft.network.play.server.S0BPacketAnimation) {
+      // animation 1 is the hurt animation: on the player it starts the hurt camera like the hurt status does. Some servers
+      // send both; applied early, this one started the shake and the status a moment later restarted it (a double shake)
+      net.minecraft.network.play.server.S0BPacketAnimation a = (net.minecraft.network.play.server.S0BPacketAnimation) packet;
+      return a.m_87015290() == 1 && a.m_18157545() == mc.thePlayer.getEntityId();
+    }
     return false;
   }
 

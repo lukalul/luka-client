@@ -10,6 +10,10 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.FileVisitResult;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -31,6 +35,8 @@ import java.util.zip.ZipInputStream;
 final class GameRunner {
   static final String MAIN_CLASS = "net.fabricmc.loader.impl.launch.knot.KnotClient";
   private static final Pattern ASSET_ENTRY = Pattern.compile("\"([^\"]+)\"\\s*:\\s*\\{\\s*\"hash\"\\s*:\\s*\"([0-9a-f]{40})\"");
+  /** Encrypted copies of luka's mods, shipped by releases 1.4.0 and 1.4.1; this launcher no longer opens them. */
+  private static final String ENCRYPTED = ".jar.enc";
 
   /** The identity the game starts with. */
   static final class Identity {
@@ -77,6 +83,7 @@ final class GameRunner {
     progress.update("Unpacking natives", 0.9);
     File natives = unpackNatives();
     progress.update("Starting luka", 0.95);
+    sweepOldLaunchTempDirs();
     List<String> command = command(libs, assets, natives);
     log.accept("Command: " + String.join(" ", command).replace(identity.accessToken, "***"));
     NvidiaProfile.apply(settings, new File(command.get(0)), log);
@@ -91,6 +98,67 @@ final class GameRunner {
     int code = process.waitFor();
     process = null;
     return code;
+  }
+
+  /**
+   * Launchers of releases 1.4.0 and 1.4.1 opened encrypted mods into luka-launch-* temp folders: deletes any they left
+   * behind, except those a game still has open (on Windows a folder with open files cannot be renamed; on Linux a
+   * running process names the folder on its command line).
+   */
+  private static void sweepOldLaunchTempDirs() {
+    File[] old = new File(System.getProperty("java.io.tmpdir")).listFiles((dir, name) -> name.startsWith("luka-launch-"));
+    if (old == null) return;
+    for (File dir : old) {
+      if (!dir.isDirectory() || inUseByGame(dir)) continue;
+      deleteTree(dir);
+    }
+  }
+
+  private static boolean inUseByGame(File dir) {
+    if (Platform.windows()) {
+      File probe = new File(dir.getParentFile(), dir.getName() + ".sweep");
+      if (!dir.renameTo(probe)) return true;   // something holds a file inside open
+      if (!probe.renameTo(dir)) deleteTree(probe); // could not put it back: it is free, so delete it under that name
+      return false;
+    }
+    File[] procs = new File("/proc").listFiles((d, name) -> name.chars().allMatch(Character::isDigit));
+    if (procs == null) return true;            // cannot tell: leave it
+    byte[] needle = dir.getAbsolutePath().getBytes(StandardCharsets.UTF_8);
+    for (File p : procs) {
+      try {
+        byte[] cmd = Files.readAllBytes(new File(p, "cmdline").toPath());
+        if (indexOf(cmd, needle) >= 0) return true;
+      } catch (IOException | SecurityException gone) {
+        // the process ended or is not ours
+      }
+    }
+    return false;
+  }
+
+  private static int indexOf(byte[] hay, byte[] needle) {
+    outer:
+    for (int i = 0; i + needle.length <= hay.length; i++) {
+      for (int j = 0; j < needle.length; j++) if (hay[i + j] != needle[j]) continue outer;
+      return i;
+    }
+    return -1;
+  }
+
+  private static void deleteTree(File root) {
+    try {
+      Files.walkFileTree(root.toPath(), new SimpleFileVisitor<Path>() {
+        @Override public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+          Files.deleteIfExists(file);
+          return FileVisitResult.CONTINUE;
+        }
+        @Override public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+          Files.deleteIfExists(dir);
+          return FileVisitResult.CONTINUE;
+        }
+      });
+    } catch (IOException ignored) {
+      // best-effort: what is left (a file still open) goes on the next launch's sweep
+    }
   }
 
   private List<String> command(File libs, File assets, File natives) throws Exception {
@@ -115,12 +183,20 @@ final class GameRunner {
     if (launcherJar != null) command.add("-Dluka.launcher=" + launcherJar.getAbsolutePath());
     command.add("-Dluka.home=" + root.getAbsolutePath());
     command.add("-Dluka.accounts=" + new File(root, "accounts.properties").getAbsolutePath());
+    String installId = installId();
+    command.add("-Dluka.installId=" + installId);
     File renderer = new File(home, "renderers/" + settings.renderer());
+    File mods = new File(gameDir(), "mods");
+    // An encrypted mod left here means the update list still names one (an older release): Fabric cannot load it, so
+    // stop Play instead of starting a game with luka's mods missing
+    if (!encryptedJars(mods).isEmpty() || !encryptedJars(renderer).isEmpty())
+      throw new IOException("This luka download is from an older release. Press Play again in a few minutes, or use Repair.");
     if (renderer.isDirectory()) command.add("-Dfabric.addMods=" + renderer.getAbsolutePath());
     StringBuilder classpath = new StringBuilder();
     for (String entry : lines(new File(home, "classpath.txt"))) {
+      File path = new File(libs, entry);
       if (classpath.length() > 0) classpath.append(File.pathSeparatorChar);
-      classpath.append(new File(libs, entry).getAbsolutePath());
+      classpath.append(path.getAbsolutePath());
     }
     command.add("-cp");
     command.add(classpath.toString());
@@ -236,6 +312,36 @@ final class GameRunner {
     pool.shutdown();
     pool.awaitTermination(30, TimeUnit.MINUTES);
     if (!failures.isEmpty()) throw new IOException("Could not download " + failures.size() + " assets: " + failures.get(0).getMessage());
+  }
+
+  // ---- leftovers of releases 1.4.0 and 1.4.1, which shipped encrypted mods (*.jar.enc) ----
+
+  /** The *.jar.enc files directly inside dir, sorted by name (none when dir is missing). */
+  private static List<File> encryptedJars(File dir) {
+    File[] found = dir.listFiles((d, name) -> name.toLowerCase(java.util.Locale.ROOT).endsWith(ENCRYPTED));
+    if (found == null) return Collections.emptyList();
+    List<File> out = new ArrayList<>();
+    Collections.addAll(out, found);
+    out.sort((a, b) -> a.getName().compareTo(b.getName()));
+    return out;
+  }
+
+  // ---- a random per-install id (never a Minecraft account), handed to the game for its crash reports ----
+
+  /** Generated once and kept next to the other luka files; the same id every launch, this install only. */
+  private String installId() {
+    File file = new File(root, "install-id.txt");
+    try {
+      if (file.isFile()) {
+        String existing = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8).trim().toLowerCase();
+        if (existing.matches("[0-9a-f-]{36}")) return existing;
+      }
+      String id = UUID.randomUUID().toString();
+      Files.write(file.toPath(), id.getBytes(StandardCharsets.UTF_8));
+      return id;
+    } catch (IOException cannotPersist) {
+      return UUID.randomUUID().toString(); // a fresh id this one launch beats failing to start over a write error
+    }
   }
 
   private static void download(String address, File target) throws IOException {

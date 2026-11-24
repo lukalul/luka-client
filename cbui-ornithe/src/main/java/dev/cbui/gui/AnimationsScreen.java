@@ -27,9 +27,6 @@ public final class AnimationsScreen extends GuiScreen {
   @Override public void initGui() {
     buttonList.clear();
     int x = width / 2 - 155;
-    buttonList.add(new GuiButton(10, x, 24, 100, 20, "All"));
-    buttonList.add(new GuiButton(11, x + 105, 24, 100, 20, "Decreased"));
-    buttonList.add(new GuiButton(12, x + 210, 24, 100, 20, "None"));
     buttonList.add(new GuiButton(20, width / 2 - 155, height - 48, 100, 20, "All on"));
     buttonList.add(new GuiButton(21, width / 2 - 50, height - 48, 100, 20, "All off"));
     buttonList.add(new GuiButton(200, width / 2 + 55, height - 48, 100, 20, "Done"));
@@ -37,10 +34,7 @@ public final class AnimationsScreen extends GuiScreen {
 
   @Override protected void actionPerformed(GuiButton button) {
     if (!button.enabled) return;
-    if (button.id >= 10 && button.id <= 12) {
-      mc.gameSettings.particleSetting = button.id - 10;
-      mc.gameSettings.saveOptions();
-    } else if (button.id == 20 || button.id == 21) {
+    if (button.id == 20 || button.id == 21) {
       boolean on = button.id == 20;
       for (Entry entry : entries) GlobalOptions.animationEnabled(entry.key, on);
       save();
@@ -80,7 +74,6 @@ public final class AnimationsScreen extends GuiScreen {
   @Override public void drawScreen(int mouseX, int mouseY, float partialTicks) {
     drawDefaultBackground();
     drawCenteredString(fontRendererObj, "Animations", width / 2, 7, 0xFFFFFF);
-    drawCenteredString(fontRendererObj, "Global particle amount", width / 2, 15, 0xA0A0A0);
     int bottom = height - 54;
     for (int i = 0; i < entries.size(); i++) {
       int y = 52 + i * 21 - scroll;
