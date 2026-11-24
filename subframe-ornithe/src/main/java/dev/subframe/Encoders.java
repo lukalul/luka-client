@@ -28,6 +28,56 @@ final class Encoders {
                 + " -profile:v high444p -pix_fmt yuv444p";
     }
 
+    /**
+     * The highest frame rate the GPU encoder's level allows at this size: H.264 about 4.18 M macroblocks per second (the
+     * level NVENC accepts), HEVC level 6.2 about 4.28 G luma samples per second. Both with a little margin.
+     */
+    static int gpuMaxFps(String args, int w, int h) {
+        double perSecond, perFrame;
+        if (args.contains("hevc_nvenc")) {
+            perSecond = 4.0e9;
+            perFrame = (double) ((w + 7) / 8 * 8) * ((h + 7) / 8 * 8);
+        } else {
+            perSecond = 4.0e6;
+            perFrame = (double) ((w + 15) / 16) * ((h + 15) / 16);
+        }
+        return (int) Math.max(1, Math.floor(perSecond / perFrame));
+    }
+
+    private static final java.util.Map<String, Boolean> rates = new java.util.concurrent.ConcurrentHashMap<String, Boolean>();
+
+    /** True if the encoder takes this size and frame rate: a short test encode of four frames (each case tried once). */
+    static boolean acceptsRate(String outputArgs, int w, int h, int fps) {
+        int ew = w / 2 * 2, eh = h / 2 * 2;
+        String key = outputArgs + "|" + ew + "x" + eh + "@" + fps;
+        Boolean cached = rates.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        boolean ok = false;
+        try {
+            java.util.List<String> cmd = new java.util.ArrayList<String>(java.util.Arrays.asList(SubFrameMod.ffmpegPath, "-hide_banner",
+                    "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:s=" + ew + "x" + eh + ":r=" + fps, "-frames:v", "4"));
+            cmd.addAll(java.util.Arrays.asList(outputArgs.trim().split("\\s+")));
+            cmd.addAll(java.util.Arrays.asList("-f", "null", "-"));
+            Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
+            p.getOutputStream().close();
+            java.io.InputStream in = p.getInputStream();
+            byte[] b = new byte[1024];
+            while (in.read(b) > 0) {
+                // discard
+            }
+            ok = p.waitFor(20, TimeUnit.SECONDS) && p.exitValue() == 0;
+            if (!ok) {
+                p.destroyForcibly();
+            }
+        } catch (Exception e) {
+            ok = false;
+        }
+        rates.put(key, ok);
+        return ok;
+    }
+
     private static volatile Boolean gpuWorks;
 
     /** HEVC on the GPU: its level limits allow far higher frame rates than H.264's (e.g. 960 fps at 1080p). Null when ffmpeg or the driver refuse it. */

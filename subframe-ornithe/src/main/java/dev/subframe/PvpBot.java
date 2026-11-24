@@ -61,7 +61,10 @@ final class PvpBot {
                 EntityPlayerMP sp = player(srv);
                 // the test world is reused between runs and keeps the game mode it was first created with
                 sp.setGameType(net.minecraft.world.WorldSettings.GameType.SURVIVAL);
-                sp.inventory.mainInventory[0] = new ItemStack(Items.diamond_sword);
+                // Sharpness: own hits make the enchanted-hit sparks, which only the recording has (replays rebuild them)
+                ItemStack sword = new ItemStack(Items.diamond_sword);
+                sword.addEnchantment(net.minecraft.enchantment.Enchantment.sharpness, 5);
+                sp.inventory.mainInventory[0] = sword;
                 if (!VULNERABLE) {
                     sp.inventory.armorInventory[0] = new ItemStack(Items.diamond_boots);
                     sp.inventory.armorInventory[1] = new ItemStack(Items.diamond_leggings);

@@ -285,8 +285,8 @@ final class SelfTest {
             boxType(s, "####144!");
             SubFrameMod.LOG.info("[fpsbox] typed 144 + Enter: fps=" + SubFrameMod.outputFps + " box='" + s.fpsText() + "'");
             s.mouseClicked(fx, fy, 0);
-            boxType(s, "###5000ab");
-            SubFrameMod.LOG.info("[fpsbox] while typing 5000ab: fps=" + SubFrameMod.outputFps + " box='" + s.fpsText() + "'");
+            boxType(s, "###25000ab");
+            SubFrameMod.LOG.info("[fpsbox] while typing 25000ab: fps=" + SubFrameMod.outputFps + " box='" + s.fpsText() + "'");
             s.mouseClicked(5, 5, 0);
             SubFrameMod.LOG.info("[fpsbox] clicked away: fps=" + SubFrameMod.outputFps + " box='" + s.fpsText() + "'");
             s.mouseClicked(fx, fy, 0);
@@ -296,6 +296,12 @@ final class SelfTest {
             boxType(s, "###333");
             s.mouseClicked(s.width / 2 - 90, s.height / 4 + 95, 0);
             SubFrameMod.LOG.info("[fpsbox] typed 333 then clicked the preset button: fps=" + SubFrameMod.outputFps + " box='" + s.fpsText() + "'");
+            s.mouseClicked(fx, fy, 0);
+            boxType(s, "#####5000!");
+            SubFrameMod.LOG.info("[fpsbox] typed 5000 + Enter: fps=" + SubFrameMod.outputFps);
+            Replay rp = Replay.active;
+            String[] big = rp == null ? null : ReplayMenuScreen.bigRender(rp, 1920, 1080);
+            SubFrameMod.LOG.info("[fpsbox] large-render check at 1920x1080: " + (big == null ? "none" : String.join(" | ", big)));
         }
         Replay.abort();
         mc.shutdown();

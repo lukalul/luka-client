@@ -273,28 +273,46 @@ final class ParticleState {
         }
     }
 
+    private static Object unsafe;
+    private static java.lang.reflect.Method allocateInstance;
+
     /**
-     * Builds a particle from a recording without running its constructor (which needs the arguments and the
-     * random numbers the live game used).
+     * A particle object made without running any constructor. sun.misc.Unsafe is reached by reflection: the mod compiles
+     * for Java 8 (where javac hides it), and the game runs on Java 8 to 25, which all still have allocateInstance.
+     */
+    private static synchronized Object allocate(Class<?> c) throws Exception {
+        if (allocateInstance == null) {
+            Class<?> u = Class.forName("sun.misc.Unsafe");
+            Field f = u.getDeclaredField("theUnsafe");
+            f.setAccessible(true);
+            unsafe = f.get(null);
+            allocateInstance = u.getMethod("allocateInstance", Class.class);
+        }
+        return allocateInstance.invoke(unsafe, c);
+    }
+
+    /**
+     * Builds a particle from a recording without running its constructor (which needs the arguments and the random
+     * numbers the live game used): a blank instance gets what Entity's constructor would register (data watcher,
+     * random), every recorded number, a bounding box at its recorded position and size, and its recorded references.
+     * Used for particles the replayed game does not make by itself: the ones the live game made from the player's own
+     * input (own hits), and any whose replayed spawn did not land exactly where the recorded one did.
      */
     static EntityFX rebuild(Rec r) throws Exception {
-        throw new UnsupportedOperationException("Particle reconstruction is not available on the Java 8-safe Ornithe build");
-        /*Minecraft mc = Minecraft.getMinecraft();
+        Minecraft mc = Minecraft.getMinecraft();
         Class<?> c = Class.forName(r.cls, true, EntityFX.class.getClassLoader());
-        EntityFX fx = (EntityFX) unsafe().allocateInstance(c);
+        EntityFX fx = (EntityFX) allocate(c);
         fx.worldObj = mc.theWorld;
-        // what Entity's constructor registers; the movement code reads the flags byte
         DataWatcher watcher = new DataWatcher(fx);
         watcher.addObject(0, Byte.valueOf((byte) 0));
         watcher.addObject(1, Short.valueOf((short) 300));
         watcher.addObject(3, Byte.valueOf((byte) 0));
         watcher.addObject(2, "");
         watcher.addObject(4, Byte.valueOf((byte) 0));
-        Reflect.set(Entity.class, fx, watcher, ENTITY_DATAWATCHER);
-        Reflect.set(Entity.class, fx, new Random(r.seed), ENTITY_RAND);
+        ((EntityAccessor) fx).subframe$setDataWatcher(watcher);
+        ((EntityAccessor) fx).subframe$setRandom(new Random(r.seed));
         apply(r, fx);
-        double hw = fx.width / 2.0;
-        fx.setEntityBoundingBox(new AxisAlignedBB(fx.posX - hw, fx.posY, fx.posZ - hw, fx.posX + hw, fx.posY + fx.height, fx.posZ + hw));
+        fx.setPosition(fx.posX, fx.posY, fx.posZ);
         Map<String, Integer> index = new HashMap<String, Integer>();
         for (int k = 0; k < r.refNames.length; k++) {
             index.put(r.refNames[k], k);
@@ -325,6 +343,6 @@ final class ParticleState {
             }
             f.set(fx, v);
         }
-        return fx;*/
+        return fx;
     }
 }

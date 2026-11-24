@@ -2,6 +2,10 @@
 
 The launcher shows the notes below on its What's New page. Add a new `## version` heading at the top for each release.
 
+## 1.5.1
+- Replays: particles from your own hits (crits, Sharpness sparks), death effects and other effects show up in replays and renders again.
+- Replays: you can type a frame rate up to 20,000 fps. Very high frame rates are encoded on the graphics card where it can, and a check before rendering shows how big and how long a large render will be.
+
 ## 1.5.0
 - luka is open source again, under the GNU GPL v3: the code is at github.com/lukalul/luka-client, and the Vulkan renderer's at github.com/lukalul/luka-vulkan.
 - luka's mods are plain files again, no longer protected: you no longer need a signed-in Microsoft account to play, and offline names work again.

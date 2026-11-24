@@ -306,7 +306,7 @@ public final class SubFrameMod implements ClientModInitializer {
                 LOG.warn("Could not read " + file, e);
             }
         }
-        outputFps = integer(p, "outputFps", outputFps, 1, 1000);
+        outputFps = integer(p, "outputFps", outputFps, 1, 20000);
         subframes = integer(p, "subframes", subframes, 1, 4096);
         shutter = decimal(p, "shutter", shutter);
         warmupFrames = integer(p, "warmupFrames", warmupFrames, 0, 1000);

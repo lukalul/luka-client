@@ -1,6 +1,11 @@
 package dev.subframe;
 
 import net.minecraft.block.Block;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.TextureMap;
+import net.minecraft.entity.DataWatcher;
+import net.minecraft.util.AxisAlignedBB;
+import net.minecraft.util.ResourceLocation;
 import net.minecraft.client.particle.EntityFX;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.entity.Entity;
@@ -261,8 +266,86 @@ final class ParticleState {
         }
     }
 
-    /** The 1.8.9 build cannot rebuild particles either: it needs an uninitialised instance, which is not available on Java 8. */
+    private static Object unsafe;
+    private static java.lang.reflect.Method allocateInstance;
+
+    /**
+     * A particle object made without running any constructor. sun.misc.Unsafe is reached by reflection: the mod compiles
+     * for Java 8 (where javac hides it), and the game runs on Java 8 to 25, which all still have allocateInstance.
+     */
+    private static synchronized Object allocate(Class<?> c) throws Exception {
+        if (allocateInstance == null) {
+            Class<?> u = Class.forName("sun.misc.Unsafe");
+            Field f = u.getDeclaredField("theUnsafe");
+            f.setAccessible(true);
+            unsafe = f.get(null);
+            allocateInstance = u.getMethod("allocateInstance", Class.class);
+        }
+        return allocateInstance.invoke(unsafe, c);
+    }
+
+    /** Entity.boundingBox is final on 1.7.10 and only its constructor fills it. */
+    private static Field boundingBoxField;
+
+    /**
+     * Builds a particle from a recording without running its constructor (which needs the arguments and the random
+     * numbers the live game used): a blank instance gets what Entity's constructor would register (data watcher,
+     * random, bounding box), every recorded number, its position and its recorded references. Used for particles the
+     * replayed game does not make by itself: the ones the live game made from the player's own input (own hits), and
+     * any whose replayed spawn did not land exactly where the recorded one did.
+     */
     static EntityFX rebuild(Rec r) throws Exception {
-        throw new UnsupportedOperationException("Particle reconstruction is not available on the Java 8-safe Ornithe build");
+        Minecraft mc = Minecraft.getMinecraft();
+        Class<?> c = Class.forName(r.cls, true, EntityFX.class.getClassLoader());
+        EntityFX fx = (EntityFX) allocate(c);
+        fx.worldObj = mc.theWorld;
+        DataWatcher watcher = new DataWatcher(fx);
+        watcher.addObject(0, Byte.valueOf((byte) 0));
+        watcher.addObject(1, Short.valueOf((short) 300));
+        ((EntityAccessor) fx).subframe$setDataWatcher(watcher);
+        ((EntityAccessor) fx).subframe$setRandom(new Random(r.seed));
+        synchronized (ParticleState.class) {
+            if (boundingBoxField == null) {
+                for (Field f : Entity.class.getDeclaredFields()) {
+                    if (f.getType() == AxisAlignedBB.class && !Modifier.isStatic(f.getModifiers())) {
+                        f.setAccessible(true);
+                        boundingBoxField = f;
+                        break;
+                    }
+                }
+            }
+        }
+        boundingBoxField.set(fx, AxisAlignedBB.getBoundingBox(0, 0, 0, 0, 0, 0));
+        apply(r, fx);
+        fx.setPosition(fx.posX, fx.posY, fx.posZ);
+        Map<String, Integer> index = new HashMap<String, Integer>();
+        for (int k = 0; k < r.refNames.length; k++) {
+            index.put(r.refNames[k], k);
+        }
+        for (Field f : refFields(c)) {
+            Integer k = index.get(f.getDeclaringClass().getName() + "#" + f.getName());
+            if (k == null) {
+                continue;
+            }
+            Object v = null;
+            switch (r.refKinds[k]) {
+                case 'S': {
+                    // layer 1 draws from the block atlas, layer 2 from the item atlas
+                    ResourceLocation atlas = fx.getFXLayer() == 2 ? TextureMap.locationItemsTexture : TextureMap.locationBlocksTexture;
+                    v = ((TextureMap) mc.getTextureManager().getTexture(atlas)).getAtlasSprite((String) r.refValues[k]);
+                    break;
+                }
+                case 'B':
+                    v = Block.getBlockById((Integer) r.refValues[k]);
+                    break;
+                case 'E':
+                    v = mc.theWorld.getEntityByID((Integer) r.refValues[k]);
+                    break;
+                default:
+                    break;
+            }
+            f.set(fx, v);
+        }
+        return fx;
     }
 }

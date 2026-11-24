@@ -43,16 +43,42 @@ final class FfmpegSink implements FrameSink {
     private int current;
     private int pboFailures;
 
+    /** Set when the encoder runs at a lower frame rate than the video's (see the constructor): the file it writes first. */
+    private File slowFile;
+    private final String exe;
+    private final File outFile;
+    private final int fps, encodeFps;
+    private final boolean hvc1;
+
     FfmpegSink(String exe, int w, int h, int fps, String encoderArgs, File outFile, String blurFilter) throws IOException {
+        this(exe, w, h, fps, fps, encoderArgs, outFile, blurFilter);
+    }
+
+    /**
+     * encodeFps below fps: for a GPU encoder that refuses the real frame rate. It is told encodeFps and writes
+     * <out>.part.mp4; close() then copies that into outFile with every timestamp scaled by encodeFps / fps (no
+     * re-encoding, seconds), which gives the real frame rate.
+     */
+    FfmpegSink(String exe, int w, int h, int fps, int encodeFps, String encoderArgs, File outFile, String blurFilter) throws IOException {
         this.w = w;
         this.h = h;
+        this.exe = exe;
+        this.outFile = outFile;
+        this.fps = fps;
+        this.encodeFps = Math.min(encodeFps, fps);
+        this.hvc1 = encoderArgs.contains("hvc1");
         List<String> cmd = new ArrayList<String>();
         cmd.add(exe);
         cmd.addAll(Arrays.asList("-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
-                "-s", w + "x" + h, "-framerate", String.valueOf(fps), "-i", "-",
+                "-s", w + "x" + h, "-framerate", String.valueOf(this.encodeFps), "-i", "-",
                 "-vf", "vflip,crop=trunc(iw/2)*2:trunc(ih/2)*2" + (blurFilter != null ? "," + blurFilter : "")));
         cmd.addAll(Arrays.asList(encoderArgs.trim().split("\\s+")));
-        cmd.add(outFile.getAbsolutePath());
+        if (this.encodeFps < fps) {
+            slowFile = new File(outFile.getPath() + ".part.mp4");
+            cmd.add(slowFile.getAbsolutePath());
+        } else {
+            cmd.add(outFile.getAbsolutePath());
+        }
         proc = new ProcessBuilder(cmd).redirectErrorStream(true).start();
         out = proc.getOutputStream();
         final InputStream log = proc.getInputStream();
@@ -218,9 +244,45 @@ final class FfmpegSink implements FrameSink {
             full.put(END);
             writer.join(60000);
             out.close();
-            proc.waitFor();
+            int code = proc.waitFor();
+            if (slowFile != null) {
+                if (code == 0 && slowFile.length() > 0) {
+                    retime();
+                } else {
+                    SubFrameMod.LOG.error("ffmpeg ended with code " + code + "; the encoded file is kept at " + slowFile);
+                }
+            }
         } catch (Exception e) {
             SubFrameMod.LOG.error("Closing ffmpeg failed", e);
+        }
+    }
+
+    /** Copies the slow file into the real one with its timestamps scaled to the real frame rate, without encoding again. */
+    private void retime() throws IOException, InterruptedException {
+        List<String> cmd = new ArrayList<String>(Arrays.asList(exe, "-y", "-loglevel", "error",
+                "-itsscale", String.format(java.util.Locale.ROOT, "%.12f", encodeFps / (double) fps),
+                "-i", slowFile.getAbsolutePath(), "-c", "copy", "-video_track_timescale", String.valueOf(fps)));
+        if (hvc1) {
+            cmd.addAll(Arrays.asList("-tag:v", "hvc1"));
+        }
+        cmd.add(outFile.getAbsolutePath());
+        Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
+        p.getOutputStream().close();
+        java.io.ByteArrayOutputStream log = new java.io.ByteArrayOutputStream();
+        InputStream in = p.getInputStream();
+        byte[] b = new byte[4096];
+        int n;
+        while ((n = in.read(b)) > 0) {
+            log.write(b, 0, n);
+        }
+        int code = p.waitFor();
+        if (code == 0 && outFile.length() > 0) {
+            SubFrameMod.LOG.info("[render] set the video's frame rate to " + fps + " fps: " + outFile.getName());
+            if (!slowFile.delete()) {
+                slowFile.deleteOnExit();
+            }
+        } else {
+            SubFrameMod.LOG.error("Setting the frame rate failed (code " + code + "): " + log + "; the encoded file is kept at " + slowFile);
         }
     }
 }

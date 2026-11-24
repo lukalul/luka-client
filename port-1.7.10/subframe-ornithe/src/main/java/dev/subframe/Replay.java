@@ -943,20 +943,33 @@ final class Replay {
                     String args = Encoders.args(SubFrameMod.blend || forcedBlend);
                     // H.264 level 6.2 (the top one NVENC accepts) allows about 4.18 M macroblocks per second: raw high-fps renders
                     // (e.g. 960 fps at 1080p) exceed it and NVENC fails with "Invalid Level", leaving an empty file
-                    long macroblocksPerSecond = (long) ((w + 15) / 16) * ((h + 15) / 16) * outFps;
-                    if (args.contains("h264_nvenc") && macroblocksPerSecond > 4000000L) {
+                    if (args.contains("h264_nvenc") && Encoders.gpuMaxFps(args, w, h) < outFps) {
                         String hevc = Encoders.hevcGpuArgs();
                         if (hevc != null) {
                             SubFrameMod.LOG.warn("[render] " + outFps + " fps at " + w + "x" + h + " is above H.264's limit; using HEVC on the GPU");
                             args = hevc;
-                        } else {
-                            SubFrameMod.LOG.warn("[render] " + outFps + " fps at " + w + "x" + h + " is above what NVENC accepts; using the CPU encoder");
-                            args = (SubFrameMod.blend || forcedBlend) ? Encoders.CPU_BLENDED : Encoders.CPU_RAW;
                         }
+                    }
+                    // Some GPU encoders refuse frame rates above their level (about 2,000 fps at 1080p for HEVC; the NVIDIA driver
+                    // tested on 2026-11-24 took 20,000 directly). A short test encode at the real size and rate decides; when it
+                    // is refused, the encoder is told a rate it accepts and FfmpegSink rescales the finished file's timestamps
+                    // to the real one: same frames, GPU speed
+                    int encodeFps = outFps;
+                    if (args.contains("_nvenc") && !Encoders.acceptsRate(args, w, h, outFps)) {
+                        encodeFps = Math.min(outFps, Encoders.gpuMaxFps(args, w, h));
+                        while (encodeFps > 30 && !Encoders.acceptsRate(args, w, h, encodeFps)) {
+                            encodeFps /= 2;
+                        }
+                        SubFrameMod.LOG.warn("[render] the GPU encoder refuses " + outFps + " fps at " + w + "x" + h + "; encoding at "
+                                + encodeFps + " fps, then setting the file's frame rate to " + outFps);
+                    }
+                    Integer testRate = Integer.getInteger("subframe.test.encodeFps"); // rig check of the rescaling path
+                    if (testRate != null && testRate < outFps) {
+                        encodeFps = testRate;
                     }
                     SubFrameMod.LOG.info("[render] encoder arguments: " + args);
                     encoderUsed = args;
-                    sink = new FfmpegSink(SubFrameMod.ffmpegPath, w, h, outFps, args, outFile, null);
+                    sink = new FfmpegSink(SubFrameMod.ffmpegPath, w, h, outFps, encodeFps, args, outFile, null);
                 }
             }
         } catch (Throwable t) {
