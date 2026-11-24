@@ -27,7 +27,6 @@ The launcher shows the notes below on its What's New page. Add a new `## version
 - Freelook turns the camera again (it could leave the view stuck).
 - Zoom: stepping back now goes all the way to no zoom, and calm view bob no longer jitters while walking zoomed in.
 - Envoy: the /envoy commands (waypoints and the rest) work again.
-- luka's mods are now delivered in a protected form that only the luka launcher can open. Playing needs a signed-in Microsoft account and a connection to luka when you start the game.
 - Prism Launcher packs are no longer offered: use the luka launcher.
 - New Auto Center Inventory switch in Settings > General (on by default): your inventory stays in the middle of the screen while potion effects are active.
 - Fixed a few features that quietly fell back to vanilla in the protected builds since 1.1.0, such as the static enchanting-table book.
@@ -56,7 +55,6 @@ The launcher shows the notes below on its What's New page. Add a new `## version
 - Vulkan renderer: removed present pacing. Every frame goes straight to the screen again.
 
 ## 1.1.0
-- luka is now closed source: the code is no longer published and the client ships in a protected form. Nothing changes in how you play.
 - The launcher replaces older luka files left in your install with the current ones when you press Play. Your settings, worlds and other mods stay as they are.
 - New: copy a Lunar Client profile into luka (luka menu > Profiles > Copy from Lunar Client). Mod switches and HUD positions come along; your current layout is kept as its own profile.
 - 1.7.10: fixed the title screen showing the vanilla menu with the picture squeezed into a corner.
