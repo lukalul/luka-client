@@ -59,7 +59,7 @@ public final class LegacyGlint {
     double x0 = x - 2, y0 = y - 2, x1 = x0 + 20.0D, y1 = y0 + 20.0D;
     double z = (double) (100.0f + zLevel);
     float size = 0.078125f;
-    long now = net.minecraft.client.Minecraft.getSystemTime();
+    long now = dev.cbui.render.GlintClock.now();
     for (int layer = 0; layer < 2; layer++) {
       float u = scroll(now, layer);
       float skew = (layer == 0 ? 4.0f : -1.0f) * size;

@@ -118,6 +118,15 @@ final class Replay {
      * Like the game's own counter it changes once a second: it is the count of the last whole recorded second (the
      * first second of the recording shows its own count), not a window that slides with every drawn frame.
      */
+    /** Recorded time of the frame being drawn, in milliseconds, or -1 while no replay is showing. */
+    static long shownMillis() {
+        Replay r = active;
+        if (r == null || !r.running || r.finished || r.shownT < 0) {
+            return -1;
+        }
+        return r.shownT / 1_000_000L;
+    }
+
     static int recordedFps() {
         Replay r = active;
         if (r == null || !r.running || r.finished || r.shownT < 0) {

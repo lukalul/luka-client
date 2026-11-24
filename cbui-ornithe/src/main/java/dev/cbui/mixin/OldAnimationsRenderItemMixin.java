@@ -63,7 +63,7 @@ public abstract class OldAnimationsRenderItemMixin {
       GlStateManager.blendFunc(768, 1);
       this.textureManager.bindTexture(RES_ITEM_GLINT);
       GlStateManager.matrixMode(5890);
-      long now = net.minecraft.client.Minecraft.getSystemTime();
+      long now = dev.cbui.render.GlintClock.now();
       for (int i = 0; i < 2; i++) {
         GlStateManager.pushMatrix();
         float shift = LegacyGlint.scroll(now, i) * 8.0f;

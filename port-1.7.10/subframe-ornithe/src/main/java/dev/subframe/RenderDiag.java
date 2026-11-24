@@ -10,6 +10,15 @@ import org.lwjgl.opengl.GL11;
 
 /** Builds the text that goes into the render log: the environment once, and a state snapshot when something looks wrong. */
 final class RenderDiag {
+    /** legacy-lwjgl3's Display has no isFullscreen(): without this guard the whole render log failed to open there. */
+    private static String fullscreen() {
+        try {
+            return String.valueOf(Display.isFullscreen());
+        } catch (Throwable notThere) {
+            return "unknown";
+        }
+    }
+
     private RenderDiag() {
     }
 
@@ -35,7 +44,7 @@ final class RenderDiag {
         }
         sb.append("window ").append(Display.getWidth()).append('x').append(Display.getHeight())
                 .append(" active=").append(Display.isActive()).append(" visible=").append(Display.isVisible())
-                .append(" fullscreen=").append(Display.isFullscreen()).append('\n');
+                .append(" fullscreen=").append(fullscreen()).append('\n');
         Framebuffer fb = mc.getFramebuffer();
         sb.append("framebuffer ").append(fb.framebufferWidth).append('x').append(fb.framebufferHeight).append('\n');
         sb.append("settings: fov=").append(mc.gameSettings.fovSetting).append(" renderDistance=").append(mc.gameSettings.renderDistanceChunks)

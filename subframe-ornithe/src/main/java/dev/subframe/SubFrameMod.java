@@ -112,6 +112,21 @@ public final class SubFrameMod implements ClientModInitializer {
         }
     }
 
+    /**
+     * The clock for the enchantment shine: the recorded time while a replay is shown or rendered, the game's wall clock
+     * otherwise. Vanilla scrolls the shine by {@code Minecraft.getSystemTime()}, which in a render runs at the render's
+     * speed instead of the video's, so at high frame rates the shine raced and jumped. luka's cbui uses this too.
+     */
+    public static long glintMillis() {
+        long t;
+        try {
+            t = Replay.shownMillis();
+        } catch (Throwable notReady) {
+            t = -1;
+        }
+        return t >= 0 ? t : net.minecraft.client.Minecraft.getSystemTime();
+    }
+
     public static void onDisconnect() {
         try {
             Recorder.stop();

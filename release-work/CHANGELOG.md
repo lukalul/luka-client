@@ -2,6 +2,10 @@
 
 The launcher shows the notes below on its What's New page. Add a new `## version` heading at the top for each release.
 
+## 1.5.7
+- Replays: the enchantment shine on items moves at its normal speed in renders. Before, it ran at the render's own speed, so at high frame rates it raced and flickered.
+- Replays: the render log is written again on setups whose game window library had no fullscreen check.
+
 ## 1.5.6
 - Replays: if you use the Dynamic FPS mod, it is switched off while a replay is open (and back on afterwards), so it can no longer slow down or stutter a render.
 - Vulkan renderer (1.8.9): fixed scrambled or frozen frames in replay renders after the game window was resized or switched to fullscreen.

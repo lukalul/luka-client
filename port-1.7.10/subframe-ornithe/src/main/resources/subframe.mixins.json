@@ -3,6 +3,8 @@
   "package": "dev.subframe.mixin",
   "compatibilityLevel": "JAVA_8",
   "client": [
+    "RenderItemGlintMixin",
+    "ItemRendererGlintMixin",
     "MinecraftMixin",
     "MinecraftAccessor",
     "NetHandlerLoginClientMixin",
