@@ -89,6 +89,73 @@ final class ChunkWait {
         }
     }
 
+    /**
+     * The Vulkan renderer builds terrain itself, on its own threads, and leaves the vanilla chunk list empty. Its F3 chunk
+     * line says where it is: "C: drawn/total,compiled D: distance, B: building, Q: queued, M: memory". "Q" also counts
+     * sections out of view, which it builds only once they come into view, so the wait uses "B" (sections being built)
+     * and "compiled" (sections finished). Vanilla's line has neither, so this stays off on the normal renderer.
+     */
+    private static final java.util.regex.Pattern VULKAN_TERRAIN = java.util.regex.Pattern.compile("C: \\d+/\\d+,(\\d+) D: -?\\d+, B: (\\d+), Q: (\\d+)");
+    private boolean vulkanOff;
+    private int vulkanTimeouts;
+    private int vulkanCompiled = -1, vulkanQueued = -1;
+    private int lastBuilding = -1;
+    private long buildingSince;
+
+    /** Sections the Vulkan renderer is building right now, or -1 when it is not the renderer (or stopped being waited for). */
+    int vulkanPending() {
+        if (vulkanOff) {
+            return -1;
+        }
+        try {
+            String line = Minecraft.getMinecraft().renderGlobal.getDebugInfoRenders();
+            if (line == null || line.isEmpty()) {
+                // Vulkan fills the line in only after it was first asked for (vanilla's is never empty): count it as
+                // still building until the next draws publish the real numbers
+                return 1;
+            }
+            java.util.regex.Matcher m = VULKAN_TERRAIN.matcher(line);
+            if (!m.find()) {
+                return -1;
+            }
+            vulkanCompiled = Integer.parseInt(m.group(1));
+            vulkanQueued = Integer.parseInt(m.group(3));
+            return Integer.parseInt(m.group(2));
+        } catch (Throwable t) {
+            vulkanOff = true;
+            return -1;
+        }
+    }
+
+    /** Sections finished so far, as of the last vulkanPending() call. */
+    int vulkanCompiled() {
+        return vulkanCompiled;
+    }
+
+    /** Sections queued anywhere in view distance, as of the last vulkanPending() call (for the render log). */
+    int vulkanQueued() {
+        return vulkanQueued;
+    }
+
+    /** True when the number of sections being built has not moved for half a second: something is stuck, stop waiting. */
+    boolean vulkanStalled(int building) {
+        long now = System.nanoTime();
+        if (building != lastBuilding) {
+            lastBuilding = building;
+            buildingSince = now;
+            return false;
+        }
+        return now - buildingSince > 500_000_000L;
+    }
+
+    /** A frame's wait for Vulkan terrain timed out; after a few, stop waiting for it in this render. */
+    boolean vulkanTimedOut() {
+        if (++vulkanTimeouts >= 3) {
+            vulkanOff = true;
+        }
+        return vulkanOff;
+    }
+
     /** True when no chunk is waiting to be built. */
     boolean idle() {
         if (broken) {

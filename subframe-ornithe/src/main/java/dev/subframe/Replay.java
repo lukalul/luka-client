@@ -99,6 +99,8 @@ final class Replay {
     private boolean diagNext = true;
     private Integer savedChunkUpdates;
     private boolean probed;
+    private boolean vulkanNoted;
+    private int vulkanCompiledAfter = -1;
     private int crosshairFailures;
     private int pinnedResizes;
     private int warmup;
@@ -1366,6 +1368,54 @@ final class Replay {
                 }
                 idleBefore = chunks.idle();
                 mc.entityRenderer.updateCameraAndRender(partial, System.nanoTime());
+            }
+        }
+        if (!preview && chunks.vulkanPending() >= 0) {
+            if (!vulkanNoted && rlog != null) {
+                vulkanNoted = true;
+                rlog.important("frame " + frameIndex + ": Vulkan renderer: each frame waits until the terrain in view is built");
+            }
+            // Vulkan builds terrain while frames are drawn: each draw schedules the sections in view and its own threads
+            // build them. Draw until nothing is being built and no new section got finished, twice in a row, then the
+            // picture is complete; one more draw makes sure the last finished sections are in it
+            long deadline = System.nanoTime() + 2_000_000_000L;
+            int quiet = 0, draws = 0, building, lastCompiled = vulkanCompiledAfter; // what the last frame's wait ended on
+            int firstCompiled = -1;
+            String why = "settled";
+            while ((building = chunks.vulkanPending()) >= 0 && quiet < 2 && System.nanoTime() < deadline) {
+                int compiled = chunks.vulkanCompiled();
+                if (firstCompiled < 0) {
+                    firstCompiled = compiled;
+                }
+                if (building == 0 && compiled == lastCompiled) {
+                    quiet++;
+                } else {
+                    quiet = 0;
+                    if (building > 0 && chunks.vulkanStalled(building)) {
+                        why = "stuck";
+                        break;
+                    }
+                }
+                lastCompiled = compiled;
+                if (quiet >= 2) {
+                    break;
+                }
+                mc.entityRenderer.updateCameraAndRender(partial, System.nanoTime());
+                draws++;
+                fSettle++;
+            }
+            vulkanCompiledAfter = chunks.vulkanCompiled();
+            if (frameIndex < 5 && rlog != null) {
+                rlog.line("frame " + frameIndex + ": Vulkan terrain wait: " + draws + " extra draws, sections finished " + firstCompiled + " -> "
+                        + chunks.vulkanCompiled() + ", queued in view distance " + chunks.vulkanQueued() + ", "
+                        + (System.nanoTime() >= deadline ? "2 s limit" : why));
+            }
+            if (quiet < 2 && System.nanoTime() >= deadline) {
+                boolean off = chunks.vulkanTimedOut();
+                if (rlog != null) {
+                    rlog.important("frame " + frameIndex + ": Vulkan terrain still building after 2 s"
+                            + (off ? "; not waiting for it any more in this render" : ""));
+                }
             }
         }
         nsRender += System.nanoTime() - rd0;

@@ -230,10 +230,28 @@ final class SelfTest {
 
     private long viewStart;
     private boolean pressedEsc, loggedAfter, finishedView;
+    private boolean viewRendered;
 
     /** Viewer check on wall-clock time, since no client ticks run while the viewer is paused or a menu is open. */
     private void viewerCheck() {
-        if (VIEWREC == null || stage != Stage.VIEWING || finishedView) {
+        // -Dsubframe.viewrender=<s>: after that many seconds in the viewer, press Render there (the render rejoins the world,
+        // unlike a render started from the main menu); the game quits once the render is over
+        if (VIEWREC != null && stage == Stage.VIEWING && Integer.getInteger("subframe.viewrender") != null) {
+            if (viewStart == 0) {
+                viewStart = System.nanoTime();
+            }
+            Replay r = Replay.active;
+            if (!viewRendered && r != null && (System.nanoTime() - viewStart) / 1e9 > Integer.getInteger("subframe.viewrender")) {
+                viewRendered = true;
+                SubFrameMod.LOG.info("[selftest] pressing Render in the viewer");
+                r.startRender();
+            } else if (viewRendered && r == null) {
+                mc.shutdown();
+            }
+            return;
+        }
+        // -Dsubframe.viewstay: leave the viewer running for the test bot (screenshots of a player's replay)
+        if (VIEWREC == null || stage != Stage.VIEWING || finishedView || Boolean.getBoolean("subframe.viewstay")) {
             return;
         }
         if (viewStart == 0) {
