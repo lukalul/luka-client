@@ -34,7 +34,7 @@ final class Encoders {
      */
     static int gpuMaxFps(String args, int w, int h) {
         double perSecond, perFrame;
-        if (args.contains("hevc_nvenc")) {
+        if (args.contains("hevc_")) {
             perSecond = 4.0e9;
             perFrame = (double) ((w + 7) / 8 * 8) * ((h + 7) / 8 * 8);
         } else {
@@ -57,7 +57,12 @@ final class Encoders {
         boolean ok = false;
         try {
             java.util.List<String> cmd = new java.util.ArrayList<String>(java.util.Arrays.asList(SubFrameMod.ffmpegPath, "-hide_banner",
-                    "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:s=" + ew + "x" + eh + ":r=" + fps, "-frames:v", "4"));
+                    "-loglevel", "error"));
+            cmd.addAll(hwInput(outputArgs));
+            cmd.addAll(java.util.Arrays.asList("-f", "lavfi", "-i", "color=c=black:s=" + ew + "x" + eh + ":r=" + fps, "-frames:v", "4"));
+            if (!hwFilter(outputArgs).isEmpty()) {
+                cmd.addAll(java.util.Arrays.asList("-vf", hwFilter(outputArgs).substring(1)));
+            }
             cmd.addAll(java.util.Arrays.asList(outputArgs.trim().split("\\s+")));
             cmd.addAll(java.util.Arrays.asList("-f", "null", "-"));
             Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
@@ -77,8 +82,6 @@ final class Encoders {
         rates.put(key, ok);
         return ok;
     }
-
-    private static volatile Boolean gpuWorks;
 
     /** HEVC on the GPU: its level limits allow far higher frame rates than H.264's (e.g. 960 fps at 1080p). Null when ffmpeg or the driver refuse it. */
     static String hevcGpuArgs() {
@@ -110,7 +113,12 @@ final class Encoders {
         boolean ok = false;
         try {
             java.util.List<String> cmd = new java.util.ArrayList<String>(java.util.Arrays.asList(SubFrameMod.ffmpegPath, "-hide_banner",
-                    "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:s=256x256:d=0.5:r=30", "-frames:v", "8"));
+                    "-loglevel", "error"));
+            cmd.addAll(hwInput(outputArgs));
+            cmd.addAll(java.util.Arrays.asList("-f", "lavfi", "-i", "color=c=black:s=256x256:d=0.5:r=30", "-frames:v", "8"));
+            if (!hwFilter(outputArgs).isEmpty()) {
+                cmd.addAll(java.util.Arrays.asList("-vf", hwFilter(outputArgs).substring(1)));
+            }
             cmd.addAll(java.util.Arrays.asList(outputArgs.trim().split("\\s+")));
             cmd.addAll(java.util.Arrays.asList("-f", "null", "-"));
             Process p = new ProcessBuilder(cmd).redirectErrorStream(true).start();
@@ -139,16 +147,107 @@ final class Encoders {
         return ok;
     }
 
-    /** True if ffmpeg can encode with NVENC on this machine. Tested once with a tiny encode. */
-    static boolean gpuAvailable() {
-        Boolean cached = gpuWorks;
-        if (cached != null) {
-            return cached;
+    /** Which GPU encoder family works here: "nvenc", "amf", "vaapi", "qsv", or "" for none. Found once with tiny test encodes. */
+    private static volatile String gpuKind;
+
+    private static final boolean WINDOWS = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
+
+    static String gpuKind() {
+        String kind = gpuKind;
+        if (kind != null) {
+            return kind;
         }
-        boolean ok = probe("-c:v h264_nvenc");
-        gpuWorks = ok;
-        SubFrameMod.LOG.info("GPU (NVENC) encoding " + (ok ? "is available" : "is not available; using the CPU encoder"));
-        return ok;
+        if (probe("-c:v h264_nvenc")) {
+            kind = "nvenc";
+        } else if (WINDOWS && probe("-c:v h264_amf")) {
+            kind = "amf";
+        } else if (!WINDOWS && vaapiDevice() != null && probe("-c:v h264_vaapi")) {
+            kind = "vaapi";
+        } else if (probe("-c:v h264_qsv")) {
+            kind = "qsv";
+        } else {
+            kind = "";
+        }
+        gpuKind = kind;
+        SubFrameMod.LOG.info(kind.isEmpty() ? "GPU encoding is not available (no NVIDIA, AMD or Intel encoder works with this ffmpeg); using the CPU encoder"
+                : "GPU encoding: " + gpuName(kind));
+        return kind;
+    }
+
+    private static String gpuName(String kind) {
+        if ("nvenc".equals(kind)) {
+            return "NVIDIA (NVENC)";
+        }
+        if ("amf".equals(kind)) {
+            return "AMD (AMF)";
+        }
+        if ("vaapi".equals(kind)) {
+            return "VAAPI (AMD or Intel)";
+        }
+        return "qsv".equals(kind) ? "Intel (Quick Sync)" : "none";
+    }
+
+    /** True if ffmpeg can encode on the graphics card here (NVIDIA, AMD or Intel). */
+    static boolean gpuAvailable() {
+        return !gpuKind().isEmpty();
+    }
+
+    /** True for output arguments that encode on a graphics card. */
+    static boolean isGpu(String args) {
+        return args.contains("_nvenc") || args.contains("_amf") || args.contains("_vaapi") || args.contains("_qsv");
+    }
+
+    /** Linux VAAPI needs the GPU's render node; the first one present (vaapiDevice in subframe.properties overrides it). */
+    static String vaapiDevice() {
+        String set = SubFrameMod.vaapiDevice;
+        if (set != null && !set.isEmpty()) {
+            return set;
+        }
+        for (int i = 128; i < 136; i++) {
+            java.io.File f = new java.io.File("/dev/dri/renderD" + i);
+            if (f.exists()) {
+                return f.getPath();
+            }
+        }
+        return null;
+    }
+
+    /** Options that go before ffmpeg's input for these output arguments (the VAAPI device). */
+    static java.util.List<String> hwInput(String args) {
+        if (args.contains("_vaapi") && vaapiDevice() != null) {
+            return java.util.Arrays.asList("-vaapi_device", vaapiDevice());
+        }
+        return java.util.Collections.emptyList();
+    }
+
+    /** What the filter chain needs at its end for these output arguments: VAAPI encodes frames uploaded to the GPU. */
+    static String hwFilter(String args) {
+        return args.contains("_vaapi") ? ",format=nv12,hwupload" : "";
+    }
+
+    /**
+     * Output arguments for AMD (AMF, Windows), VAAPI (Linux, AMD or Intel) or Intel Quick Sync: constant QP at gpuQuality,
+     * HEVC where the card has it, else H.264. None of them has a lossless mode, so hevcLossless applies to NVENC only.
+     */
+    private static String otherGpuArgs(String kind) {
+        int q = SubFrameMod.gpuQp;
+        String[] choices;
+        if ("amf".equals(kind)) {
+            choices = new String[]{
+                    "-c:v hevc_amf -usage transcoding -quality quality -rc cqp -qp_i " + q + " -qp_p " + q + " -pix_fmt yuv420p -tag:v hvc1",
+                    "-c:v h264_amf -usage transcoding -quality quality -rc cqp -qp_i " + q + " -qp_p " + q + " -qp_b " + q + " -pix_fmt yuv420p"};
+        } else if ("vaapi".equals(kind)) {
+            choices = new String[]{"-c:v hevc_vaapi -rc_mode CQP -qp " + q + " -tag:v hvc1", "-c:v h264_vaapi -rc_mode CQP -qp " + q};
+        } else {
+            choices = new String[]{"-c:v hevc_qsv -preset slow -global_quality " + q + " -pix_fmt nv12 -tag:v hvc1",
+                    "-c:v h264_qsv -preset slow -global_quality " + q + " -pix_fmt nv12"};
+        }
+        for (String c : choices) {
+            if (probe(c)) {
+                return c;
+            }
+        }
+        return null;
     }
 
     /** The GPU arguments for this render: the tuned set if this ffmpeg and driver accept it, else plain constant QP, else null. */
@@ -176,6 +275,15 @@ final class Encoders {
         }
         String mode = SubFrameMod.encoderMode;
         boolean gpu = "gpu".equals(mode) || ("auto".equals(mode) && gpuAvailable());
+        String kind = gpu ? gpuKind() : "";
+        if (gpu && !kind.isEmpty() && !"nvenc".equals(kind)) {
+            String other = otherGpuArgs(kind);
+            if (other != null) {
+                return other;
+            }
+            SubFrameMod.LOG.warn("The " + gpuName(kind) + " encoder rejected these settings; using the CPU encoder");
+            return blended ? CPU_BLENDED : CPU_RAW;
+        }
         if (gpu) {
             if (SubFrameMod.hevcLossless) {
                 // lossless HEVC for every GPU render (blended or raw), not only the very high frame rates
@@ -199,7 +307,8 @@ final class Encoders {
             return "CPU (x264)";
         }
         if ("gpu".equals(mode)) {
-            return "GPU (NVENC)";
+            String kind = gpuKind;
+            return kind == null ? "GPU" : kind.isEmpty() ? "GPU (none found)" : "GPU (" + gpuName(kind) + ")";
         }
         return "Auto";
     }

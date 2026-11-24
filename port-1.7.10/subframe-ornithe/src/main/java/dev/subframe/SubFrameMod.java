@@ -49,6 +49,8 @@ public final class SubFrameMod implements ClientModInitializer {
     static String ffmpegPath = "ffmpeg";
     static String encoderArgs = Encoders.CPU_BLENDED;
     static String encoderMode = "auto";
+    /** Linux VAAPI render node for AMD/Intel GPU encoding; empty = the first /dev/dri/renderD* there is. */
+    static String vaapiDevice = "";
 
     static final KeyBinding startKey = new KeyBinding("Start recording", Keyboard.KEY_F6, "SubFrame");
     static final KeyBinding stopKey = new KeyBinding("Stop recording", Keyboard.KEY_F7, "SubFrame");
@@ -327,6 +329,7 @@ public final class SubFrameMod implements ClientModInitializer {
         encoderArgs = System.getProperty("subframe.encoderArgs", p.getProperty("encoderArgs", encoderArgs)).replace('~', ' ');
         rawEncoderArgs = System.getProperty("subframe.rawEncoderArgs", p.getProperty("rawEncoderArgs", rawEncoderArgs)).replace('~', ' ');
         encoderMode = p.getProperty("encoder", encoderMode);
+        vaapiDevice = p.getProperty("vaapiDevice", vaapiDevice);
 
         p.setProperty("outputFps", Integer.toString(outputFps));
         p.setProperty("subframes", Integer.toString(subframes));
@@ -348,6 +351,7 @@ public final class SubFrameMod implements ClientModInitializer {
         p.setProperty("captureLive", Boolean.toString(captureLive));
         p.setProperty("ffmpegPath", ffmpegPath);
         p.setProperty("encoder", encoderMode);
+        p.setProperty("vaapiDevice", vaapiDevice);
         p.setProperty("encoderArgs", encoderArgs);
         p.setProperty("rawEncoderArgs", rawEncoderArgs);
         file.getParentFile().mkdirs();

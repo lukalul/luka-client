@@ -964,7 +964,7 @@ final class Replay {
                     // is refused, the encoder is told a rate it accepts and FfmpegSink rescales the finished file's timestamps
                     // to the real one: same frames, GPU speed
                     int encodeFps = outFps;
-                    if (args.contains("_nvenc") && !Encoders.acceptsRate(args, w, h, outFps)) {
+                    if (Encoders.isGpu(args) && !Encoders.acceptsRate(args, w, h, outFps)) {
                         encodeFps = Math.min(outFps, Encoders.gpuMaxFps(args, w, h));
                         while (encodeFps > 30 && !Encoders.acceptsRate(args, w, h, encodeFps)) {
                             encodeFps /= 2;

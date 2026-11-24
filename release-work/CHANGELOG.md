@@ -2,6 +2,9 @@
 
 The launcher shows the notes below on its What's New page. Add a new `## version` heading at the top for each release.
 
+## 1.5.4
+- Replays: video renders use AMD and Intel graphics cards too (AMD AMF and Intel Quick Sync on Windows, VAAPI on Linux), not only NVIDIA. Without one, the CPU encoder is used as before.
+
 ## 1.5.3
 - Replays on the Vulkan renderer: a render waits until the terrain in view is built, so a cut no longer starts with missing walls and ground (or, on 1.8.9, players standing in them).
 

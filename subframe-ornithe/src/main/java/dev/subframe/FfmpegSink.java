@@ -69,9 +69,11 @@ final class FfmpegSink implements FrameSink {
         this.hvc1 = encoderArgs.contains("hvc1");
         List<String> cmd = new ArrayList<String>();
         cmd.add(exe);
-        cmd.addAll(Arrays.asList("-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
+        cmd.addAll(Arrays.asList("-y", "-loglevel", "error"));
+        cmd.addAll(Encoders.hwInput(encoderArgs)); // the VAAPI device, for AMD and Intel cards on Linux
+        cmd.addAll(Arrays.asList("-f", "rawvideo", "-pix_fmt", "rgb24",
                 "-s", w + "x" + h, "-framerate", String.valueOf(this.encodeFps), "-i", "-",
-                "-vf", "vflip,crop=trunc(iw/2)*2:trunc(ih/2)*2" + (blurFilter != null ? "," + blurFilter : "")));
+                "-vf", "vflip,crop=trunc(iw/2)*2:trunc(ih/2)*2" + (blurFilter != null ? "," + blurFilter : "") + Encoders.hwFilter(encoderArgs)));
         cmd.addAll(Arrays.asList(encoderArgs.trim().split("\\s+")));
         if (this.encodeFps < fps) {
             slowFile = new File(outFile.getPath() + ".part.mp4");
