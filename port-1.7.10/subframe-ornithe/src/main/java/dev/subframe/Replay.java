@@ -244,6 +244,7 @@ final class Replay {
         } catch (Throwable t) {
             SubFrameMod.LOG.error("Could not start replay", t);
             active = null;
+            DynamicFps.resume();
             if (r != null) {
                 r.restoreSession();
             }
@@ -257,7 +258,10 @@ final class Replay {
         }
     }
 
+    private static final boolean READ_WINDOW_TEST = Boolean.getBoolean("subframe.test.readWindow");
+
     private void begin() throws Exception {
+        DynamicFps.pause();
         GameSettings gs = mc.gameSettings;
         savedFov = gs.fovSetting;
         savedRenderDistance = gs.renderDistanceChunks;
@@ -716,6 +720,10 @@ final class Replay {
             rlog.important("frame " + frameIndex + ": GL error " + pendingGlError + " was already pending before the frame was read back (raised while drawing or blending)");
         }
         long wr0 = System.nanoTime();
+        if (READ_WINDOW_TEST) {
+            // test only: read with the window bound, as some setups leave it (checks the renderer's fallback picture)
+            org.lwjgl.opengl.GL30.glBindFramebuffer(org.lwjgl.opengl.GL30.GL_FRAMEBUFFER, 0);
+        }
         try {
             if (sink != null) {
                 sink.writeFrame();
@@ -1687,6 +1695,7 @@ final class Replay {
         finished = true;
         active = null;
         Determinism.active = false;
+        DynamicFps.resume();
         SubFrameMod.LOG.info("Replay " + why + " after " + frameIndex + " frames");
         if (!preview && !diffMode) {
             try {
