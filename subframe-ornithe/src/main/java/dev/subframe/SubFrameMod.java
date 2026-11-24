@@ -51,6 +51,8 @@ public final class SubFrameMod implements ClientModInitializer {
     static String encoderMode = "auto";
     /** Linux VAAPI render node for AMD/Intel GPU encoding; empty = the first /dev/dri/renderD* there is. */
     static String vaapiDevice = "";
+    /** Render size; 0 = the game window's size. Set in the replay menu (presets or typed), kept in subframe.properties. */
+    static int renderWidth, renderHeight;
 
     static final KeyBinding startKey = new KeyBinding("Start recording", Keyboard.KEY_F6, "SubFrame");
     static final KeyBinding stopKey = new KeyBinding("Stop recording", Keyboard.KEY_F7, "SubFrame");
@@ -331,6 +333,11 @@ public final class SubFrameMod implements ClientModInitializer {
         rawEncoderArgs = System.getProperty("subframe.rawEncoderArgs", p.getProperty("rawEncoderArgs", rawEncoderArgs)).replace('~', ' ');
         encoderMode = p.getProperty("encoder", encoderMode);
         vaapiDevice = p.getProperty("vaapiDevice", vaapiDevice);
+        renderWidth = integer(p, "renderWidth", 0, 0, 7680) / 2 * 2;
+        renderHeight = integer(p, "renderHeight", 0, 0, 4320) / 2 * 2;
+        if (renderWidth < 16 || renderHeight < 16) {
+            renderWidth = renderHeight = 0;
+        }
 
         p.setProperty("outputFps", Integer.toString(outputFps));
         p.setProperty("subframes", Integer.toString(subframes));
@@ -353,6 +360,8 @@ public final class SubFrameMod implements ClientModInitializer {
         p.setProperty("ffmpegPath", ffmpegPath);
         p.setProperty("encoder", encoderMode);
         p.setProperty("vaapiDevice", vaapiDevice);
+        p.setProperty("renderWidth", Integer.toString(renderWidth));
+        p.setProperty("renderHeight", Integer.toString(renderHeight));
         p.setProperty("encoderArgs", encoderArgs);
         p.setProperty("rawEncoderArgs", rawEncoderArgs);
         file.getParentFile().mkdirs();

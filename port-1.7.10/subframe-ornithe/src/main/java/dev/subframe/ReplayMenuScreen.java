@@ -15,9 +15,18 @@ final class ReplayMenuScreen extends GuiScreen {
     private static final int MIN_FPS = 1, MAX_FPS = 20000;
     private static final int[] SUBFRAMES = {1, 4, 8, 16, 32, 64, 128};
 
-    private static final int RESUME = 0, OPTIONS = 1, FPS_BTN = 2, SUB_BTN = 3, RENDER = 4, QUIT = 5, BLEND_BTN = 6, OUT_BTN = 7, ENC_BTN = 8, GAME_MENU_BTN = 9;
+    private static final int RESUME = 0, OPTIONS = 1, FPS_BTN = 2, SUB_BTN = 3, RENDER = 4, QUIT = 5, BLEND_BTN = 6, OUT_BTN = 7, ENC_BTN = 8, GAME_MENU_BTN = 9,
+            RES_BTN = 11;
+    /** Render size presets (0 x 0 = the window's size); any other size is typed into the box beside the button. */
+    private static final int[][] SIZES = {{0, 0}, {1280, 720}, {1920, 1080}, {2560, 1440}, {3840, 2160}};
+    /** Same bounds as renderWidth/renderHeight in subframe.properties. */
+    static final int MIN_SIZE = 16, MAX_W = 7680, MAX_H = 4320;
 
-    private GuiButton fpsButton, subButton, blendButton, outButton, encButton;
+    private GuiButton fpsButton, subButton, blendButton, outButton, encButton, resButton;
+    /** Render size typed in by hand ("2560x1080"). */
+    private GuiTextField resField;
+    private int resX, resY;
+    private static final int RES_W = 66;
     /** Any video fps typed in by hand; the button beside it still steps through the presets. */
     private GuiTextField fpsField;
     private int boxX, boxY;
@@ -38,13 +47,18 @@ final class ReplayMenuScreen extends GuiScreen {
         fpsField.setText(Integer.toString(SubFrameMod.outputFps));
         blendButton = new GuiButton(BLEND_BTN, x, y + 114, 200, 20, "");
         subButton = new GuiButton(SUB_BTN, x, y + 138, 200, 20, "");
-        outButton = new GuiButton(OUT_BTN, x, y + 162, 200, 20, "");
+        outButton = new GuiButton(OUT_BTN, x, y + 162, 98, 20, "");
         buttonList.add(fpsButton);
         buttonList.add(blendButton);
         buttonList.add(subButton);
         buttonList.add(outButton);
-        encButton = new GuiButton(ENC_BTN, x, y + 186, 200, 20, "");
+        encButton = new GuiButton(ENC_BTN, x + 102, y + 162, 98, 20, "");
         buttonList.add(encButton);
+        resButton = new GuiButton(RES_BTN, x, y + 186, 128, 20, "");
+        buttonList.add(resButton);
+        resField = newField(resX = x + 134, resY = y + 187, RES_W, BOX_H);
+        resField.setMaxStringLength(9);
+        resetResField();
         Replay active = Replay.active;
         String sel = active != null ? active.rangeLabel() : null;
         buttonList.add(new GuiButton(RENDER, x, y + 218, 200, 20, sel == null ? "Render video with these settings" : "Render " + sel + " with these settings"));
@@ -57,8 +71,53 @@ final class ReplayMenuScreen extends GuiScreen {
         blendButton.displayString = "Blending in mod: " + (SubFrameMod.blend ? "ON" : "OFF (raw high-fps frames)");
         subButton.displayString = SubFrameMod.blend ? "Subframes per frame: " + SubFrameMod.subframes : "Subframes: n/a (blending off)";
         subButton.enabled = SubFrameMod.blend;
-        encButton.displayString = "Encoder: " + Encoders.label();
-        outButton.displayString = "Output: " + (SubFrameMod.outputPng ? "PNG folder" : "video file");
+        encButton.displayString = "Enc: " + Encoders.label();
+        outButton.displayString = "Output: " + (SubFrameMod.outputPng ? "PNG" : "video");
+        resButton.displayString = "Size: " + (SubFrameMod.renderWidth > 0 ? SubFrameMod.renderWidth + "x" + SubFrameMod.renderHeight
+                : "window " + mc.displayWidth + "x" + mc.displayHeight);
+    }
+
+    /** The size a render will have: the one chosen here, or the game window's. */
+    static int renderWidth(net.minecraft.client.Minecraft mc) {
+        return SubFrameMod.renderWidth > 0 ? SubFrameMod.renderWidth : mc.displayWidth;
+    }
+
+    static int renderHeight(net.minecraft.client.Minecraft mc) {
+        return SubFrameMod.renderHeight > 0 ? SubFrameMod.renderHeight : mc.displayHeight;
+    }
+
+    /** "2560x1080" (also "2560 x 1080" or "2560*1080") as {width, height}, both even and in range; null when it is not a size. */
+    static int[] parseSize(String text) {
+        String[] parts = text.trim().toLowerCase(java.util.Locale.ROOT).split("\\s*[x*]\\s*");
+        if (parts.length != 2) {
+            return null;
+        }
+        try {
+            int w = Integer.parseInt(parts[0].trim()) / 2 * 2, h = Integer.parseInt(parts[1].trim()) / 2 * 2;
+            return w >= MIN_SIZE && h >= MIN_SIZE && w <= MAX_W && h <= MAX_H ? new int[]{w, h} : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private void commitTypedSize() {
+        int[] size = parseSize(resField.getText());
+        if (size != null) {
+            SubFrameMod.renderWidth = size[0];
+            SubFrameMod.renderHeight = size[1];
+            refreshLabels();
+        }
+        resetResField();
+    }
+
+    private void resetResField() {
+        resField.setText(renderWidth(mc) + "x" + renderHeight(mc));
+        resField.setTextColor(0xE0E0E0);
+    }
+
+    /** The size box's text (self-test). */
+    String sizeText() {
+        return resField.getText();
     }
 
     /** Red while the typed text is not a usable fps. */
@@ -74,6 +133,10 @@ final class ReplayMenuScreen extends GuiScreen {
             fpsButton.displayString = "Video fps: " + fps;
         }
         resetField();
+    }
+
+    private GuiTextField newField(int x, int y, int w, int h) {
+        return new GuiTextField(fontRendererObj, x, y, w, h);
     }
 
     /** The fps box's text (self-test). */
@@ -247,8 +310,20 @@ final class ReplayMenuScreen extends GuiScreen {
                 SubFrameMod.encoderMode = Encoders.nextMode();
                 refreshLabels();
                 break;
+            case RES_BTN: {
+                int i = 0;
+                while (i < SIZES.length && !(SIZES[i][0] == SubFrameMod.renderWidth && SIZES[i][1] == SubFrameMod.renderHeight)) {
+                    i++;
+                }
+                int[] nextSize = SIZES[i < SIZES.length ? (i + 1) % SIZES.length : 0];
+                SubFrameMod.renderWidth = nextSize[0];
+                SubFrameMod.renderHeight = nextSize[1];
+                resetResField();
+                refreshLabels();
+                break;
+            }
             case RENDER: {
-                String[] big = bigRender(r, mc.displayWidth, mc.displayHeight);
+                String[] big = bigRender(r, renderWidth(mc), renderHeight(mc));
                 if (big != null) {
                     mc.displayGuiScreen(new BigRenderScreen(this, big));
                     break;
@@ -267,6 +342,20 @@ final class ReplayMenuScreen extends GuiScreen {
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) {
+        if (resField.isFocused() && keyCode != Keyboard.KEY_ESCAPE) {
+            if (keyCode == Keyboard.KEY_RETURN || keyCode == Keyboard.KEY_NUMPADENTER) {
+                commitTypedSize();
+                resField.setFocused(false);
+                return;
+            }
+            String name = Keyboard.getKeyName(keyCode);
+            char c = typedChar == 0 && name != null && name.length() == 1 ? Character.toLowerCase(name.charAt(0)) : typedChar;
+            if (Character.isDigit(c) || c == 'x' || c == 'X' || c == '*' || c < ' ') {
+                resField.textboxKeyTyped(c, keyCode);
+                resField.setTextColor(parseSize(resField.getText()) != null ? 0xE0E0E0 : 0xFF5555);
+            }
+            return;
+        }
         if (fpsField.isFocused() && keyCode != Keyboard.KEY_ESCAPE) {
             if (keyCode == Keyboard.KEY_RETURN || keyCode == Keyboard.KEY_NUMPADENTER) {
                 commitTypedFps();
@@ -286,6 +375,9 @@ final class ReplayMenuScreen extends GuiScreen {
             if (fpsField.isFocused()) {
                 commitTypedFps();
             }
+            if (resField.isFocused()) {
+                commitTypedSize();
+            }
             Replay r = Replay.active;
             if (r != null) {
                 mc.displayGuiScreen(r.screen());
@@ -300,7 +392,17 @@ final class ReplayMenuScreen extends GuiScreen {
             // before the buttons see the click, so Render (or the preset button) works from the typed fps
             commitTypedFps();
         }
+        boolean inRes = mouseX >= resX && mouseX < resX + RES_W && mouseY >= resY && mouseY < resY + BOX_H;
+        if (resField.isFocused() && !inRes) {
+            commitTypedSize();
+        }
         super.mouseClicked(mouseX, mouseY, button);
+        boolean wasRes = resField.isFocused();
+        resField.mouseClicked(mouseX, mouseY, button);
+        if (!wasRes && resField.isFocused()) {
+            resField.setCursorPositionEnd();
+            resField.setSelectionPos(0);
+        }
         boolean was = fpsField.isFocused();
         fpsField.mouseClicked(mouseX, mouseY, button);
         if (!was && fpsField.isFocused()) {
@@ -313,12 +415,16 @@ final class ReplayMenuScreen extends GuiScreen {
     @Override
     public void updateScreen() {
         fpsField.updateCursorCounter();
+        resField.updateCursorCounter();
     }
 
     @Override
     public void onGuiClosed() {
         if (fpsField.isFocused()) {
             commitTypedFps();
+        }
+        if (resField.isFocused()) {
+            commitTypedSize();
         }
         Keyboard.enableRepeatEvents(false);
     }
@@ -329,6 +435,10 @@ final class ReplayMenuScreen extends GuiScreen {
         drawCenteredString(fontRendererObj, "SubFrame replay", width / 2, height / 4 - 20, 0xFFFFFF);
         super.drawScreen(mouseX, mouseY, partialTicks);
         fpsField.drawTextBox();
+        resField.drawTextBox();
+        if (mouseX >= resX && mouseX < resX + RES_W && mouseY >= resY && mouseY < resY + BOX_H || resField.isFocused()) {
+            drawCenteredString(fontRendererObj, "Type any size, like 3840x2160 (up to " + MAX_W + "x" + MAX_H + "), Enter to set", width / 2, resY + 22, 0xA0A0A0);
+        }
         if (mouseX >= boxX && mouseX < boxX + BOX_W && mouseY >= boxY && mouseY < boxY + BOX_H || fpsField.isFocused()) {
             drawCenteredString(fontRendererObj, "Type any fps (" + MIN_FPS + "-" + MAX_FPS + "), Enter to set", width / 2, boxY - 13, 0xA0A0A0);
         }

@@ -80,6 +80,11 @@ final class Replay {
     private boolean overrodeSettings;
     private float savedFov, savedBob;
     private int savedRenderDistance, savedFramerate;
+    /** The window title before the replay ("luka"), put back when it ends. */
+    private String savedTitle;
+    /** The render has its own size (not the window's): the game's size is set back to the window's when it ends. */
+    private boolean customSize;
+    private int savedGuiScale;
     private boolean savedHideGui, savedVsync;
 
     private int packetIdx;
@@ -256,6 +261,9 @@ final class Replay {
         savedHideGui = gs.hideGUI;
         savedFramerate = gs.limitFramerate;
         savedVsync = gs.enableVsync;
+        if (savedTitle == null) {
+            savedTitle = Display.getTitle();
+        }
         muteGlErrorChat(true);
         if (!preview) {
             speedUpChunkBuilding(true);
@@ -906,8 +914,9 @@ final class Replay {
     }
 
     private void startOutput() {
-        int w = mc.displayWidth;
-        int h = mc.displayHeight;
+        customSize = SubFrameMod.renderWidth > 0 && !preview && !diffMode;
+        int w = customSize ? SubFrameMod.renderWidth : mc.displayWidth;
+        int h = customSize ? SubFrameMod.renderHeight : mc.displayHeight;
         if (diffMode) {
             try {
                 loadLiveFrames(w, h);
@@ -971,6 +980,19 @@ final class Replay {
         }
         outW = w;
         outH = h;
+        // other mods leave a render alone while this is set (luka's "Limit FPS when unfocused" would throttle it to 30 fps)
+        System.setProperty("luka.rendering", "true");
+        if (customSize) {
+            // the HUD keeps its share of the picture: the GUI scale grows with the render size (GUI scale 2 in a 1080p window
+            // becomes 4 in a 4K render), and goes back when the render ends
+            savedGuiScale = mc.gameSettings.guiScale;
+            int windowScale = new net.minecraft.client.gui.ScaledResolution(mc).getScaleFactor();
+            mc.gameSettings.guiScale = Math.max(1, Math.round(windowScale * (float) h / Math.max(1, mc.displayHeight)));
+            pinSize();
+            {
+                SubFrameMod.LOG.info("[render] render size " + w + "x" + h + " (window " + Display.getWidth() + "x" + Display.getHeight() + "), GUI scale " + windowScale + " -> " + mc.gameSettings.guiScale);
+            }
+        }
         try {
             String base = outFile.getName().replaceAll("\\.mp4$", "");
             rlog = new FileLog(new File(outFile.getParentFile(), "logs/render-" + base + ".log"));
@@ -1706,7 +1728,17 @@ final class Replay {
         gs.limitFramerate = savedFramerate;
         gs.enableVsync = savedVsync;
         Display.setVSyncEnabled(savedVsync);
-        Display.setTitle("Minecraft 1.8.9");
+        System.clearProperty("luka.rendering");
+        if (customSize) {
+            customSize = false;
+            mc.gameSettings.guiScale = savedGuiScale;
+            try {
+                ((MinecraftAccessor) mc).subframe$resize(Math.max(1, Display.getWidth()), Math.max(1, Display.getHeight()));
+            } catch (Throwable t) {
+                SubFrameMod.LOG.warn("Could not set the game back to the window size: " + t);
+            }
+        }
+        Display.setTitle(savedTitle != null ? savedTitle : "Minecraft 1.8.9");
         if (channel != null) {
             channel.close();
         }

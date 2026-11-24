@@ -32,7 +32,9 @@ public abstract class MinecraftMixin {
     /** Background window: 30 FPS instead of burning the GPU. */
     @org.spongepowered.asm.mixin.injection.Inject(method="getLimitFramerate", at=@At("RETURN"), cancellable=true, require=0)
     private void cbui$unfocusedLimit(org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Integer> cir) {
-        if (dev.cbui.config.GlobalOptions.unfocusedLimit && !org.lwjgl.opengl.Display.isActive() && cir.getReturnValue() > 30) cir.setReturnValue(30);
+        // not while SubFrame renders a replay (it sets luka.rendering): a render must not slow down when the window is in the background
+        if (dev.cbui.config.GlobalOptions.unfocusedLimit && !org.lwjgl.opengl.Display.isActive() && cir.getReturnValue() > 30
+                && System.getProperty("luka.rendering") == null) cir.setReturnValue(30);
     }
 
     /** The window title: "luka" instead of "Minecraft 1.8.9". */

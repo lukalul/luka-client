@@ -304,11 +304,11 @@ final class Encoders {
     static String label() {
         String mode = SubFrameMod.encoderMode;
         if ("cpu".equals(mode)) {
-            return "CPU (x264)";
+            return "CPU";
         }
         if ("gpu".equals(mode)) {
             String kind = gpuKind;
-            return kind == null ? "GPU" : kind.isEmpty() ? "GPU (none found)" : "GPU (" + gpuName(kind) + ")";
+            return kind == null ? "GPU" : kind.isEmpty() ? "GPU (none)" : "GPU (" + kind.toUpperCase(java.util.Locale.ROOT) + ")";
         }
         return "Auto";
     }

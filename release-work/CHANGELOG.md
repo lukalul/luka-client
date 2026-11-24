@@ -2,6 +2,10 @@
 
 The launcher shows the notes below on its What's New page. Add a new `## version` heading at the top for each release.
 
+## 1.5.5
+- Replays: choose the video size in the render menu (720p, 1080p, 1440p, 4K, or type any size such as 2560x1080), independent of the game window.
+- Replays: a render keeps its full speed when you tab out or minimise the game; "Limit FPS when unfocused" no longer slows it down.
+
 ## 1.5.4
 - Replays: video renders use AMD and Intel graphics cards too (AMD AMF and Intel Quick Sync on Windows, VAAPI on Linux), not only NVIDIA. Without one, the CPU encoder is used as before.
 
