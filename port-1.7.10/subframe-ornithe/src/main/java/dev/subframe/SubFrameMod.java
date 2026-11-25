@@ -44,6 +44,8 @@ public final class SubFrameMod implements ClientModInitializer {
     static boolean disableVignette;
     static boolean autoRecord;
     static boolean showIndicator = true;
+    /** Chests and other containers the recorded player opened are drawn over the replay picture (and so in renders). */
+    static boolean showContainers = true;
     static boolean captureLive = Boolean.getBoolean("subframe.diff");
     static int liveStride = 8;
     static String ffmpegPath = "ffmpeg";
@@ -224,6 +226,14 @@ public final class SubFrameMod implements ClientModInitializer {
         RecIndicator.render();
     }
 
+    /** From the HUD hook: the container the recorded player has open, drawn over the replay picture. */
+    public static void drawRecordedContainer(float partialTick) {
+        Replay r = Replay.active;
+        if (r != null) {
+            r.drawRecordedContainer(partialTick);
+        }
+    }
+
     private static long lastCrosshairProbe;
 
     /** Replay diagnostics: once a second, whether the game asked to draw the crosshair and what it answered. */
@@ -340,6 +350,7 @@ public final class SubFrameMod implements ClientModInitializer {
         crosshairOverlay = bool(p, "crosshairOverlay", crosshairOverlay);
         hevcLossless = bool(p, "hevcLossless", hevcLossless);
         showIndicator = bool(p, "showIndicator", showIndicator);
+        showContainers = bool(p, "showContainers", showContainers);
         disableVignette = bool(p, "disableVignette", disableVignette);
         captureLive = bool(p, "captureLive", captureLive) || Boolean.getBoolean("subframe.diff");
         ffmpegPath = p.getProperty("ffmpegPath", ffmpegPath);
@@ -369,6 +380,7 @@ public final class SubFrameMod implements ClientModInitializer {
         p.setProperty("crosshairOverlay", Boolean.toString(crosshairOverlay));
         p.setProperty("hevcLossless", Boolean.toString(hevcLossless));
         p.setProperty("showIndicator", Boolean.toString(showIndicator));
+        p.setProperty("showContainers", Boolean.toString(showContainers));
         p.setProperty("disableVignette", Boolean.toString(disableVignette));
         p.setProperty("captureLive", Boolean.toString(captureLive));
         p.setProperty("ffmpegPath", ffmpegPath);

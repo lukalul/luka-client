@@ -106,6 +106,11 @@ public final class CrosshairOverlay {
         if (mc.gameSettings.thirdPersonView != 0 || mc.gameSettings.hideGUI) {
             return;
         }
+        Replay r = Replay.active;
+        if (r != null && r.containerShown) {
+            // a chest or inventory window covers the crosshair, as in the game
+            return;
+        }
         GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
         try {
             if (lukaCrosshair()) {

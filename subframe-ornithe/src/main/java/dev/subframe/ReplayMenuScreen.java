@@ -16,13 +16,13 @@ final class ReplayMenuScreen extends GuiScreen {
     private static final int[] SUBFRAMES = {1, 4, 8, 16, 32, 64, 128};
 
     private static final int RESUME = 0, OPTIONS = 1, FPS_BTN = 2, SUB_BTN = 3, RENDER = 4, QUIT = 5, BLEND_BTN = 6, OUT_BTN = 7, ENC_BTN = 8, GAME_MENU_BTN = 9,
-            RES_BTN = 11;
+            RES_BTN = 11, CONTAINERS_BTN = 12;
     /** Render size presets (0 x 0 = the window's size); any other size is typed into the box beside the button. */
     private static final int[][] SIZES = {{0, 0}, {1280, 720}, {1920, 1080}, {2560, 1440}, {3840, 2160}};
     /** Same bounds as renderWidth/renderHeight in subframe.properties. */
     static final int MIN_SIZE = 16, MAX_W = 7680, MAX_H = 4320;
 
-    private GuiButton fpsButton, subButton, blendButton, outButton, encButton, resButton;
+    private GuiButton fpsButton, subButton, blendButton, outButton, encButton, resButton, containersButton;
     /** Render size typed in by hand ("2560x1080"). */
     private GuiTextField resField;
     private int resX, resY;
@@ -61,8 +61,10 @@ final class ReplayMenuScreen extends GuiScreen {
         resetResField();
         Replay active = Replay.active;
         String sel = active != null ? active.rangeLabel() : null;
-        buttonList.add(new GuiButton(RENDER, x, y + 218, 200, 20, sel == null ? "Render video with these settings" : "Render " + sel + " with these settings"));
-        buttonList.add(new GuiButton(QUIT, x, y + 246, 200, 20, "Close replay"));
+        containersButton = new GuiButton(CONTAINERS_BTN, x, y + 210, 200, 20, "");
+        buttonList.add(containersButton);
+        buttonList.add(new GuiButton(RENDER, x, y + 242, 200, 20, sel == null ? "Render video with these settings" : "Render " + sel + " with these settings"));
+        buttonList.add(new GuiButton(QUIT, x, y + 270, 200, 20, "Close replay"));
         refreshLabels();
     }
 
@@ -73,6 +75,7 @@ final class ReplayMenuScreen extends GuiScreen {
         subButton.enabled = SubFrameMod.blend;
         encButton.displayString = "Enc: " + Encoders.label();
         outButton.displayString = "Output: " + (SubFrameMod.outputPng ? "PNG" : "video");
+        containersButton.displayString = "Show opened chests: " + (SubFrameMod.showContainers ? "ON" : "OFF");
         resButton.displayString = "Size: " + (SubFrameMod.renderWidth > 0 ? SubFrameMod.renderWidth + "x" + SubFrameMod.renderHeight
                 : "window " + mc.displayWidth + "x" + mc.displayHeight);
     }
@@ -301,6 +304,10 @@ final class ReplayMenuScreen extends GuiScreen {
                 break;
             case OUT_BTN:
                 SubFrameMod.outputPng = !SubFrameMod.outputPng;
+                refreshLabels();
+                break;
+            case CONTAINERS_BTN:
+                SubFrameMod.showContainers = !SubFrameMod.showContainers;
                 refreshLabels();
                 break;
             case GAME_MENU_BTN:

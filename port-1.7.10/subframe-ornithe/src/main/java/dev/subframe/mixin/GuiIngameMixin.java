@@ -13,6 +13,7 @@ abstract class GuiIngameMixin {
     @Inject(method = "renderGameOverlay", at = @At("RETURN"))
     private void subframe$indicator(float partialTick, boolean hasScreen, int mouseX, int mouseY, CallbackInfo ci) {
         SubFrameMod.renderIndicator();
+        SubFrameMod.drawRecordedContainer(partialTick);
     }
 
     /** 1.7.10 has no showCrosshair(): the crosshair is the third drawTexturedModalRect of renderGameOverlay, drawn unconditionally. */

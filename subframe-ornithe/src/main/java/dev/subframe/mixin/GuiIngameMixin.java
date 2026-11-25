@@ -13,6 +13,7 @@ abstract class GuiIngameMixin {
     @Inject(method = "renderGameOverlay", at = @At("RETURN"))
     private void subframe$indicator(float partialTick, CallbackInfo ci) {
         SubFrameMod.renderIndicator();
+        SubFrameMod.drawRecordedContainer(partialTick);
     }
 
     @Inject(method = "showCrosshair", at = @At("RETURN"))

@@ -2,6 +2,10 @@
 
 The launcher shows the notes below on its What's New page. Add a new `## version` heading at the top for each release.
 
+## 1.5.9
+- Replays: when the recorded player opens a chest, the replay keeps playing. Before, the chest screen took over and you had to press E or Esc to continue.
+- Replays: chests and other containers the player opened, and their own inventory (E), are shown over the replay and in rendered videos, with the items that were in them. Switch it off with "Show opened chests" in the replay menu. Closing a chest and opening your own inventory are only saved in recordings made with this version.
+
 ## 1.5.8
 - Replays: you can type a frame rate up to 1,000,000 fps (was 20,000). Expect very long renders and very large files at those rates: the check before rendering shows how big and how long it will be.
 

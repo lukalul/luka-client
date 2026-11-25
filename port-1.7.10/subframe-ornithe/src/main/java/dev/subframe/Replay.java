@@ -1,5 +1,9 @@
 package dev.subframe;
 
+import net.minecraft.client.renderer.RenderHelper;
+import net.minecraft.client.gui.inventory.GuiContainer;
+import net.minecraft.client.gui.ScaledResolution;
+import net.minecraft.client.gui.GuiScreen;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import net.minecraft.client.Minecraft;
@@ -310,6 +314,8 @@ final class Replay {
     /** Builds the fake connection and joins the recorded world. Also used to restart from the beginning. */
     private void connect() {
         packetIdx = 0;
+        recordedContainer = null;
+        ownInventoryOpen = false;
         net = new NetworkManager(true);
         channel = new EmbeddedChannel(net);
         net.setConnectionState(EnumConnectionState.PLAY);
@@ -345,6 +351,9 @@ final class Replay {
     private void processPackets(long upToT) {
         while (packetIdx < rec.packets.size() && rec.packets.get(packetIdx).t <= upToT) {
             Recording.Pkt p = rec.packets.get(packetIdx++);
+            if (p.id == 0x3F && inventoryMarker(p.data)) {
+                continue;
+            }
             fPackets++;
             try {
                 Packet packet = PacketIds.create(p.id);
@@ -352,7 +361,7 @@ final class Replay {
                     continue;
                 }
                 packet.readPacketData(new PacketBuffer(Unpooled.wrappedBuffer(p.data)));
-                packet.processPacket(handler);
+                applyPacket(packet);
             } catch (Throwable t) {
                 SubFrameMod.LOG.error("Packet " + p.id + " failed in replay", t);
             }
@@ -426,18 +435,141 @@ final class Replay {
         }
     }
 
+    /** Channels of the empty marker packets the recorder writes when the player opens or closes their own inventory. */
+    static final String INVENTORY_OPEN = "subframe|inv+", INVENTORY_CLOSED = "subframe|inv-";
+    /** The recorded player has their own inventory open (from the markers). */
+    private boolean ownInventoryOpen;
+    private ReplayInventoryGui ownInventoryGui;
+
+    /** A custom-payload packet: true (and handled) when it is one of the recorder's inventory markers. */
+    private boolean inventoryMarker(byte[] data) {
+        // the channel name comes first: a VarInt length, then UTF-8
+        int len = 0, shift = 0, i = 0;
+        while (i < data.length && i < 5) {
+            int b = data[i++] & 0xFF;
+            len |= (b & 0x7F) << shift;
+            shift += 7;
+            if ((b & 0x80) == 0) {
+                break;
+            }
+        }
+        if (len < 1 || len > 32 || i + len > data.length) {
+            return false;
+        }
+        String channel;
+        try {
+            channel = new String(data, i, len, "UTF-8");
+        } catch (java.io.UnsupportedEncodingException e) {
+            return false;
+        }
+        if (INVENTORY_OPEN.equals(channel)) {
+            ownInventoryOpen = true;
+            return true;
+        }
+        if (INVENTORY_CLOSED.equals(channel)) {
+            ownInventoryOpen = false;
+            return true;
+        }
+        return false;
+    }
+
+    /** The container screen (chest, furnace, ...) the recorded player has open: drawn over the picture, never shown as a screen. */
+    private GuiContainer recordedContainer;
+    int containersOpened;
+
+    /**
+     * Applies one recorded packet. Some packets open or close a screen in the live game (open window, close window,
+     * sign editor). In the replay that took the screen away from the viewer, so playback stopped until the player
+     * closed it by hand. Here whatever screen was open before stays open; a container the packet opened is kept
+     * aside and drawn over the picture instead (drawRecordedContainer).
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private void applyPacket(Packet packet) {
+        GuiScreen before = mc.currentScreen;
+        packet.processPacket(handler);
+        GuiScreen now = mc.currentScreen;
+        if (now == before || before == null || before instanceof GuiDownloadTerrain
+                || now instanceof GuiDownloadTerrain) {
+            return;
+        }
+        if (now instanceof GuiContainer) {
+            recordedContainer = (GuiContainer) now;
+            containersOpened++;
+            if (containersOpened <= 20) {
+                SubFrameMod.LOG.info("[viewer] the recording opened " + now.getClass().getName() + "; drawn over the replay");
+            }
+        }
+        mc.currentScreen = before;
+        if (mc.inGameHasFocus) {
+            // closing a screen (displayGuiScreen(null)) grabbed the mouse for play
+            mc.setIngameNotInFocus();
+        }
+    }
+
+    /** Draws the container the recorded player has open, if any, on top of the HUD (from the HUD hook, so also into renders). */
+    /** A container or inventory window was drawn over this frame (the crosshair stays under it). */
+    boolean containerShown;
+
+    void drawRecordedContainer(float partialTick) {
+        containerShown = false;
+        GuiContainer g = recordedContainer;
+        if (g != null && (mc.thePlayer == null || mc.thePlayer.openContainer != g.inventorySlots)) {
+            // closed by the recording (close-window packet), or the world was rebuilt (seek, restart)
+            recordedContainer = g = null;
+        }
+        int mouseX = -10000, mouseY = -10000;
+        if (g == null && ownInventoryOpen && mc.thePlayer != null) {
+            if (ownInventoryGui == null || ownInventoryGui.player != mc.thePlayer) {
+                ownInventoryGui = new ReplayInventoryGui(mc.thePlayer);
+            }
+            g = ownInventoryGui;
+        }
+        if (g == null || !SubFrameMod.showContainers) {
+            return;
+        }
+        try {
+            ScaledResolution sr = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
+            if (g.width != sr.getScaledWidth() || g.height != sr.getScaledHeight()) {
+                g.setWorldAndResolution(mc, sr.getScaledWidth(), sr.getScaledHeight());
+            }
+            if (g == ownInventoryGui) {
+                // the player model looks straight ahead (it follows the mouse)
+                mouseX = ownInventoryGui.modelX();
+                mouseY = ownInventoryGui.modelEyeY();
+            }
+            org.lwjgl.opengl.GL11.glPushMatrix();
+            org.lwjgl.opengl.GL11.glColor4f(1f, 1f, 1f, 1f);
+            // the mouse is off the slots: no hover highlight, no tooltip; the item held on the cursor is not drawn
+            g.drawScreen(mouseX, mouseY, partialTick);
+            containerShown = true;
+            org.lwjgl.opengl.GL11.glPopMatrix();
+            RenderHelper.disableStandardItemLighting();
+            org.lwjgl.opengl.GL11.glDisable(org.lwjgl.opengl.GL11.GL_LIGHTING);
+            org.lwjgl.opengl.GL11.glDisable(org.lwjgl.opengl.GL11.GL_DEPTH_TEST);
+            org.lwjgl.opengl.GL11.glEnable(org.lwjgl.opengl.GL11.GL_ALPHA_TEST);
+            org.lwjgl.opengl.GL11.glColor4f(1f, 1f, 1f, 1f);
+        } catch (Throwable t) {
+            SubFrameMod.LOG.error("Drawing the recorded container failed; not drawing it again", t);
+            recordedContainer = null;
+            ownInventoryOpen = false;
+        }
+    }
+
     /** Applies recorded packets that arrived while the live game had completed at most this many ticks. */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private void processPacketsByTick(int maxTick) {
         while (packetIdx < rec.packets.size() && rec.packets.get(packetIdx).tick <= maxTick) {
             Recording.Pkt p = rec.packets.get(packetIdx++);
+            if (p.id == 0x3F && inventoryMarker(p.data)) {
+                continue;
+            }
             try {
                 Packet packet = PacketIds.create(p.id);
                 if (packet == null) {
                     continue;
                 }
                 packet.readPacketData(new PacketBuffer(Unpooled.wrappedBuffer(p.data)));
-                packet.processPacket(handler);
+                applyPacket(packet);
             } catch (Throwable t) {
                 SubFrameMod.LOG.error("Packet " + p.id + " failed in replay", t);
             }

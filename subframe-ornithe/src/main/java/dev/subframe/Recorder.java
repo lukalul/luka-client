@@ -535,6 +535,36 @@ final class Recorder {
         });
     }
 
+    /** Window id of the container (chest, furnace, ...) open in the live game; 0 = none. */
+    private int liveWindow;
+    /** The player's own inventory screen is open in the live game. */
+    private boolean liveInventory;
+
+    /**
+     * Closing a chest and opening or closing your own inventory happen in the client only: the server sends no packet
+     * for them, so a replay could not tell. They are written into the recorded packets: a close-window packet for the
+     * container, and an empty custom-payload packet on a SubFrame channel (Replay.INVENTORY_OPEN / _CLOSED) for the
+     * inventory, which the game ignores, so older versions play these recordings as before.
+     */
+    private void trackScreens(Minecraft mc, net.minecraft.entity.player.EntityPlayer p) {
+        try {
+            int window = p.openContainer != null && p.openContainer != p.inventoryContainer ? p.openContainer.windowId : 0;
+            if (liveWindow != 0 && window != liveWindow) {
+                packet(new net.minecraft.network.play.server.S2EPacketCloseWindow(liveWindow));
+            }
+            liveWindow = window;
+            boolean inventory = mc.currentScreen instanceof net.minecraft.client.gui.inventory.GuiInventory
+                    || mc.currentScreen instanceof net.minecraft.client.gui.inventory.GuiContainerCreative;
+            if (inventory != liveInventory) {
+                liveInventory = inventory;
+                String channel = inventory ? Replay.INVENTORY_OPEN : Replay.INVENTORY_CLOSED;
+                packet(new net.minecraft.network.play.server.S3FPacketCustomPayload(channel, new PacketBuffer(Unpooled.buffer(0))));
+            }
+        } catch (Throwable t) {
+            SubFrameMod.LOG.error("Recording a screen change failed", t);
+        }
+    }
+
     /** End of a client tick: the state after tick n is stored as snapshot n. */
     void onTick() {
         Minecraft mc = Minecraft.getMinecraft();
@@ -562,6 +592,9 @@ final class Recorder {
         if (SubFrameMod.autoRecord && !autoStarted && sawWorld && p != null) {
             autoStarted = true;
             startCapture();
+        }
+        if (p != null) {
+            trackScreens(mc, p);
         }
         if (p == null || !capturing) {
             return;
