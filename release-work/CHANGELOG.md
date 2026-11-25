@@ -2,6 +2,10 @@
 
 The launcher shows the notes below on its What's New page. Add a new `## version` heading at the top for each release.
 
+## 1.6.2
+- Replays: in recordings made before 1.5.9, a chest or server menu (a queue or kit menu, for example) the player opened no longer stays on screen for the rest of the replay, previews and videos. Those recordings never saved the menu closing, so chests and menus are not drawn over them at all. Recordings made with 1.5.9 and later show them as before.
+- Replays: a chest or menu the recorded player opened no longer leaves the replay blurred (with GUI blur on) until the recording closes it.
+
 ## 1.6.1
 - Replay editor: 1.7.10 recordings work. Before, every 1.7.10 recording showed "not a recording" and could not be added.
 - Replay editor (Linux): if ffmpeg is missing, the editor tells you to install it with your package manager instead of asking for ffmpeg.exe.

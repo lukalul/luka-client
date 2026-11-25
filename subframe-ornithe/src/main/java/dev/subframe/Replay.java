@@ -470,12 +470,57 @@ final class Replay {
 
     /** Channels of the empty marker packets the recorder writes when the player opens or closes their own inventory. */
     static final String INVENTORY_OPEN = "subframe|inv+", INVENTORY_CLOSED = "subframe|inv-";
+    /**
+     * Written once at the start of every recording since luka 1.6.2: closing chests and menus is in this recording.
+     * Older recordings (before 1.5.9) never saved the close, so a chest or server menu stayed drawn for the rest of
+     * the replay; recordings with no SubFrame marker at all get no chests drawn.
+     */
+    static final String SCREENS_TRACKED = "subframe|scr";
+    /** -1 not checked yet, 0 an old recording (no SubFrame markers), 1 closes are recorded. */
+    private int screensTracked = -1;
+
+    private boolean screensTracked() {
+        if (screensTracked < 0) {
+            screensTracked = 0;
+            for (Recording.Pkt p : rec.packets) {
+                String c = p.id == 0x3F ? markerChannel(p.data) : null;
+                if (c != null && c.startsWith("subframe|")) {
+                    screensTracked = 1;
+                    break;
+                }
+            }
+            if (screensTracked == 0) {
+                SubFrameMod.LOG.info("[viewer] recording made before closing chests was saved: chests and menus are not drawn over it");
+            }
+        }
+        return screensTracked == 1;
+    }
     /** The recorded player has their own inventory open (from the markers). */
     private boolean ownInventoryOpen;
     private ReplayInventoryGui ownInventoryGui;
 
     /** A custom-payload packet: true (and handled) when it is one of the recorder's inventory markers. */
     private boolean inventoryMarker(byte[] data) {
+        String channel = markerChannel(data);
+        if (channel == null) {
+            return false;
+        }
+        if (SCREENS_TRACKED.equals(channel)) {
+            return true;
+        }
+        if (INVENTORY_OPEN.equals(channel)) {
+            ownInventoryOpen = true;
+            return true;
+        }
+        if (INVENTORY_CLOSED.equals(channel)) {
+            ownInventoryOpen = false;
+            return true;
+        }
+        return false;
+    }
+
+    /** The channel of a custom-payload packet's data, or null when it cannot be read. */
+    private static String markerChannel(byte[] data) {
         // the channel name comes first: a VarInt length, then UTF-8
         int len = 0, shift = 0, i = 0;
         while (i < data.length && i < 5) {
@@ -487,23 +532,13 @@ final class Replay {
             }
         }
         if (len < 1 || len > 32 || i + len > data.length) {
-            return false;
+            return null;
         }
-        String channel;
         try {
-            channel = new String(data, i, len, "UTF-8");
+            return new String(data, i, len, "UTF-8");
         } catch (java.io.UnsupportedEncodingException e) {
-            return false;
+            return null;
         }
-        if (INVENTORY_OPEN.equals(channel)) {
-            ownInventoryOpen = true;
-            return true;
-        }
-        if (INVENTORY_CLOSED.equals(channel)) {
-            ownInventoryOpen = false;
-            return true;
-        }
-        return false;
     }
 
     /** The container screen (chest, furnace, ...) the recorded player has open: drawn over the picture, never shown as a screen. */
@@ -533,9 +568,38 @@ final class Replay {
             }
         }
         mc.currentScreen = before;
+        // the packet's displayGuiScreen also started (or ended) luka's menu blur; the screen that stays is the viewer's
+        syncMenuBlur(before);
         if (mc.inGameHasFocus) {
             // closing a screen (displayGuiScreen(null)) grabbed the mouse for play
             mc.setIngameNotInFocus();
+        }
+    }
+
+    private static java.lang.reflect.Method menuBlur;
+    private static boolean menuBlurLooked;
+
+    /**
+     * Tells luka's menu blur (cbui GuiBlur) which screen is really open. A chest the recording opened started the blur
+     * through displayGuiScreen, and it ran until the recording closed the chest: in recordings that never saved the
+     * close, the whole rest of the replay was blurred.
+     */
+    private static void syncMenuBlur(GuiScreen screen) {
+        if (!menuBlurLooked) {
+            menuBlurLooked = true;
+            try {
+                menuBlur = Class.forName("dev.cbui.render.GuiBlur").getMethod("onScreen", GuiScreen.class);
+            } catch (Throwable t) {
+                menuBlur = null; // luka's menu mod is not installed
+            }
+        }
+        if (menuBlur != null) {
+            try {
+                menuBlur.invoke(null, screen);
+            } catch (Throwable t) {
+                SubFrameMod.LOG.warn("[viewer] could not reset the menu blur: " + t);
+                menuBlur = null;
+            }
         }
     }
 
@@ -549,6 +613,10 @@ final class Replay {
         if (g != null && (mc.thePlayer == null || mc.thePlayer.openContainer != g.inventorySlots)) {
             // closed by the recording (close-window packet), or the world was rebuilt (seek, restart)
             recordedContainer = g = null;
+        }
+        if (g != null && !screensTracked()) {
+            // an old recording: its close was never saved, so the chest or menu would stay drawn for good
+            g = null;
         }
         int mouseX = -10000, mouseY = -10000;
         if (g == null && ownInventoryOpen && mc.thePlayer != null) {

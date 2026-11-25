@@ -539,6 +539,8 @@ final class Recorder {
     private int liveWindow;
     /** The player's own inventory screen is open in the live game. */
     private boolean liveInventory;
+    /** The SCREENS_TRACKED marker is in the packets. */
+    private boolean screensMarked;
 
     /**
      * Closing a chest and opening or closing your own inventory happen in the client only: the server sends no packet
@@ -548,6 +550,10 @@ final class Recorder {
      */
     private void trackScreens(Minecraft mc, net.minecraft.entity.player.EntityPlayer p) {
         try {
+            if (!screensMarked) {
+                screensMarked = true;
+                packet(new net.minecraft.network.play.server.S3FPacketCustomPayload(Replay.SCREENS_TRACKED, new PacketBuffer(Unpooled.buffer(0))));
+            }
             int window = p.openContainer != null && p.openContainer != p.inventoryContainer ? p.openContainer.windowId : 0;
             if (liveWindow != 0 && window != liveWindow) {
                 packet(new net.minecraft.network.play.server.S2EPacketCloseWindow(liveWindow));
