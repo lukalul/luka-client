@@ -87,7 +87,8 @@ final class ReplayEditor extends JFrame {
   private static final Color DEEP = new Color(0x0A080D), TRACK = new Color(0x141019), CLIP = new Color(0x231B2D);
   private static final Color KILL = new Color(0xFF5A5A);
   /** SubFrame's recording format: "SFR1", the version Replay can play, and the frame record type. */
-  private static final int MAGIC = 0x53465231, FORMAT = 16, REC_PACKET = 1, REC_FRAME = 3;
+  /** SubFrame writes "SFR1" on 1.8.9 and "SF17" on 1.7.10; the rest of the header and the record layout are the same. */
+  private static final int MAGIC = 0x53465231, MAGIC_1_7_10 = 0x53463137, FORMAT = 16, REC_PACKET = 1, REC_FRAME = 3;
   /** The server chat packet's id (S02PacketChat), the same on 1.8.9 and 1.7.10. */
   private static final int CHAT_PACKET = 2;
   /** Clips shorter than this cannot be rendered on their own. */
@@ -807,7 +808,7 @@ final class ReplayEditor extends JFrame {
     if (loadProject) loadProject();
     new Thread(() -> {
       for (Recording r : found) {
-        readInfo(r);
+        readInfo(r, host.gameVersion());
         SwingUtilities.invokeLater(() -> {
           libraryList.repaint();
           timeline.repaint();
@@ -825,8 +826,8 @@ final class ReplayEditor extends JFrame {
   }
 
   /** Reads the player name and the length (first to last rendered frame) without loading the whole recording. */
-  private static void readInfo(Recording r) {
-    String key = r.file.getAbsolutePath() + "|" + r.file.lastModified() + "|" + r.file.length();
+  private static void readInfo(Recording r, GameVersion game) {
+    String key = game.id + "|" + r.file.getAbsolutePath() + "|" + r.file.lastModified() + "|" + r.file.length();
     synchronized (INFO) {
       Recording known = INFO.get(key);
       if (known != null) {
@@ -838,8 +839,14 @@ final class ReplayEditor extends JFrame {
       }
     }
     try (DataInputStream in = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(r.file), 1 << 16), 1 << 16))) {
-      if (in.readInt() != MAGIC) {
+      int magic = in.readInt();
+      if (magic != MAGIC && magic != MAGIC_1_7_10) {
         r.problem = "not a recording";
+        return;
+      }
+      String madeFor = magic == MAGIC ? "1.8.9" : "1.7.10";
+      if (!madeFor.equals(game.id)) {
+        r.problem = "made in " + madeFor + ", switch VERSION";
         return;
       }
       int version = in.readInt();
@@ -1016,7 +1023,7 @@ final class ReplayEditor extends JFrame {
       setStatus(r.name() + " " + r.problem + ".");
       return;
     }
-    if (r.length < 0) readInfo(r);
+    if (r.length < 0) readInfo(r, host.gameVersion());
     if (r.length < MIN_CLIP) {
       setStatus(r.name() + " is too short to use.");
       return;
@@ -1091,7 +1098,7 @@ final class ReplayEditor extends JFrame {
     timeNow.setText(clock(playTime));
     timeTotal.setText(clock(total()));
     Clip c = current();
-    clipInfo.setText(c == null ? "No clips yet: double-click a recording on the left."
+    clipInfo.setText(c == null ? "No clips yet."
         : "Clip " + (selected + 1) + " of " + clips.size() + ":  " + clock(c.start) + " - " + clock(c.end));
     clipInfo.setToolTipText(c == null ? null : c.rec.title() + ", " + clock(c.length()) + " of recording"
         + (c.speed != 1 ? " at " + speedLabel(c.speed) + " = " + clock(c.dur()) : ""));
@@ -1913,7 +1920,7 @@ final class ReplayEditor extends JFrame {
     } catch (IOException ignored) {
       // no settings yet: the default
     }
-    String fix = " Get it from ffmpeg.org, then press RENDER and pick ffmpeg.exe.";
+    String fix = Platform.windows() ? " Get it from ffmpeg.org, then press RENDER and pick ffmpeg.exe." : " Install it with your package manager (for example: sudo apt install ffmpeg), then press RENDER.";
     if (path.contains("/") || path.contains("\\")) {
       return new File(path).isFile() ? null : "ffmpeg was not found at " + path + "." + fix;
     }

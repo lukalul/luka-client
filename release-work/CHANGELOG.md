@@ -2,6 +2,10 @@
 
 The launcher shows the notes below on its What's New page. Add a new `## version` heading at the top for each release.
 
+## 1.6.1
+- Replay editor: 1.7.10 recordings work. Before, every 1.7.10 recording showed "not a recording" and could not be added.
+- Replay editor (Linux): if ffmpeg is missing, the editor tells you to install it with your package manager instead of asking for ffmpeg.exe.
+
 ## 1.6.0
 - New replay editor: press REPLAY EDITOR in the launcher, next to PLAY. It works like a video editor: a big preview, and a timeline where your clips sit end to end. Drag a clip's edges to trim it, drag clips to change their order, and render them into one video.
 - Press MAKE PREVIEWS to see pictures of your recording along the timeline. Then PLAY (or SPACE) plays the clip, and clicking the time ruler moves the playhead.

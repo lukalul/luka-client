@@ -18,7 +18,7 @@ import javax.swing.SwingUtilities;
 /**
  * Test: kill markers, speed per clip, undo / redo and the look options of the replay editor, with a stand-in launcher,
  * never shown (drawn into a PNG). Uses the newest recording in the game folder (the look test scene: two kills).
- *   java -cp <launcher classes> dev.luka.launcher.EditorFeatures <gameDir> <png>
+ *   java -cp <launcher classes> dev.luka.launcher.EditorFeatures <gameDir> <png> [1.8.9|1.7.10]
  */
 public final class EditorFeatures {
   private static ReplayEditor e;
@@ -29,7 +29,7 @@ public final class EditorFeatures {
     Font bold = Font.createFont(Font.TRUETYPE_FONT, new File("res/Roboto-Bold.ttf"));
     ReplayEditor.Host host = new ReplayEditor.Host() {
       public File gameDir() { return gameDir; }
-      public GameVersion gameVersion() { return GameVersion.V1_8_9; }
+      public GameVersion gameVersion() { return args.length > 2 && args[2].equals("1.7.10") ? GameVersion.V1_7_10 : GameVersion.V1_8_9; }
       public Font font(boolean b, float size) { return (b ? bold : regular).deriveFont(size); }
       public List<Image> getIconImages() { return new ArrayList<>(); }
       public void stopRender() { }
