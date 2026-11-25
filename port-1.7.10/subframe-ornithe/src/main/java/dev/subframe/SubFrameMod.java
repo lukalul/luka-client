@@ -155,6 +155,7 @@ public final class SubFrameMod implements ClientModInitializer {
             if (selfTest != null) {
                 selfTest.onTick();
             }
+            RenderJob.tick();
             Minecraft mc = Minecraft.getMinecraft();
             registerKeys(mc);
             if (mc.effectRenderer != null && !(mc.effectRenderer instanceof DeterministicEffectRenderer)) {
@@ -251,7 +252,35 @@ public final class SubFrameMod implements ClientModInitializer {
     }
 
     public static boolean shouldCancelCrosshair() {
-        return CrosshairOverlay.shouldCancelVanilla();
+        return CrosshairOverlay.shouldCancelVanilla() || lookHides("crosshair");
+    }
+
+    /** A replay editor render hides this (hud, hand, crosshair, chat, scoreboard, nametags): RenderLook, render jobs only. */
+    public static boolean lookHides(String what) {
+        if (!RenderJob.active()) {
+            return false;
+        }
+        switch (what) {
+            case "hud":
+                return RenderLook.hideHud;
+            case "hand":
+                return RenderLook.hideHand;
+            case "crosshair":
+                return RenderLook.hideCrosshair;
+            case "chat":
+                return RenderLook.hideChat;
+            case "scoreboard":
+                return RenderLook.hideScoreboard;
+            case "nametags":
+                return RenderLook.hideNametags;
+            default:
+                return false;
+        }
+    }
+
+    /** This game is a replay editor render (it must not save the player's options). */
+    public static boolean inRenderJob() {
+        return RenderJob.active();
     }
 
     public static void onEntityJoined(Entity entity, World world) {

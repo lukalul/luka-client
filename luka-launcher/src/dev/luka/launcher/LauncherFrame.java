@@ -42,7 +42,7 @@ import javax.swing.text.DefaultCaret;
  * with logo/tabs/account, big launch button, News/Servers/Settings/About pages, side panels, footer, account and login
  * screens) in luka's purple and black. Everything is painted by hand, so every position below is in window pixels.
  */
-final class LauncherFrame extends JFrame {
+final class LauncherFrame extends JFrame implements ReplayEditor.Host {
   static final int W = 1152, H = 648;
   static final Color BG = new Color(0x0F0C14);
   static final Color PANEL = new Color(0x17121F);
@@ -268,31 +268,7 @@ final class LauncherFrame extends JFrame {
     new Thread(
             () -> {
               try {
-                String updateUrl = settings.updateUrl();
-                if (!updateUrl.isEmpty()) {
-                  setStatus("Checking for updates", 0.005);
-                  try {
-                    Updater.check(root, updateUrl, VERSION, new Updater.Listener() {
-                      public void status(String text) { updateStatus = text; }
-                      public void clientId(String id) { }
-                      public void restart() throws IOException { restartLauncher(); }
-                    });
-                  } catch (IOException offline) {
-                    appendLog("Update check failed: " + offline.getMessage()); // Installer.syncMods decides whether luka may still start
-                  }
-                }
-                GameVersion version = settings.version();
-                Installer.retireMods(root, version);
-                if ("vulkan".equals(settings.renderer()) && !vulkanDriverPresent()) {
-                  settings.set("renderer", "normal");
-                  settings.save();
-                  appendLog("This PC has no Vulkan driver, using the Normal renderer");
-                }
-                if (!Installer.isInstalled(root, version)) {
-                  Installer.install(root, version, this::setStatus);
-                } else {
-                  Installer.syncMods(root, version, false, this::setStatus);
-                }
+                prepareGame();
                 GameRunner.Identity id = new GameRunner.Identity();
                 id.name = account.name;
                 id.uuid = account.uuid;
@@ -345,6 +321,116 @@ final class LauncherFrame extends JFrame {
   }
 
   /** The texture atlas is built after the window exists, so seeing it means Vulkan started and any later failure is something else. */
+  /** What every start does first: the update check (a launcher update restarts it), then the install or the mod sync. */
+  private void prepareGame() throws Exception {
+    String updateUrl = settings.updateUrl();
+    if (!updateUrl.isEmpty()) {
+      setStatus("Checking for updates", 0.005);
+      try {
+        Updater.check(root, updateUrl, VERSION, new Updater.Listener() {
+          public void status(String text) { updateStatus = text; }
+          public void clientId(String id) { }
+          public void restart() throws IOException { restartLauncher(); }
+        });
+      } catch (IOException offline) {
+        appendLog("Update check failed: " + offline.getMessage()); // Installer.syncMods decides whether luka may still start
+      }
+    }
+    GameVersion version = settings.version();
+    Installer.retireMods(root, version);
+    if ("vulkan".equals(settings.renderer()) && !vulkanDriverPresent()) {
+      settings.set("renderer", "normal");
+      settings.save();
+      appendLog("This PC has no Vulkan driver, using the Normal renderer");
+    }
+    if (!Installer.isInstalled(root, version)) {
+      Installer.install(root, version, this::setStatus);
+    } else {
+      Installer.syncMods(root, version, false, this::setStatus);
+    }
+  }
+
+  // ---- replay editor ----
+
+  private ReplayEditor editor;
+
+  private void openReplayEditor() {
+    SwingUtilities.invokeLater(() -> {
+      if (editor == null || !editor.isDisplayable()) editor = new ReplayEditor(this);
+      editor.setVisible(true);
+      editor.toFront();
+    });
+  }
+
+  /** The game folder of the version picked in the launcher (recordings are in its subframe folder). */
+  public File gameDir() {
+    return new File(settings.version().home(root), "game");
+  }
+
+  /** luka's fonts (Roboto), for the replay editor. */
+  public Font font(boolean boldFace, float size) {
+    return (boldFace ? bold : regular).deriveFont(size);
+  }
+
+  public GameVersion gameVersion() {
+    return settings.version();
+  }
+
+  boolean gameBusy() {
+    return running;
+  }
+
+  /**
+   * For the replay editor: the same checks as Play, then the game with a render job (SubFrame renders the clips, joins
+   * them and quits). No sign-in, since a render joins no server; the launcher stays as it is (no hide or close on
+   * launch). onExit gets the game's exit code, or -1 and a message when it could not start. False while a game runs.
+   */
+  public boolean startRenderJob(File job, boolean hidden, java.util.function.BiConsumer<Integer, String> onExit) {
+    if (running) return false;
+    final Accounts.Account account = accounts.selected();
+    settings.save();
+    running = true;
+    new Thread(
+            () -> {
+              int code = -1;
+              String error = null;
+              try {
+                prepareGame();
+                GameRunner.Identity id = new GameRunner.Identity();
+                id.name = account != null ? account.name : "luka";
+                id.uuid = account != null ? account.uuid : Accounts.offlineUuid(id.name);
+                GameRunner runner = new GameRunner(root, settings, id, this::appendLog,
+                    (text, f) -> setStatus("Playing".equals(text) ? "Rendering a replay edit" : text, f));
+                runner.addJvmArg("-Dsubframe.renderjob=" + job.getAbsolutePath());
+                // a render joins no server: keep it off Luka Online (no second session flickering for friends) and out of crash reports
+                runner.addJvmArg("-Dluka.api=http://127.0.0.1:1");
+                if (hidden) runner.runHidden();
+                activeRunner = runner;
+                code = runner.play();
+                setStatus(code == 0 ? "Replay render done" : "Game exited (code " + code + ") - see the log", 0);
+              } catch (Throwable t) {
+                error = t.getMessage() == null ? t.toString() : t.getMessage();
+                appendLog("ERROR: " + t);
+                setStatus("Failed: " + error, 0);
+              } finally {
+                activeRunner = null;
+                running = false;
+                final int c = code;
+                final String e = error;
+                SwingUtilities.invokeLater(() -> onExit.accept(c, e));
+              }
+            },
+            "luka-render")
+        .start();
+    return true;
+  }
+
+  /** The editor's close button during a render: ends that game. */
+  public void stopRender() {
+    GameRunner r = activeRunner;
+    if (r != null) r.stop();
+  }
+
   private boolean gameGotGoing() {
     try {
       java.io.File log = new java.io.File(settings.version().home(root), "game/logs/latest.log");
@@ -772,7 +858,37 @@ final class LauncherFrame extends JFrame {
       g.drawString(letter, x + (size - fm.stringWidth(letter)) / 2, y + size / 2 + fm.getAscent() / 2 - 1);
     }
 
+    /** REPLAY EDITOR, left of PLAY (on every tab): opens the replay editor window. */
+    private void drawEditorButton(Graphics2D g) {
+      int x = 24, y = LAUNCH_Y, w = LAUNCH_X - 24 - 16, h = LAUNCH_H;
+      int id = area(x, y, w, h, LauncherFrame.this::openReplayEditor);
+      boolean over = id == hover;
+      g.setPaint(new GradientPaint(x, y, over ? new Color(0x2C2238) : new Color(0x221B2C), x, y + h, over ? new Color(0x1E1727) : new Color(0x17121F)));
+      g.fillRoundRect(x, y, w, h, 16, 16);
+      g.setColor(over ? PURPLE : new Color(0x4A3A5E));
+      g.setStroke(new java.awt.BasicStroke(over ? 1.6f : 1.2f));
+      g.drawRoundRect(x, y, w - 1, h - 1, 16, 16);
+      g.setStroke(new java.awt.BasicStroke(1f));
+      // a film strip with a cut through it
+      int ix = x + 16, iy = y + 21;
+      g.setColor(over ? LIGHT : new Color(0xB9A3DA));
+      g.drawRoundRect(ix, iy, 26, 22, 4, 4);
+      for (int k = 0; k < 4; k++) {
+        g.fillRect(ix + 3 + k * 6, iy + 3, 3, 3);
+        g.fillRect(ix + 3 + k * 6, iy + 16, 3, 3);
+      }
+      g.setColor(PURPLE);
+      g.fillRect(ix + 12, iy - 4, 2, 30);
+      g.setFont(bold.deriveFont(13f));
+      g.setColor(Color.WHITE);
+      g.drawString("REPLAY EDITOR", ix + 38, y + 30);
+      g.setFont(regular.deriveFont(11f));
+      g.setColor(new Color(255, 255, 255, 150));
+      g.drawString("cut + render replays", ix + 38, y + 47);
+    }
+
     private void drawLaunch(Graphics2D g) {
+      drawEditorButton(g);
       int x = LAUNCH_X, y = LAUNCH_Y, w = LAUNCH_W, h = LAUNCH_H;
       int id = area(x, y, w, h, () -> play(null));
       boolean over = id == hover && !running;

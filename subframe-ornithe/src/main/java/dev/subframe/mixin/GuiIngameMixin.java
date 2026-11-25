@@ -27,4 +27,20 @@ abstract class GuiIngameMixin {
             cir.setReturnValue(false);
         }
     }
+
+    /** Replay editor "hide the HUD": nothing of the in-game overlay in that render (the hand stays). */
+    @Inject(method = "renderGameOverlay", at = @At("HEAD"), cancellable = true, require = 0)
+    private void subframe$hideHud(CallbackInfo ci) {
+        if (SubFrameMod.lookHides("hud")) {
+            ci.cancel();
+        }
+    }
+
+    /** Replay editor "hide the scoreboard" (luka's Scoreboard module is switched off for that render too). */
+    @Inject(method = "renderScoreboard", at = @At("HEAD"), cancellable = true, require = 0)
+    private void subframe$hideScoreboard(CallbackInfo ci) {
+        if (SubFrameMod.lookHides("scoreboard")) {
+            ci.cancel();
+        }
+    }
 }

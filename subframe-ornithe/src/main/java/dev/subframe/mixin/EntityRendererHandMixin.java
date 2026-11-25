@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 abstract class EntityRendererHandMixin {
     @Inject(method = "renderHand", at = @At("HEAD"), cancellable = true, require = 0)
     private void subframe$noHand(float partialTicks, int pass, CallbackInfo ci) {
-        if (Freecam.detached()) {
+        if (Freecam.detached() || dev.subframe.SubFrameMod.lookHides("hand")) {
             ci.cancel();
         }
     }

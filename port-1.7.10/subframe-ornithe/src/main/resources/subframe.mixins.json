@@ -23,7 +23,11 @@
     "EntityFXAccessor",
     "EntityCrit2FXAccessor",
     "S26PacketMapChunkBulkAccessor",
-    "MinecraftServerMixin"
+    "MinecraftServerMixin",
+    "LookLabelMixin",
+    "LookNameMixin",
+    "LookChatMixin",
+    "LookOptionsMixin"
   ],
   "injectors": {
     "defaultRequire": 1

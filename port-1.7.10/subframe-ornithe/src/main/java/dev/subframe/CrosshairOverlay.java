@@ -103,6 +103,9 @@ public final class CrosshairOverlay {
     /** Draws the crosshair on top of the picture that is bound right now. */
     static void draw() {
         Minecraft mc = Minecraft.getMinecraft();
+        if (SubFrameMod.lookHides("crosshair") || SubFrameMod.lookHides("hud")) {
+            return;
+        }
         if (mc.gameSettings.thirdPersonView != 0 || mc.gameSettings.hideGUI) {
             return;
         }

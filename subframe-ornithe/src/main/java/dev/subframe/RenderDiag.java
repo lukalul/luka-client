@@ -115,6 +115,14 @@ final class RenderDiag {
         Framebuffer fb = mc.getFramebuffer();
         sb.append(" | framebuffer ").append(fb.framebufferWidth).append('x').append(fb.framebufferHeight).append(" id=").append(fb.framebufferObject);
         sb.append(" | colorAttachment=").append(colorAttachment()).append(" mcTexture=").append(fb.framebufferTexture);
+        try {
+            // what the renderer drew last frame and where it thinks the camera is: a world that is there but not drawn shows here
+            sb.append(" | ").append(mc.renderGlobal.getDebugInfoRenders()).append(" ").append(mc.renderGlobal.getDebugInfoEntities());
+            net.minecraft.client.renderer.entity.RenderManager rm = mc.getRenderManager();
+            sb.append(" | viewer ").append(String.format("%.2f,%.2f,%.2f", rm.viewerPosX, rm.viewerPosY, rm.viewerPosZ));
+        } catch (Throwable t) {
+            sb.append(" | renderer info unavailable: ").append(t);
+        }
         sb.append(" | GL error=").append(GL11.glGetError());
         sb.append(" drawFbo=").append(glInt(0x8CA6)).append(" readFbo=").append(glInt(0x8CAA))
                 .append(" packBuffer=").append(glInt(0x88ED)).append(" unpackBuffer=").append(glInt(0x88EF));

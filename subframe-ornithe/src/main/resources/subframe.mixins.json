@@ -18,7 +18,11 @@
     "GuiIngameMixin",
     "WorldMixin",
     "EntityRendererHandMixin",
-    "RenderPlayerFreecamMixin"
+    "RenderPlayerFreecamMixin",
+    "LookLabelMixin",
+    "LookNameMixin",
+    "LookChatMixin",
+    "LookOptionsMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -2,6 +2,19 @@
 
 The launcher shows the notes below on its What's New page. Add a new `## version` heading at the top for each release.
 
+## 1.6.0
+- New replay editor: press REPLAY EDITOR in the launcher, next to PLAY. It works like a video editor: a big preview, and a timeline where your clips sit end to end. Drag a clip's edges to trim it, drag clips to change their order, and render them into one video.
+- Press MAKE PREVIEWS to see pictures of your recording along the timeline. Then PLAY (or SPACE) plays the clip, and clicking the time ruler moves the playhead.
+- Cut a recording into as many clips as you like: S (or SPLIT) cuts at the playhead or where your mouse is, and right-click on the timeline lets you split, start or end the clip there.
+- Renders from the editor run in the background with the game window hidden (Windows), and the game closes by itself when the video is done. You can untick "Hide the game window" to watch.
+- Editor: slow motion and speed per clip (0.25x to 4x, "Clip speed" above the preview).
+- Editor: your kills show as red marks on the timeline (from the death messages in the recorded chat). K jumps to the next kill, SHIFT+K to the previous one.
+- Editor: undo and redo (CTRL+Z, CTRL+Y).
+- Editor: choose how the video looks, for that video only: field of view, render distance, brightness, particles, view bobbing, time of day, clear weather and a resource pack. You can hide the whole HUD, the hand, crosshair, chat, scoreboard or nametags, and pick which luka HUD parts show (for example no FPS counter). Your own game settings stay as they are.
+- Replays (Normal renderer): fixed renders and the viewer showing only sky, hand and HUD (no ground, no players) for the whole video when the recording started with you standing still.
+- Replays: a render that starts partway into a recording (a cut clip, or a selected range) no longer begins with a broken frame (black world, doubled HUD) or missing ground. It now waits a moment until the world, the chunks and the skins have loaded before the first frame is saved.
+- Videos need ffmpeg, as before: if luka can't find it, the editor asks you to pick ffmpeg.exe once.
+
 ## 1.5.9
 - Replays: when the recorded player opens a chest, the replay keeps playing. Before, the chest screen took over and you had to press E or Esc to continue.
 - Replays: chests and other containers the player opened, and their own inventory (E), are shown over the replay and in rendered videos, with the items that were in them. Switch it off with "Show opened chests" in the replay menu. Closing a chest and opening your own inventory are only saved in recordings made with this version.

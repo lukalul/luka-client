@@ -1,5 +1,6 @@
 package dev.subframe;
 
+import net.minecraft.client.entity.AbstractClientPlayer;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.gui.inventory.GuiContainer;
@@ -239,6 +240,37 @@ final class Replay {
         return f;
     }
 
+    /** How the last replay ended ("finished", "error", "closed", ...): read by RenderJob. */
+    static volatile String lastFinish;
+
+    /**
+     * Renders part of a recording into the given video (RenderJob, for the replay editor). The range is the job's own:
+     * the recording's saved viewer selection is neither used nor changed. False when it could not start.
+     */
+    static boolean startJob(File file, double startS, double endS, File out, double speed) {
+        jobSpeed = speed;
+        jobOut = out;
+        jobStart = startS;
+        jobEnd = endS;
+        try {
+            start(file, false, false);
+        } finally {
+            jobOut = null;
+        }
+        return active != null;
+    }
+
+    private static File jobOut;
+    private static double jobStart, jobEnd;
+    /** Recorded seconds per video second for a job clip: 0.5 is slow motion at half speed, 2 is double speed. */
+    private static double jobSpeed = 1;
+
+    /** Share of the range rendered so far, 0..1. */
+    double jobProgress() {
+        double len = rangeEndT - rangeStartT;
+        return len > 0 ? Math.max(0, Math.min(1, frameIndex * frameDur / len)) : 0;
+    }
+
     private static void start(File file, boolean diffMode, boolean preview) {
         Minecraft mc = Minecraft.getMinecraft();
         if (active != null) {
@@ -251,7 +283,14 @@ final class Replay {
         try {
             Recording rec = Recording.load(file);
             String base = file.getName().replaceAll("\\.sfr$", "");
-            Replay r = new Replay(rec, file, freeOutput(file.getParentFile(), base), diffMode, preview);
+            Replay r = new Replay(rec, file, jobOut != null ? jobOut : freeOutput(file.getParentFile(), base), diffMode, preview);
+            if (jobOut != null) {
+                r.range.start = Math.max(0, jobStart);
+                r.range.end = jobEnd > jobStart ? jobEnd : (rec.endTime() - rec.startTime()) / 1e9;
+                r.applyRange();
+                // slow motion / speed: each video frame covers speed times the usual stretch of recorded time
+                r.frameDur *= jobSpeed;
+            }
             r.begin();
             active = r;
         } catch (Throwable t) {
@@ -295,6 +334,9 @@ final class Replay {
             gs.viewBobbing = rec.viewBobbing;
         }
         gs.hideGUI = false; // true would also hide the first-person hand
+        if (RenderJob.active()) {
+            RenderLook.applySettings(gs);
+        }
         gs.limitFramerate = 260;
         gs.enableVsync = false;
         Display.setVSyncEnabled(false);
@@ -778,6 +820,8 @@ final class Replay {
             // let the real render loop run a while so chunk meshes for the starting view are built
             if (mc.theWorld != null && mc.thePlayer != null && --warmup <= 0) {
                 if (preview) {
+                    // the viewer starts still too (see cameraKick)
+                    cameraKick = 2;
                     running = true;
                     tCur = pendingSeekT >= 0 ? pendingSeekT : rec.startTime();
                     pendingSeekT = -1;
@@ -811,6 +855,7 @@ final class Replay {
         if (!windowReady()) {
             return;
         }
+        boolean dry = settling();
         if (useRt) {
             org.lwjgl.opengl.GL30.glBindFramebuffer(org.lwjgl.opengl.GL30.GL_FRAMEBUFFER, rtFbo);
             org.lwjgl.opengl.GL11.glViewport(0, 0, outW, outH);
@@ -857,7 +902,7 @@ final class Replay {
             org.lwjgl.opengl.GL30.glBindFramebuffer(org.lwjgl.opengl.GL30.GL_FRAMEBUFFER, 0);
         }
         try {
-            if (sink != null) {
+            if (sink != null && !dry) {
                 sink.writeFrame();
             }
         } catch (Exception e) {
@@ -868,11 +913,14 @@ final class Replay {
             sink = null;
         }
         nsWrite = System.nanoTime() - wr0;
-        if (rlog != null) {
+        if (rlog != null && !dry) {
             logFrame(tEnd, System.nanoTime() - frameStart);
         }
         if (useRt) {
             org.lwjgl.opengl.GL30.glBindFramebuffer(org.lwjgl.opengl.GL30.GL_FRAMEBUFFER, entryFbo);
+        }
+        if (dry) {
+            return;
         }
         frameIndex++;
         if (frameIndex % 60 == 0) {
@@ -1160,8 +1208,83 @@ final class Replay {
             SubFrameMod.LOG.error("Could not open the render log", t);
         }
         lastProgressNs = System.nanoTime();
+        cameraKick = 2;
+        settleStart = System.nanoTime();
+        dryLeft = DRY_MIN;
         running = true;
         startWatchdog();
+    }
+
+    /**
+     * A render that starts in the middle of a recording used to write a broken first frame (the world black, the HUD
+     * drawn twice), and skins and chunks could still be loading. So before the first frame is written, frames of the
+     * first moment are drawn the same way and thrown away until the world has settled: at least DRY_MIN of them and
+     * SETTLE_MIN_MS, the chunk builders idle (and the Vulkan renderer's queue empty), the players' skins loaded (at most
+     * SKIN_WAIT_MS: offline players never get one), and never longer than SETTLE_MAX_MS.
+     */
+    private static final int DRY_MIN = 3, SETTLE_MIN_MS = 500, SKIN_WAIT_MS = 4000, SETTLE_MAX_MS = 15000;
+    private long settleStart;
+    private int dryLeft, dryDrawn;
+
+    /**
+     * Throwaway frames left that draw from a spot 24 blocks above the camera. The Normal renderer (Argentum) works out
+     * which chunks and entities are visible again only when the camera moves; when a replay's camera starts still it
+     * could keep a list made while the world was arriving, and drew nothing but sky, hand and HUD for the whole render
+     * (rig recording rec-20261125-183422; the Vulkan renderer and the game without Argentum drew it fine). Moving the
+     * camera away and back makes it look again before the first real frame.
+     */
+    private int cameraKick;
+
+    /** True while the frame about to be drawn is a throwaway one (see DRY_MIN). */
+    private boolean settling() {
+        if (settleStart == 0) {
+            return false;
+        }
+        long ms = (System.nanoTime() - settleStart) / 1_000_000L;
+        boolean chunksReady = chunks.idle() && chunks.vulkanPending() <= 0;
+        boolean skins = skinsLoaded();
+        boolean enough = dryLeft <= 0 && ms >= SETTLE_MIN_MS;
+        if ((enough && chunksReady && (skins || ms >= SKIN_WAIT_MS)) || ms >= SETTLE_MAX_MS) {
+            String what = "[render] world settled after " + ms + " ms and " + dryDrawn + " throwaway frames (chunks "
+                    + (chunksReady ? "ready" : "still building") + ", skins " + (skins ? "loaded" : "not all loaded") + ")";
+            SubFrameMod.LOG.info(what);
+            if (rlog != null) {
+                rlog.important(what);
+                rlog.line("  settled state: " + RenderDiag.snapshot());
+            }
+            settleStart = 0;
+            return false;
+        }
+        dryLeft--;
+        dryDrawn++;
+        try {
+            // leave the chunk builders and the skin downloads some room
+            Thread.sleep(2);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
+        return true;
+    }
+
+    /**
+     * Every player in the world that has a skin to download has it (else the default skin would show in the first
+     * frames). Players whose profile has no textures (offline names, the recorded player itself) never get one.
+     */
+    private boolean skinsLoaded() {
+        if (mc.theWorld == null) {
+            return true;
+        }
+        try {
+            for (Object o : mc.theWorld.playerEntities) {
+                if (o instanceof AbstractClientPlayer && !((AbstractClientPlayer) o).hasSkin()
+                        && ((AbstractClientPlayer) o).getGameProfile().getProperties().containsKey("textures")) {
+                    return false;
+                }
+            }
+        } catch (Throwable t) {
+            return true;
+        }
+        return true;
     }
 
     /**
@@ -1486,10 +1609,29 @@ final class Replay {
         Timer timer = ((MinecraftAccessor) mc).subframe$getTimer();
         timer.renderPartialTicks = partial;
         mc.ingameGUI.prevVignetteBrightness = rec.vignetteAt(t);
+        if (RenderJob.active()) {
+            RenderLook.applyWorld(mc);
+        }
         // chunk meshes build on other threads: draw until none were pending at the start of the last draw
         boolean idleBefore = chunks.idle();
         long rd0 = System.nanoTime();
-        mc.entityRenderer.updateCameraAndRender(partial, System.nanoTime());
+        // throwaway frames before the first one: the camera visits a spot 24 blocks up and comes back (see cameraKick)
+        net.minecraft.entity.Entity kicked = cameraKick > 0 ? mc.getRenderViewEntity() : null;
+        if (kicked != null) {
+            kicked.posY += 24;
+            kicked.prevPosY += 24;
+            kicked.lastTickPosY += 24;
+        }
+        try {
+            mc.entityRenderer.updateCameraAndRender(partial, System.nanoTime());
+        } finally {
+            if (kicked != null) {
+                kicked.posY -= 24;
+                kicked.prevPosY -= 24;
+                kicked.lastTickPosY -= 24;
+                cameraKick--;
+            }
+        }
         if (useRt && drawChecks < 5) {
             drawChecks++;
             if (org.lwjgl.opengl.GL11.glGetInteger(0x8CA6) != rtFbo && !windowDependent) {
@@ -1827,6 +1969,7 @@ final class Replay {
         }
         finished = true;
         active = null;
+        lastFinish = why;
         Determinism.active = false;
         DynamicFps.resume();
         SubFrameMod.LOG.info("Replay " + why + " after " + frameIndex + " frames");

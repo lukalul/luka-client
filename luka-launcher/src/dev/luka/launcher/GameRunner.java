@@ -52,6 +52,44 @@ final class GameRunner {
   private final Consumer<String> log;
   private final ProgressSink progress;
   private volatile Process process;
+  /** Extra JVM options, after luka's own (the replay editor's render job). */
+  private final List<String> extraJvmArgs = new ArrayList<>();
+
+  void addJvmArg(String arg) {
+    extraJvmArgs.add(arg);
+  }
+
+  /** Start the game on a hidden desktop (Windows, the replay editor's renders): it renders, but no window shows. */
+  private boolean hidden;
+
+  void runHidden() {
+    hidden = true;
+  }
+
+  /**
+   * luka-hidden.exe (exe/hidden.cpp, carried in this jar), unpacked into the luka folder when missing or different.
+   * It runs the game on its own desktop and ends it when it ends itself. Null when not on Windows or it cannot be unpacked.
+   */
+  private File hiddenHelper() {
+    if (!Platform.windows()) return null;
+    try (java.io.InputStream in = GameRunner.class.getResourceAsStream("/luka-hidden.exe")) {
+      if (in == null) return null;
+      java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+      byte[] b = new byte[1 << 16];
+      for (int n; (n = in.read(b)) > 0; ) buf.write(b, 0, n);
+      byte[] exe = buf.toByteArray();
+      File target = new File(root, "luka-hidden.exe");
+      if (!target.isFile() || !java.util.Arrays.equals(java.nio.file.Files.readAllBytes(target.toPath()), exe)) {
+        File tmp = new File(root, "luka-hidden.exe.tmp");
+        java.nio.file.Files.write(tmp.toPath(), exe);
+        java.nio.file.Files.move(tmp.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+      }
+      return target;
+    } catch (IOException e) {
+      log.accept("Could not unpack luka-hidden.exe, the game window will show: " + e.getMessage());
+      return null;
+    }
+  }
 
   interface ProgressSink {
     void update(String status, double fraction);
@@ -73,6 +111,12 @@ final class GameRunner {
 
   boolean isGameRunning() { return process != null && process.isAlive(); }
 
+  /** Ends the game (with luka-hidden.exe in front, ending the helper ends the game through its job object). */
+  void stop() {
+    Process p = process;
+    if (p != null) p.destroy();
+  }
+
   /** Runs the whole sequence and waits for the game to close. Returns the game's exit code. */
   int play() throws Exception {
     File libs = new File(home, "libs");
@@ -88,7 +132,15 @@ final class GameRunner {
     log.accept("Command: " + String.join(" ", command).replace(identity.accessToken, "***"));
     NvidiaProfile.apply(settings, new File(command.get(0)), log);
     gameDir().mkdirs();
-    ProcessBuilder builder = new ProcessBuilder(command).directory(gameDir()).redirectErrorStream(true);
+    List<String> launch = command;
+    File helper = hidden ? hiddenHelper() : null;
+    if (helper != null) {
+      launch = new ArrayList<>();
+      launch.add(helper.getAbsolutePath());
+      launch.addAll(command);
+      log.accept("Starting the game on a hidden desktop (no window)");
+    }
+    ProcessBuilder builder = new ProcessBuilder(launch).directory(gameDir()).redirectErrorStream(true);
     process = builder.start();
     progress.update("Playing", 1.0);
     try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
@@ -192,6 +244,7 @@ final class GameRunner {
     if (!encryptedJars(mods).isEmpty() || !encryptedJars(renderer).isEmpty())
       throw new IOException("This luka download is from an older release. Press Play again in a few minutes, or use Repair.");
     if (renderer.isDirectory()) command.add("-Dfabric.addMods=" + renderer.getAbsolutePath());
+    command.addAll(extraJvmArgs);
     StringBuilder classpath = new StringBuilder();
     for (String entry : lines(new File(home, "classpath.txt"))) {
       File path = new File(libs, entry);
