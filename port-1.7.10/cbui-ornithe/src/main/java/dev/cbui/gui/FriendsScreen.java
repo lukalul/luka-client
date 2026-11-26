@@ -92,7 +92,7 @@ public final class FriendsScreen extends GuiScreen {
       Draw.rounded(px, py, px + pw, py + ph, 6, 0xF0080709);
       LukaFontRenderer font = Fonts.regular();
       dev.cbui.social.RankIcon.blit(px + 8, py + 7, 14, 0xD9C2FF, 1f);
-      Fonts.bold(14).drawString("FRIENDS", px + 27, py + 8, 0xFFD9C2FF);
+      Fonts.bold(14).drawStringWithShadow("FRIENDS", px + 27, py + 8, 0xFFD9C2FF);
       String status = !moduleOn() ? "Luka Online is off" : LukaNet.status();
       boolean ok = moduleOn() && LukaNet.connected();
       font.drawStringWithShadow(status, px + pw - 10 - font.getStringWidth(status) - 8, py + 11, ok ? GREEN : MUTED);
@@ -114,7 +114,7 @@ public final class FriendsScreen extends GuiScreen {
 
       float top = py + 49, bottom = py + ph - 26;
       if (!moduleOn()) {
-        font.drawCentered("Switch Luka Online on in the mods menu to use friends.", px + pw / 2f, top + 20, MUTED);
+        font.drawCenteredWithShadow("Switch Luka Online on in the mods menu to use friends.", px + pw / 2f, top + 20, MUTED);
       } else if (tab == 0) {
         drawFriends(data, top, bottom, mouseX, mouseY);
       } else if (tab == 1) {
@@ -124,7 +124,7 @@ public final class FriendsScreen extends GuiScreen {
       }
 
       String note = LukaNet.lastAction();
-      if (!note.isEmpty() && !note.equals("...")) font.drawString(note, px + 10, py + ph - 17, 0xFFD9C2FF);
+      if (!note.isEmpty() && !note.equals("...")) font.drawStringWithShadow(note, px + 10, py + ph - 17, 0xFFD9C2FF);
       button("DONE", px + pw - 62, py + ph - 21, 54, 15, mouseX, mouseY, false, new Runnable() {
         @Override public void run() { close(); }
       });
@@ -158,7 +158,10 @@ public final class FriendsScreen extends GuiScreen {
   private void drawFriends(LukaNet.FriendsData data, float top, float bottom, int mx, int my) {
     List<LukaNet.Person> list = sorted(data.friends);
     if (list.isEmpty()) {
-      Fonts.regular().drawCentered(LukaNet.friendsLoaded() ? "No friends yet. Use ADD to send a request." : LukaNet.connected() ? "Loading..." : "Can't reach luka online right now.", px + pw / 2f, top + 20, MUTED);
+      Fonts.regular().drawCenteredWithShadow(LukaNet.friendsLoaded() ? "No friends yet. Use ADD to send a request." : LukaNet.connected() ? "Loading..." : LukaNet.needsMicrosoftAccount() ? "Friends need a Microsoft account." : "Can't reach luka online right now.", px + pw / 2f, top + 20, MUTED);
+      if (!LukaNet.friendsLoaded() && LukaNet.needsMicrosoftAccount()) {
+        Fonts.regular().drawCenteredWithShadow("Offline accounts can't sign in to Luka Online.", px + pw / 2f, top + 34, MUTED);
+      }
       return;
     }
     int fit = rowsFit(top, bottom);
@@ -189,7 +192,7 @@ public final class FriendsScreen extends GuiScreen {
     List<LukaNet.Person> in = sorted(data.incoming), out = sorted(data.outgoing);
     int total = in.size() + out.size();
     if (total == 0) {
-      Fonts.regular().drawCentered("No pending requests.", px + pw / 2f, top + 20, MUTED);
+      Fonts.regular().drawCenteredWithShadow("No pending requests.", px + pw / 2f, top + 20, MUTED);
       return;
     }
     int fit = rowsFit(top, bottom);
@@ -219,16 +222,16 @@ public final class FriendsScreen extends GuiScreen {
 
   private void drawAdd(float top, int mx, int my) {
     LukaFontRenderer font = Fonts.regular();
-    font.drawString("Add a friend by their Minecraft name. They need to use luka.", px + 12, top + 2, MUTED);
+    font.drawStringWithShadow("Add a friend by their Minecraft name. They need to use luka.", px + 12, top + 2, MUTED);
     float fy = top + 18;
     Draw.rounded(px + 10, fy, px + pw - 80, fy + 16, 3, 0xFF1A151F);
     dev.luka.compat.Compat.setPosition(nameField, (int) px + 14, (int) fy + 4);
     nameField.drawTextBox();
-    if (nameField.getText().isEmpty() && !nameField.isFocused()) font.drawString("Player name", px + 14, fy + 4, 0xFF6C7380);
+    if (nameField.getText().isEmpty() && !nameField.isFocused()) font.drawStringWithShadow("Player name", px + 14, fy + 4, 0xFF6C7380);
     button("SEND", px + pw - 74, fy, 62, 16, mx, my, false, new Runnable() {
       @Override public void run() { sendRequest(); }
     });
-    if (!LukaNet.connected()) font.drawString("Not connected to luka online right now.", px + 12, fy + 26, 0xFFFF8A8A);
+    if (!LukaNet.connected()) font.drawStringWithShadow(LukaNet.needsMicrosoftAccount() ? "Friends need a Microsoft account." : "Not connected to luka online right now.", px + 12, fy + 26, 0xFFFF8A8A);
   }
 
   private void sendRequest() {
@@ -248,8 +251,8 @@ public final class FriendsScreen extends GuiScreen {
     LukaFontRenderer font = Fonts.regular();
     font.drawStringWithShadow(p.name, px + 30, y + 3, 0xFFFFFFFF);
     float nameW = font.getStringWidth(p.name);
-    font.drawString(Ranks.get(p.rank).label, px + 30 + nameW + 5, y + 3, color);
-    font.drawString(second, px + 30, y + 13, online ? GREEN : MUTED);
+    font.drawStringWithShadow(Ranks.get(p.rank).label, px + 30 + nameW + 5, y + 3, color);
+    font.drawStringWithShadow(second, px + 30, y + 13, online ? GREEN : MUTED);
   }
 
   /** A small button at the right end of a row; returns the x it started at (the next one goes left of it). */
@@ -266,7 +269,7 @@ public final class FriendsScreen extends GuiScreen {
     int c = over ? hot : idle;
     Draw.gradientH(x, y, x + w / 2f, y + h, Draw.lerpColor(c, 0xFF000000, .12f), c);
     Draw.gradientH(x + w / 2f, y, x + w, y + h, c, Draw.lerpColor(c, 0xFFFFFFFF, .06f));
-    Fonts.regular().drawCentered(label, x + w / 2f, y + (h - 8) / 2f, 0xFFFFFFFF);
+    Fonts.regular().drawCenteredWithShadow(label, x + w / 2f, y + (h - 8) / 2f, 0xFFFFFFFF);
     hits.add(new Hit(x, y, w, h, action));
   }
 

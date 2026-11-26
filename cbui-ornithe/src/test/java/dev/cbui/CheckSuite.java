@@ -28,12 +28,45 @@ public final class CheckSuite {
     timerBook();
     chatMacroText();
     mentions();
+    onlineText();
     SoundAndSkyChecks.run();
     WheelAndLevelChecks.run();
     System.out.println(
         "CBUI plain-Java checks passed: CPS, atlas packing, GUI scales/layout, config/profile"
             + " round-trips, combined search, HUD editor snapping, renamed-card migration,"
-            + " chat macro expansion/sanitising");
+            + " chat macro expansion/sanitising, Luka Online text cleaning");
+  }
+
+  /** What other players send through Luka Online (messages, names, servers) cannot change how the game draws it. */
+  private static void onlineText() {
+    String[][] cases = {
+      {"\u00a7cred \u00a7kscrambled", "cred kscrambled"},
+      {"line1\\nline2\\r\\n\\tline3".replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"), "line1 line2 line3"},
+      {"a\u202eevil\u200b\u2066b", "a evil b"},
+      {"x\u0000\u0007\u001b[31my", "x [31my"},
+      {"smile \ud83d\ude00 ok", "smile ok"},
+      {"z\u0301\u0302\u0303a", "z\u0301a"},
+      {"\u0301\u0301start", "start"},
+      {"  lots    of   space  ", "lots of space"},
+      {"priv\ue000ate", "priv ate"},
+      {"caf\u00e9 \u4f60\u597d", "caf\u00e9 \u4f60\u597d"},
+      {"", ""},
+    };
+    for (String[] c : cases) {
+      String got = dev.cbui.social.SafeText.safeText(c[0], 200);
+      truth(got.equals(c[1]), "safeText cleans [" + c[0] + "] to [" + c[1] + "], got [" + got + "]");
+    }
+    truth(dev.cbui.social.SafeText.safeText(null, 200).isEmpty(), "safeText of null is empty");
+    StringBuilder longText = new StringBuilder();
+    for (int i = 0; i < 5000; i++) longText.append('x');
+    truth(dev.cbui.social.SafeText.safeText(longText.toString(), 200).length() == 200, "safeText caps the length");
+    truth(dev.cbui.social.SafeText.playerName("Notch_99").equals("Notch_99"), "a real name stays");
+    truth(dev.cbui.social.SafeText.playerName("\u00a7cAdmin").equals("?"), "a name with codes is refused");
+    truth(dev.cbui.social.SafeText.playerName("x fake line").equals("?"), "a name with a space is refused");
+    truth(dev.cbui.social.SafeText.serverAddress("\u00a7kmc.Hypixel.net:25565 \u00a7cfake").equals("kmc.Hypixel.net:25565cfake"),
+        "server addresses keep address characters only");
+    truth(dev.cbui.social.SafeText.uuidOrEmpty("069a79f4-44e9-4726-a5be-fca90e38aaf5").length() == 36, "a uuid stays");
+    truth(dev.cbui.social.SafeText.uuidOrEmpty("../../x").isEmpty(), "a non-uuid is dropped");
   }
 
   private static void mentions() {

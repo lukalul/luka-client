@@ -73,6 +73,7 @@ public final class LukaFontRenderer {
     public float drawString(String text,float x,float y,int color){if(text!=null&&!text.isEmpty()&&vanilla())return drawVanilla(text,x,y,color,false);return draw(text,x,y,color,false);}
     public float drawStringWithShadow(String text,float x,float y,int color){if(text!=null&&!text.isEmpty()&&vanilla())return drawVanilla(text,x,y,color,true);return draw(text,x,y,color,true);}
     public float drawCentered(String text,float center,float y,int color){return drawString(text,center-getStringWidth(text)/2f,y,color);}
+    public float drawCenteredWithShadow(String text,float center,float y,int color){return drawStringWithShadow(text,center-getStringWidth(text)/2f,y,color);}
     private float draw(String text,float x,float y,int baseColor,boolean shadow){
         if(text==null||text.isEmpty())return x;ensure();if(texture==null)return x;
         GlStateManager.enableBlend();GlStateManager.tryBlendFuncSeparate(770,771,1,0);GlStateManager.enableTexture2D();GlStateManager.bindTexture(texture.getGlTextureId());

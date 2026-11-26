@@ -30,12 +30,15 @@ Luka Online gives you a friends list and puts the purple luka icon beside the na
 - The address of the multiplayer server you are on, so your friends can see it and join you. Untick **Show friends my server** (or turn on **Streamer mode**) and it is not sent.
 - The UUIDs of the players around you, to find out which of them use luka. The service only answers which of them are luka players.
 - Your friend requests and your friends list.
+- The messages you write to your friends.
+
+**Messages:** only friends can write to each other. Messages are kept on api.luka.wtf for 30 days and then deleted; removing a friend deletes your conversation with them at once. They are not end-to-end encrypted: they travel over HTTPS, but the service stores them as text, so luka's team could read them. Do not send passwords or anything private. A player can send at most 20 messages a minute.
 
 **How sign-in works:** your game asks Mojang for two things: its player certificate (the key Mojang gives every account for signed chat in newer Minecraft versions) and its own profile, which Mojang signs and which holds your name. It signs a one-time code from luka with that certificate and sends luka the certificate, the signature and the signed profile. luka checks Mojang's signatures with Mojang's published keys. Your Microsoft or Minecraft access token goes to Mojang only, never to luka, and the certificate's private key never leaves your PC.
 
 **Who sees what:** other players can see that you use luka (the icon) while you are online. Only your friends see that you are online and, if you allow it, which server you are on. luka's team can see who has signed in, who is online and the server they share with friends, to run the service.
 
-**What it does not do:** no chat logs, no recordings, no ads, and nothing is sold to anyone.
+**What it does not do:** no logs of your game chat, no recordings, no ads, and nothing is sold to anyone.
 
 **Turning it off:** open the luka menu and switch off the **Luka Online** card. The client then stops sending friends and presence data to api.luka.wtf (it still sends the crash reports described below, which are not part of Luka Online). To have your account removed from the service, ask in the luka Discord.
 

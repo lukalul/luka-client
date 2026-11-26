@@ -62,11 +62,11 @@ public final class LukaNet {
     public final boolean online;
 
     Person(JsonObject o) {
-      uuid = str(o, "uuid");
-      name = str(o, "name");
+      uuid = SafeText.uuidOrEmpty(str(o, "uuid"));
+      name = SafeText.playerName(str(o, "name"));
       rank = str(o, "rank");
       cape = str(o, "cape");
-      server = str(o, "server");
+      server = SafeText.serverAddress(str(o, "server"));
       online = o.has("online") && !o.get("online").isJsonNull() && o.get("online").getAsBoolean();
     }
   }
@@ -104,9 +104,9 @@ public final class LukaNet {
     Message(JsonObject o) {
       id = o.has("id") ? o.get("id").getAsLong() : 0;
       ts = o.has("ts") ? o.get("ts").getAsLong() : 0;
-      from = str(o, "from");
-      to = str(o, "to");
-      text = str(o, "text");
+      from = SafeText.uuidOrEmpty(str(o, "from"));
+      to = SafeText.uuidOrEmpty(str(o, "to"));
+      text = SafeText.safeText(str(o, "text"), MESSAGE_MAX);
     }
   }
 
@@ -144,6 +144,10 @@ public final class LukaNet {
   private static volatile Info self;
   private static volatile FriendsData friends = new FriendsData(Collections.<Person>emptyList(), Collections.<Person>emptyList(), Collections.<Person>emptyList());
   private static volatile String status = "Not connected";
+  /** Set when the service refused a sign-in and Mojang had refused this account's login token (an offline account). */
+  private static volatile boolean needsMicrosoft;
+  /** The last mojangProof found no usable Minecraft login (no token, or Mojang answered 401/403 to it). */
+  private static volatile boolean loginRefused;
   private static volatile String lastAction = "";
   private static volatile boolean friendsLoaded;
   private static volatile boolean fastFriends;
@@ -214,6 +218,8 @@ public final class LukaNet {
 
   public static Info self() { return self; }
   public static boolean connected() { return token != null; }
+  /** This game's account is an offline account (Mojang refused its login): Luka Online needs a Microsoft account. */
+  public static boolean needsMicrosoftAccount() { return needsMicrosoft; }
   public static String status() { return status; }
   public static String lastAction() { return lastAction; }
   public static FriendsData friends() { return friends; }
@@ -364,7 +370,7 @@ public final class LukaNet {
 
   /** Sends a message to a friend (in the background; it appears in the conversation when the service has it). */
   public static void sendMessage(final String toUuid, final String text) {
-    final String clean = text.trim();
+    final String clean = SafeText.safeText(text, MESSAGE_MAX);
     if (clean.isEmpty() || token == null) return;
     lastAction = "...";
     worker.execute(new Runnable() {
@@ -391,16 +397,27 @@ public final class LukaNet {
       JsonArray array = reply.getAsJsonArray("messages");
       Info me = self;
       boolean quiet = !messagesLoaded; // the first load is history: no alerts for it
+      int shown = 0, hidden = 0;
       if (array != null && me != null) {
         for (JsonElement e : array) {
-          Message m = new Message(e.getAsJsonObject());
+          // each message on its own: one the game cannot read is skipped, never stops the ones after it
+          Message m;
+          try {
+            if (e == null || !e.isJsonObject()) continue;
+            m = new Message(e.getAsJsonObject());
+          } catch (RuntimeException bad) {
+            continue;
+          }
           if (m.id <= lastMessageId) continue;
           lastMessageId = m.id;
+          if (m.text.isEmpty() || m.from.isEmpty() || m.to.isEmpty()) continue;
           boolean incoming = m.to.equals(me.uuid);
+          if (!incoming && !m.from.equals(me.uuid)) continue; // not mine
           String other = incoming ? m.from : m.to;
           synchronized (conversations) {
             List<Message> list = conversations.get(other);
             if (list == null) {
+              if (conversations.size() >= MAX_CONVERSATIONS) continue;
               list = new ArrayList<Message>();
               conversations.put(other, list);
             }
@@ -411,9 +428,18 @@ public final class LukaNet {
               unreadCount.put(other, n == null ? 1 : n + 1);
             }
           }
-          if (incoming && !quiet && !other.equals(openChat)) notices.add("§5[luka] §f" + nameOf(other) + "§7: §f" + m.text);
+          if (incoming && !quiet && !other.equals(openChat)) {
+            // a burst of messages shows a few lines and a count, not a wall of chat
+            if (shown < 3) {
+              notices.add("§5[luka] §f" + nameOf(other) + "§7: §f" + m.text);
+              shown++;
+            } else {
+              hidden++;
+            }
+          }
         }
       }
+      if (hidden > 0) notices.add("§5[luka] §7" + hidden + " more message" + (hidden == 1 ? "" : "s") + " in Friends");
       messagesLoaded = true;
     } catch (Exception ignored) {
       // tried again on the next round
@@ -654,6 +680,7 @@ public final class LukaNet {
       }
       token = reply.get("token").getAsString();
       status = "Connected";
+      needsMicrosoft = false;
       backoff = 10_000L;
       nextHeartbeat = 0;
       nextFriends = 0;
@@ -663,9 +690,16 @@ public final class LukaNet {
         // the built-in table is fine
       }
     } catch (Exception e) {
-      status = "Offline";
-      nextSession = System.currentTimeMillis() + backoff;
-      backoff = Math.min(backoff * 2, 300_000L);
+      if (loginRefused && e instanceof ApiException && (((ApiException) e).code == 401 || ((ApiException) e).code == 400)) {
+        // an offline account: the service only takes accounts Mojang vouches for, so asking again soon cannot help
+        needsMicrosoft = true;
+        status = "Needs a Microsoft account";
+        nextSession = System.currentTimeMillis() + 30 * 60_000L;
+      } else {
+        status = "Offline";
+        nextSession = System.currentTimeMillis() + backoff;
+        backoff = Math.min(backoff * 2, 300_000L);
+      }
     } finally {
       signingIn = false;
     }
@@ -682,8 +716,19 @@ public final class LukaNet {
     try {
       Minecraft mc = Minecraft.getMinecraft();
       String token = mc.getSession().getToken();
-      if (token == null || token.isEmpty() || token.length() < 20) return null;
-      JsonObject cert = mojang("POST", "https://api.minecraftservices.com/player/certificates", token);
+      loginRefused = false;
+      if (token == null || token.isEmpty() || token.length() < 20) {
+        loginRefused = true; // offline launchers pass no real token
+        return null;
+      }
+      JsonObject cert;
+      try {
+        cert = mojang("POST", "https://api.minecraftservices.com/player/certificates", token);
+      } catch (IOException e) {
+        String m = String.valueOf(e.getMessage());
+        loginRefused = m.endsWith(" 401") || m.endsWith(" 403"); // a token Mojang does not accept; anything else: Mojang unreachable
+        return null;
+      }
       JsonObject pair = cert.getAsJsonObject("keyPair");
       byte[] privateDer = java.util.Base64.getDecoder().decode(pem(pair.get("privateKey").getAsString()));
       java.security.PrivateKey privateKey = java.security.KeyFactory.getInstance("RSA").generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(privateDer));
@@ -895,7 +940,10 @@ public final class LukaNet {
       status = "Signing in";
       nextSession = 0;
     }
-    if (code >= 400) throw new ApiException(code, o.has("error") ? o.get("error").getAsString() : "Error " + code);
+    if (code >= 400) {
+      String error = SafeText.safeText(str(o, "error"), 80);
+      throw new ApiException(code, error.isEmpty() ? "Error " + code : error);
+    }
     return o;
   }
 
@@ -922,10 +970,14 @@ public final class LukaNet {
     return out.toByteArray();
   }
 
+  /** A text or number field, or "" (also when the field is an object or array: a bad reply never throws here). */
   private static String str(JsonObject o, String key) {
     JsonElement e = o.get(key);
-    return e == null || e.isJsonNull() ? "" : e.getAsString();
+    return e == null || !e.isJsonPrimitive() ? "" : e.getAsString();
   }
+
+  public static final int MESSAGE_MAX = SafeText.MESSAGE_MAX;
+  private static final int MAX_CONVERSATIONS = 300;
 
   /** For tests and tools: forget everything and sign in again. */
   public static void reset() {

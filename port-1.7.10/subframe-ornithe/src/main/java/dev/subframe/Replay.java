@@ -565,10 +565,13 @@ final class Replay {
         GuiScreen before = mc.currentScreen;
         packet.processPacket(handler);
         GuiScreen now = mc.currentScreen;
-        if (now == before || before == null || before instanceof GuiDownloadTerrain
-                || now instanceof GuiDownloadTerrain) {
+        if (now == before || now instanceof GuiDownloadTerrain || (before instanceof GuiDownloadTerrain && now == null)) {
+            // the loading-terrain screen comes and goes as in the live game; reclaimScreen takes over once it is gone
             return;
         }
+        // Also with no screen open (the packets before a clip or preview start are applied at once, before the viewer
+        // has its screen back): a menu opened then became the real screen, and its recorded close put it back as
+        // "the screen before", so it stayed over the whole replay and render. Whatever was open before stays.
         if (now instanceof GuiContainer) {
             recordedContainer = (GuiContainer) now;
             containersOpened++;

@@ -39,7 +39,7 @@ public final class MessageScreen extends GuiScreen {
     px = (width - pw) / 2f;
     py = (height - ph) / 2f;
     field = new GuiTextField(31, fontRendererObj, (int) px + 14, (int) (py + ph - 28), (int) pw - 90, 12);
-    field.setMaxStringLength(200);
+    field.setMaxStringLength(LukaNet.MESSAGE_MAX);
     field.setEnableBackgroundDrawing(false);
     field.setTextColor(0xFFFFFFFF);
     field.setFocused(true);
@@ -69,7 +69,7 @@ public final class MessageScreen extends GuiScreen {
       boolean fromMe = !m.from.equals(friend.uuid);
       String prefix = fromMe ? "You: " : friend.name + ": ";
       StringBuilder line = new StringBuilder(prefix);
-      for (String word : m.text.split(" ")) {
+      for (String word : breakLongWords(font, m.text, width - font.getStringWidth(prefix))) {
         String trial = line.length() == prefix.length() ? line + word : line + " " + word;
         if (font.getStringWidth(trial) > width && line.length() > 0 && !line.toString().equals(prefix)) {
           lines.add(line.toString());
@@ -85,6 +85,21 @@ public final class MessageScreen extends GuiScreen {
     scroll = 0;
   }
 
+  /** The message's words; a word wider than the space is cut into pieces that fit. */
+  private static List<String> breakLongWords(LukaFontRenderer font, String text, float width) {
+    List<String> out = new ArrayList<String>();
+    for (String word : text.split(" ")) {
+      while (word.length() > 1 && font.getStringWidth(word) > width) {
+        int cut = word.length() - 1;
+        while (cut > 1 && font.getStringWidth(word.substring(0, cut)) > width) cut--;
+        out.add(word.substring(0, cut));
+        word = word.substring(cut);
+      }
+      out.add(word);
+    }
+    return out;
+  }
+
   @Override public void drawScreen(int mouseX, int mouseY, float partialTicks) {
     try {
       if (mc.theWorld == null) drawGradientRect(0, 0, width, height, 0xFF100C13, 0xFF1A1522);
@@ -93,9 +108,9 @@ public final class MessageScreen extends GuiScreen {
       LukaFontRenderer font = Fonts.regular();
       int rgb = Ranks.get(friend.rank).color;
       dev.cbui.social.RankIcon.blit(px + 8, py + 7, 14, rgb, 1f);
-      Fonts.bold(14).drawString(friend.name, px + 27, py + 8, 0xFF000000 | rgb);
+      Fonts.bold(14).drawStringWithShadow(friend.name, px + 27, py + 8, 0xFF000000 | rgb);
       String state = friend.online ? (friend.server.isEmpty() ? "Online" : "Online  -  " + friend.server) : "Offline";
-      font.drawString(state, px + pw - 10 - font.getStringWidth(state), py + 11, friend.online ? 0xFF4DDB6A : MUTED);
+      font.drawStringWithShadow(state, px + pw - 10 - font.getStringWidth(state), py + 11, friend.online ? 0xFF4DDB6A : MUTED);
 
       rebuild(font);
       float top = py + 28, bottom = py + ph - 36;
@@ -105,7 +120,7 @@ public final class MessageScreen extends GuiScreen {
       int maxScroll = Math.max(0, lines.size() - fit);
       scroll = Math.max(0, Math.min(scroll, maxScroll));
       if (lines.isEmpty()) {
-        font.drawCentered("No messages yet. Say hi.", px + pw / 2f, top + 20, MUTED);
+        font.drawCenteredWithShadow("No messages yet. Say hi.", px + pw / 2f, top + 20, MUTED);
       } else {
         int end = lines.size() - scroll;
         int start = Math.max(0, end - fit);
@@ -127,13 +142,13 @@ public final class MessageScreen extends GuiScreen {
       field.xPosition = (int) px + 14;
       field.yPosition = (int) fy + 5;
       field.drawTextBox();
-      if (field.getText().isEmpty() && !field.isFocused()) font.drawString("Write a message", px + 14, fy + 5, 0xFF6C7380);
+      if (field.getText().isEmpty() && !field.isFocused()) font.drawStringWithShadow("Write a message", px + 14, fy + 5, 0xFF6C7380);
       boolean overSend = Draw.inside(mouseX, mouseY, px + pw - 68, fy, 58, 18);
       Draw.rounded(px + pw - 68, fy, px + pw - 10, fy + 18, 3, overSend ? 0xFF7A55A5 : 0xFF4A3070);
-      font.drawCentered("SEND", px + pw - 39, fy + 5, 0xFFFFFFFF);
+      font.drawCenteredWithShadow("SEND", px + pw - 39, fy + 5, 0xFFFFFFFF);
       String note = LukaNet.lastAction();
-      if (!note.isEmpty() && !note.equals("...")) font.drawString(note, px + 12, py + ph - 11, 0xFFFF9A9A);
-      font.drawString("Esc: back", px + pw - 10 - font.getStringWidth("Esc: back"), py + ph - 11, 0xFF6C7380);
+      if (!note.isEmpty() && !note.equals("...")) font.drawStringWithShadow(note, px + 12, py + ph - 11, 0xFFFF9A9A);
+      font.drawStringWithShadow("Esc: back", px + pw - 10 - font.getStringWidth("Esc: back"), py + ph - 11, 0xFF6C7380);
     } catch (Throwable error) {
       Cbui.reportOnce("message screen", error);
       mc.displayGuiScreen(parent);

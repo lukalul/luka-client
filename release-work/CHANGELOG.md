@@ -2,6 +2,12 @@
 
 The launcher shows the notes below on its What's New page. Add a new `## version` heading at the top for each release.
 
+## 1.6.3
+- Friends: message your luka friends. Press MSG next to a friend in Friends. New messages also show in chat (a burst shows three lines and a count). Only friends can write to you; messages are kept for 30 days, and removing a friend deletes your conversation. See the privacy page.
+- Luka Online: names, server addresses and messages from other players are shown as plain text only, so nobody can put colours, fake lines or hidden characters into your chat or menus.
+- Friends on an offline account: the Friends screen now says friends need a Microsoft account, instead of "Offline" or "Can't reach luka online".
+- Replays: a server menu (a queue menu, for example) the player opened before the start of a clip, preview or replay no longer stays over the whole video. Recordings were fine; only playback kept the menu.
+
 ## 1.6.2
 - Replays: in recordings made before 1.5.9, a chest or server menu (a queue or kit menu, for example) the player opened no longer stays on screen for the rest of the replay, previews and videos. Those recordings never saved the menu closing, so chests and menus are not drawn over them at all. Recordings made with 1.5.9 and later show them as before.
 - Replays: a chest or menu the recorded player opened no longer leaves the replay blurred (with GUI blur on) until the recording closes it.

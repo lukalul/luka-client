@@ -7,7 +7,7 @@ public final class Release {
   /** Capes and the Cosmetics screen: the service does not hand them out yet. */
   public static final boolean COSMETICS = false;
   /** Direct messages between friends: not on the service yet. */
-  public static final boolean MESSAGES = false;
+  public static final boolean MESSAGES = true;
   /** The Discord application Rich Presence shows under ("Playing luka"); empty = no Discord status. */
   public static final String DISCORD_APP_ID = "";
   /** Friend pings (waypoints): not on the service yet. */
