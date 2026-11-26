@@ -27,6 +27,7 @@
     "HideBlocksBakerMixin",
     "HideBlocksTileMixin",
     "MinecraftMixin",
+    "SessionLogMixin",
     "OptimalPresetMinecraftMixin",
     "MinecraftResizeInvoker",
     "PylonDisplayMixin",

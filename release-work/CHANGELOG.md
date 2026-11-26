@@ -2,6 +2,15 @@
 
 The launcher shows the notes below on its What's New page. Add a new `## version` heading at the top for each release.
 
+## 1.6.7
+- Discord status: while the launcher is open your Discord profile shows luka ("Idle / In the launcher"), and while you play it shows luka's and Minecraft's version and where you are (menus, singleplayer or the server), with Website and Discord buttons. Closing the game goes back to Idle. In game, the Discord Status module chooses what is shown (server, version, the buttons, or nothing while you play); Streamer mode hides the server. Turn it all off with DISCORD STATUS on the launcher's Settings page.
+- luka's website links to luka's Discord (top bar and a Join the Discord button).
+- The launcher shares your Discord name and the Minecraft names of its saved accounts with luka's team (see the privacy page); the same switch turns that off.
+
+## 1.6.6
+- Your session ID (Minecraft's sign-in token) is no longer written into the game log. Minecraft itself logged it on every start, so it also ended up in SEND LOGS reports. luka now hides it in the game log and in the launcher's log, removes it from old logs and Java crash files on your PC before each start, and checks everything SEND LOGS sends for sign-in secrets (tokens, keys, passwords) as well.
+- SEND LOGS: older game logs now have game chat taken out too (only the newest log had it removed before).
+
 ## 1.6.5
 - Menus outside a world (title screen, server list, luka's menus) no longer run at Minecraft's hidden 30 FPS, which made the mouse feel laggy there. With Main menu FPS on Off they follow your Max Framerate; on Unlimited, your screen's refresh rate.
 - SEND LOGS (launcher Settings page, and bottom left of luka's title screen in the game) sends luka's team the logs they need when something goes wrong, with a note from you. You tick what goes: game log (without chat), crash reports, FPS Profiler results, replay render logs, launcher log, settings, system and mod list. You get a report id to quote on Discord. Nothing is sent unless you press SEND; see the privacy page.

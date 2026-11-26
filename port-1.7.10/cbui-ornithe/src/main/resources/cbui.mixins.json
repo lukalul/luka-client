@@ -27,6 +27,7 @@
     "HideBlocksTileMixin",
     "HideBlocksRenderBlocksMixin",
     "MinecraftMixin",
+    "SessionLogMixin",
     "OptimalPresetMinecraftMixin",
     "HitFixMinecraftMixin",
     "HitFixNetworkAccess",

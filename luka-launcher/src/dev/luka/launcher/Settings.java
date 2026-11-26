@@ -78,6 +78,10 @@ final class Settings {
   /** True while luka's Nvidia profile is in place, so turning the option off knows there is something to remove. */
   boolean nvApplied() { return Boolean.parseBoolean(values.getProperty("nvApplied", "false")); }
 
+  String get(String key, String fallback) {
+    return values.getProperty(key, fallback);
+  }
+
   void set(String key, String value) {
     values.setProperty(key, value);
   }

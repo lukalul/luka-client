@@ -62,8 +62,9 @@ final class GameRunner {
   /** Told the game process as soon as it starts (debug mode records its CPU and GPU use). */
   private Consumer<Process> onStart;
 
+  /** Called with the game's process once it started; several listeners run in the order added. */
   void onStart(Consumer<Process> listener) {
-    onStart = listener;
+    onStart = onStart == null ? listener : onStart.andThen(listener);
   }
 
   /** Extra game arguments, after luka's own (the window size of a headless render game). */
@@ -158,6 +159,8 @@ final class GameRunner {
     log.accept("Command: " + String.join(" ", command).replace(identity.accessToken, "***"));
     NvidiaProfile.apply(settings, new File(command.get(0)), log);
     gameDir().mkdirs();
+    int scrubbed = LogScrub.scrubGameFolder(gameDir());
+    if (scrubbed > 0) log.accept("Removed sign-in secrets from " + scrubbed + " old log file(s)");
     List<String> launch = command;
     File helper = hidden ? hiddenHelper() : null;
     if (helper != null) {
@@ -172,10 +175,11 @@ final class GameRunner {
     progress.update("Playing", 1.0);
     try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
       String line;
-      while ((line = reader.readLine()) != null) log.accept(line);
+      while ((line = reader.readLine()) != null) log.accept(LogScrub.clean(line));
     }
     int code = process.waitFor();
     process = null;
+    LogScrub.scrubGameFolder(gameDir()); // a Java crash file lists the whole command line, sign-in token included
     return code;
   }
 

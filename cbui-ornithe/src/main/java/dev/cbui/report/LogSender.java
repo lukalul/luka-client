@@ -238,15 +238,23 @@ public final class LogSender {
     included.add(name);
   }
 
+  /** A gzipped older game log: unpacked, game chat and sign-in secrets taken out, packed again. */
   private void addFile(ZipOutputStream zip, String name, File f) throws IOException {
     if (!f.isFile() || f.length() > MAX_TEXT) return;
+    byte[] data = LogScrub.gzipText(java.nio.file.Files.readAllBytes(f.toPath()), new LogScrub.TextEdit() {
+      @Override public String apply(String text) {
+        return LogScrub.clean(withoutChat(text));
+      }
+    });
     zip.putNextEntry(new ZipEntry(name));
-    zip.write(Files.readAllBytes(f.toPath()));
+    zip.write(data);
     zip.closeEntry();
     included.add(name);
   }
 
+
   private static void putText(ZipOutputStream zip, String name, String text) throws IOException {
+    text = LogScrub.clean(text);
     zip.putNextEntry(new ZipEntry(name));
     zip.write(text.getBytes(StandardCharsets.UTF_8));
     zip.closeEntry();

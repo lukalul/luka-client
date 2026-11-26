@@ -73,9 +73,28 @@ Always sent with it: your luka and Minecraft versions, renderer, the install id 
 write (if any).
 
 No account details, passwords or tokens are sent. The zip goes through api.luka.wtf straight to a private channel of
-luka's team on Discord, where it is read (also by an automated helper of the team that summarizes it); api.luka.wtf
+luka's team on Discord, where it is read. A helper of the team also sends the parts that matter (your note, the
+report details, error lines and the end of the logs, crash files, FPS Profiler and debug session results) to
+Anthropic's Claude API, which writes a short summary for the team. api.luka.wtf
 keeps only the report id, the install id, the size and the time, for 90 days. You get a report id to quote. At most
 3 reports an hour from one install.
+
+## Discord status (Discord app on your PC, api.luka.wtf)
+
+While the luka launcher is open and the Discord app runs on your PC, your Discord profile shows that you use luka:
+"Idle / In the launcher" with the time since you opened it, and while you play, luka's and Minecraft's version and
+where you are (menus, singleplayer, or the server you joined), with buttons to luka's website and Discord. The game's
+**Discord Status** module chooses what is shown (hide the server or the version, or no status while you play).
+Streamer mode hides the server too.
+
+To do this, the launcher talks to the Discord app on your PC, which tells it your Discord user. The launcher then
+sends luka's team, at api.luka.wtf, your Discord user id, username and display name together with the Minecraft names
+and UUIDs of the accounts saved in your launcher, and the install id described above. It sends this again only when
+one of these changes. luka's team can look up which Discord user uses which Minecraft names. Nothing else about your
+Discord account is read (no messages, servers or friends).
+
+**Turning it off:** untick **DISCORD STATUS** on the launcher's Settings page. The status disappears and the launcher
+stops sending your Discord name. To have what was already sent removed, ask luka's team on Discord.
 
 ## Copying a Lunar Client profile
 

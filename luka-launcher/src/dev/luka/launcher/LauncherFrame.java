@@ -103,15 +103,18 @@ final class LauncherFrame extends JFrame implements ReplayEditor.Host {
 
   /** True when the game opened this window only to pick or add an account: it closes as soon as that is done. */
   private final boolean accountMode;
+  /** luka's Discord status (owned by the launcher; the game reports where the player is). */
+  private final DiscordPresence discord;
 
   LauncherFrame(File root, boolean accountMode) {
     super("luka");
     this.root = root;
     this.accountMode = accountMode;
     final File logFile = new File(root, "launcher.log");
+    LogScrub.scrubFile(logFile); // logs written before 1.6.6 could hold the game's session ID
     MicrosoftAuth.log = line -> {
       try {
-        java.nio.file.Files.write(logFile.toPath(), (new java.util.Date() + "  " + line + System.lineSeparator()).getBytes(java.nio.charset.StandardCharsets.UTF_8),
+        java.nio.file.Files.write(logFile.toPath(), (new java.util.Date() + "  " + LogScrub.clean(line) + System.lineSeparator()).getBytes(java.nio.charset.StandardCharsets.UTF_8),
             java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
       } catch (Exception ignored) {
         // logging is optional
@@ -120,6 +123,8 @@ final class LauncherFrame extends JFrame implements ReplayEditor.Host {
     this.settings = new Settings(new File(root, "launcher.properties"));
     this.accounts = new Accounts(new File(root, "accounts.properties"));
     if (accounts.selected() == null) accounts.addOffline(settings.username());
+    this.discord = new DiscordPresence(root, settings, accounts, line -> MicrosoftAuth.log.accept(line));
+    discord.start();
     regular = font("/Roboto-Regular.ttf");
     bold = font("/Roboto-Bold.ttf");
     setUndecorated(true);
@@ -300,6 +305,9 @@ final class LauncherFrame extends JFrame implements ReplayEditor.Host {
                   runner.onStart(debug::start);
                   appendLog("Debug mode: recording to " + debug.dir());
                 }
+                runner.addJvmArg("-Dluka.discordState=" + discord.stateFile.getAbsolutePath());
+                final String mcVersion = settings.version().id;
+                runner.onStart(process -> discord.gameStarted(process, mcVersion));
                 long started = System.currentTimeMillis();
                 int code;
                 try {
@@ -1286,6 +1294,24 @@ final class LauncherFrame extends JFrame implements ReplayEditor.Host {
       g.setColor(FAINT);
       g.drawString(ellipsize(g, updateStatus, iw - 32), ix + 16, iy + 174);
       linkButton(g, ix + 16, iy + 182, iw - 32, "CHECK FOR UPDATES", LauncherFrame.this::checkUpdates);
+      // Discord status (DiscordPresence): on unless turned off here
+      final boolean dcOn = DiscordPresence.enabled(settings);
+      area(ix + 12, iy + 220, iw - 24, 48, () -> {
+        settings.set("discordStatus", String.valueOf(!dcOn));
+        settings.save();
+      });
+      g.setColor(dcOn ? PURPLE : new Color(0x241B33));
+      g.fillRoundRect(ix + 16, iy + 224, 16, 16, 5, 5);
+      if (dcOn) {
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(ix + 21, iy + 229, 6, 6, 3, 3);
+      }
+      g.setFont(bold.deriveFont(10f));
+      g.setColor(new Color(0xCFC6DB));
+      g.drawString("DISCORD STATUS", ix + 40, iy + 236);
+      g.setFont(regular.deriveFont(10f));
+      g.setColor(FAINT);
+      wrapped(g, "Shows luka on your Discord profile and shares your Discord name with luka.", ix + 40, iy + 250, iw - 56, 12);
     }
 
     private String ellipsize(Graphics2D g, String text, int width) {
