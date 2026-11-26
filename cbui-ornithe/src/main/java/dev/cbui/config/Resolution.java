@@ -131,8 +131,10 @@ public final class Resolution {
       borderlessWidth = size == null ? 0 : size[0];
       borderlessHeight = size == null ? 0 : size[1];
 
-      // in fullscreen the game does not follow size changes by itself
-      if (fullscreen) {
+      // in fullscreen the game does not follow size changes by itself. Not while SubFrame renders a replay (it sets
+      // luka.rendering): the render sets the game to the video's size on purpose, and resizing it back every frame made
+      // new framebuffers every frame (renders of a few minutes, and the editor's render game, slowed to a crawl)
+      if (fullscreen && System.getProperty("luka.rendering") == null) {
         int w = Display.getWidth(), h = Display.getHeight();
         if (w > 0 && h > 0 && (w != mc.displayWidth || h != mc.displayHeight))
           ((dev.cbui.mixin.MinecraftResizeInvoker) mc).cbui$resize(w, h);

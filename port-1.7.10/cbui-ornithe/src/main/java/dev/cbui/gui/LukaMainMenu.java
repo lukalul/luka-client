@@ -53,6 +53,9 @@ public final class LukaMainMenu extends GuiMainMenu {
     private int panoramaTicks;
     private boolean intro;
     private boolean panoramaFailed;
+    private static final String SEND_LOGS = "SEND LOGS";
+    private float logsW;
+
     @Override public void initGui() {
         try {
             openedAt = System.currentTimeMillis();
@@ -125,7 +128,13 @@ public final class LukaMainMenu extends GuiMainMenu {
 
             LukaFontRenderer small = Fonts.regular();
             small.drawStringWithShadow("luka " + Cbui.VERSION, 5, height - 14, 0x70FFFFFF);
+            // SEND LOGS: the logs luka's team needs, the player picks what (SendLogsScreen)
+            logsW = small.getStringWidth(SEND_LOGS) + 6;
+            boolean overLogs = Draw.inside(mouseX, mouseY, 2, height - 30, logsW, 13);
+            small.drawStringWithShadow(SEND_LOGS, 5, height - 27, overLogs ? 0xFFD9C2FF : 0x90FFFFFF);
             String legal = "luka is an independent client and is not affiliated with Mojang or Microsoft. Minecraft is a trademark of Mojang AB.";
+            // a narrow window: the long line would run into the version on the left
+            if (small.getStringWidth(legal) + small.getStringWidth("luka " + Cbui.VERSION) + 20 > width) legal = "Not affiliated with Mojang or Microsoft.";
             small.drawStringWithShadow(legal, width - small.getStringWidth(legal) - 5, height - 14, 0x70FFFFFF);
 
             if (this.intro && now - openedAt < 400) drawRect(0, 0, width, height, ((int)(255 * (1f - (now - openedAt) / 400f)) << 24));
@@ -323,7 +332,8 @@ public final class LukaMainMenu extends GuiMainMenu {
             if (nameW > 0 && Draw.inside(mouseX, mouseY, nameX, 4, nameW, 22)) { click(null); openAccounts(); return; }
             for (Button b : mainButtons) if (b.inside(mouseX, mouseY)) { click(b); return; }
             for (Button b : topButtons) if (b.inside(mouseX, mouseY)) { click(b); return; }
-            if (Draw.inside(mouseX, mouseY, width - 30, 7, 23, 17)) { click(null); mc.shutdown(); }
+            if (Draw.inside(mouseX, mouseY, width - 30, 7, 23, 17)) { click(null); mc.shutdown(); return; }
+            if (logsW > 0 && Draw.inside(mouseX, mouseY, 2, height - 30, logsW, 13)) { click(null); mc.displayGuiScreen(new SendLogsScreen(this)); }
         } catch (Throwable error) { fallback("mouse input", error); }
     }
 

@@ -28,6 +28,12 @@ final class RenderLook {
     static boolean clearWeather, hideHud, hideHand, hideCrosshair, hideChat, hideScoreboard, hideNametags;
     static String resourcePack = "";
     static final Map<String, Boolean> hud = new LinkedHashMap<String, Boolean>();
+    /** Render server: luka's HUD module switches as the game started, put back between jobs. */
+    private static final Map<String, Boolean> hudAtStart = new LinkedHashMap<String, Boolean>();
+    /** The pack applyResourcePack loaded ("" = the player's own packs), and the player's packs to go back to. */
+    private static String appliedPack = "";
+    private static java.util.List<net.minecraft.client.resources.ResourcePackRepository$Entry> originalEntries;
+    private static java.util.List<String> originalNames;
 
     private RenderLook() {
     }
@@ -165,14 +171,80 @@ final class RenderLook {
         }
     }
 
-    /** The resource pack for this render (from the game's resourcepacks folder), loaded once at the start. */
+    /** Back to "nothing changed" (render server, between jobs). The loaded resource pack stays until a job wants another. */
+    static void reset() {
+        fov = renderDistance = particles = bobbing = time = brightness = -1;
+        clearWeather = hideHud = hideHand = hideCrosshair = hideChat = hideScoreboard = hideNametags = false;
+        resourcePack = "";
+        hud.clear();
+    }
+
+    /** Render server start: remembers every luka HUD module switch (jobs turn some off). */
+    static void snapshotHud() {
+        hudAtStart.clear();
+        try {
+            Object manager = Class.forName("dev.cbui.Cbui").getMethod("hud").invoke(null);
+            if (manager == null) {
+                return;
+            }
+            for (Object m : (Iterable<?>) manager.getClass().getMethod("modules").invoke(manager)) {
+                hudAtStart.put((String) m.getClass().getMethod("name").invoke(m), (Boolean) m.getClass().getMethod("enabled").invoke(m));
+            }
+        } catch (ClassNotFoundException noLuka) {
+            // SubFrame without luka's client mod
+        } catch (Throwable t) {
+            SubFrameMod.LOG.warn("[look] could not read luka's HUD modules: " + t);
+        }
+    }
+
+    /** Render server, between jobs: every luka HUD module switched as when the server started. */
+    static void restoreHud() {
+        if (hudAtStart.isEmpty()) {
+            return;
+        }
+        Map<String, Boolean> saved = new LinkedHashMap<String, Boolean>(hud);
+        boolean savedHide = hideHud, savedScoreboard = hideScoreboard, savedCrosshair = hideCrosshair;
+        int savedTime = time, savedBrightness = brightness;
+        hud.clear();
+        hud.putAll(hudAtStart);
+        hideHud = hideScoreboard = hideCrosshair = false;
+        time = brightness = -1;
+        applyHud();
+        hud.clear();
+        hud.putAll(saved);
+        hideHud = savedHide;
+        hideScoreboard = savedScoreboard;
+        hideCrosshair = savedCrosshair;
+        time = savedTime;
+        brightness = savedBrightness;
+    }
+
+    /**
+     * The resource pack for this render (from the game's resourcepacks folder), loaded at the start of a job. A render
+     * server keeps the last job's pack loaded while the next job wants the same one, and goes back to the player's own
+     * packs for a job that names none.
+     */
+    @SuppressWarnings("unchecked")
     static void applyResourcePack(Minecraft mc) {
-        if (resourcePack.isEmpty()) {
+        if (resourcePack.equals(appliedPack)) {
             return;
         }
         try {
             // 1.7.10 names: the entry class is ResourcePackRepository$Entry, setRepositories is m_59621098 (as fastpacks uses them)
             net.minecraft.client.resources.ResourcePackRepository repo = mc.getResourcePackRepository();
+            if (originalEntries == null) {
+                originalEntries = new java.util.ArrayList<net.minecraft.client.resources.ResourcePackRepository$Entry>(repo.getRepositoryEntries());
+                originalNames = new java.util.ArrayList<String>(mc.gameSettings.resourcePacks);
+            }
+            if (resourcePack.isEmpty()) {
+                repo.m_59621098(originalEntries);
+                mc.gameSettings.resourcePacks.clear();
+                mc.gameSettings.resourcePacks.addAll(originalNames);
+                mc.refreshResources();
+                appliedPack = "";
+                SubFrameMod.LOG.info("[look] back to the player's resource packs");
+                return;
+            }
             repo.updateRepositoryEntriesAll();
             for (Object o : repo.getRepositoryEntriesAll()) {
                 net.minecraft.client.resources.ResourcePackRepository$Entry e = (net.minecraft.client.resources.ResourcePackRepository$Entry) o;
@@ -184,6 +256,7 @@ final class RenderLook {
                     mc.gameSettings.resourcePacks.clear();
                     mc.gameSettings.resourcePacks.add(resourcePack);
                     mc.refreshResources();
+                    appliedPack = resourcePack;
                     SubFrameMod.LOG.info("[look] resource pack for this render: " + resourcePack);
                     return;
                 }

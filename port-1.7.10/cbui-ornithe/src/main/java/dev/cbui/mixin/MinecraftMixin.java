@@ -58,4 +58,8 @@ public abstract class MinecraftMixin {
 
     @org.spongepowered.asm.mixin.injection.Inject(method="runTick", at=@At("RETURN"), require=0)
     private void cbui$tick(org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) { Cbui.tick(); }
+
+    /** Debug mode (-Dluka.debug=true): one line a second of how the game is doing (report.DebugRecorder). */
+    @org.spongepowered.asm.mixin.injection.Inject(method="runGameLoop", at=@At("HEAD"), require=0)
+    private void cbui$debugFrame(org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) { dev.cbui.report.DebugRecorder.frame(); }
 }

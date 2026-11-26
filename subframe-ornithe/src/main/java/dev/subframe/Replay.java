@@ -113,6 +113,8 @@ final class Replay {
     private boolean vulkanNoted;
     private int vulkanCompiledAfter = -1;
     private int crosshairFailures;
+    /** Test only (-Dsubframe.frameMarker=true): a square coloured by the frame number, to check the readback is current. */
+    private static final boolean FRAME_MARKER = Boolean.getBoolean("subframe.frameMarker");
     private int pinnedResizes;
     private int warmup;
     private boolean running;
@@ -567,7 +569,8 @@ final class Replay {
             recordedContainer = (GuiContainer) now;
             containersOpened++;
             if (containersOpened <= 20) {
-                SubFrameMod.LOG.info("[viewer] the recording opened " + now.getClass().getName() + "; drawn over the replay");
+                SubFrameMod.LOG.info("[viewer] the recording opened " + now.getClass().getName() + "; drawn over the replay (tick "
+                        + ticksRun + ", packet " + packetIdx + ", t " + String.format(java.util.Locale.ROOT, "%.3f", tCur / 1e9) + ")");
             }
         }
         mc.currentScreen = before;
@@ -927,9 +930,17 @@ final class Replay {
             return;
         }
         boolean dry = settling();
+        // The game's own off-screen framebuffer, when it uses one: the frame is drawn into it and read from it, as the
+        // game does each frame. Before, the frame was drawn with whatever was bound (the window, between the game's
+        // frames): fine on OpenGL, but the Vulkan renderer reads its main framebuffer for "the window", which still
+        // held the game's own frame from before, so every Vulkan render ran one frame late.
+        boolean gameFb = !useRt && OpenGlHelper.isFramebufferEnabled() && mc.getFramebuffer() != null
+                && mc.getFramebuffer().framebufferObject > 0;
         if (useRt) {
             org.lwjgl.opengl.GL30.glBindFramebuffer(org.lwjgl.opengl.GL30.GL_FRAMEBUFFER, rtFbo);
             org.lwjgl.opengl.GL11.glViewport(0, 0, outW, outH);
+        } else if (gameFb) {
+            mc.getFramebuffer().bindFramebuffer(true);
         }
         long frameStart = System.nanoTime();
         fTicks = 0;
@@ -967,6 +978,32 @@ final class Replay {
         if (pendingGlError != 0 && rlog != null && pendingErrors++ < 3) {
             rlog.important("frame " + frameIndex + ": GL error " + pendingGlError + " was already pending before the frame was read back (raised while drawing or blending)");
         }
+        if (FRAME_MARKER) {
+            // test only: a square in the corner whose red is the frame number, drawn just before the readback
+            org.lwjgl.opengl.GL11.glPushAttrib(org.lwjgl.opengl.GL11.GL_ALL_ATTRIB_BITS);
+            org.lwjgl.opengl.GL11.glMatrixMode(org.lwjgl.opengl.GL11.GL_PROJECTION);
+            org.lwjgl.opengl.GL11.glPushMatrix();
+            org.lwjgl.opengl.GL11.glLoadIdentity();
+            org.lwjgl.opengl.GL11.glOrtho(0, outW, outH, 0, -1, 1);
+            org.lwjgl.opengl.GL11.glMatrixMode(org.lwjgl.opengl.GL11.GL_MODELVIEW);
+            org.lwjgl.opengl.GL11.glPushMatrix();
+            org.lwjgl.opengl.GL11.glLoadIdentity();
+            org.lwjgl.opengl.GL11.glDisable(org.lwjgl.opengl.GL11.GL_TEXTURE_2D);
+            org.lwjgl.opengl.GL11.glDisable(org.lwjgl.opengl.GL11.GL_DEPTH_TEST);
+            org.lwjgl.opengl.GL11.glDisable(org.lwjgl.opengl.GL11.GL_BLEND);
+            org.lwjgl.opengl.GL11.glColor4f(((frameIndex * 8) % 256) / 255f, 0f, 1f, 1f);
+            org.lwjgl.opengl.GL11.glBegin(org.lwjgl.opengl.GL11.GL_QUADS);
+            org.lwjgl.opengl.GL11.glVertex2f(0, 0);
+            org.lwjgl.opengl.GL11.glVertex2f(0, 32);
+            org.lwjgl.opengl.GL11.glVertex2f(32, 32);
+            org.lwjgl.opengl.GL11.glVertex2f(32, 0);
+            org.lwjgl.opengl.GL11.glEnd();
+            org.lwjgl.opengl.GL11.glPopMatrix();
+            org.lwjgl.opengl.GL11.glMatrixMode(org.lwjgl.opengl.GL11.GL_PROJECTION);
+            org.lwjgl.opengl.GL11.glPopMatrix();
+            org.lwjgl.opengl.GL11.glMatrixMode(org.lwjgl.opengl.GL11.GL_MODELVIEW);
+            org.lwjgl.opengl.GL11.glPopAttrib();
+        }
         long wr0 = System.nanoTime();
         if (READ_WINDOW_TEST) {
             // test only: read with the window bound, as some setups leave it (checks the renderer's fallback picture)
@@ -989,6 +1026,8 @@ final class Replay {
         }
         if (useRt) {
             org.lwjgl.opengl.GL30.glBindFramebuffer(org.lwjgl.opengl.GL30.GL_FRAMEBUFFER, entryFbo);
+        } else if (gameFb) {
+            mc.getFramebuffer().unbindFramebuffer();
         }
         if (dry) {
             return;

@@ -33,7 +33,9 @@ public final class HudCache {
   /** True when the HUD should go through the cache this frame. */
   public static boolean active() {
     int hz = GlobalOptions.hudRefresh;
-    return !broken && hz > 0 && hz < 250 && OpenGlHelper.isFramebufferEnabled();
+    // not while SubFrame renders a replay (luka.rendering): every video frame must show the HUD of that very frame, and
+    // the refresh interval is wall-clock time, so a fast render would reuse an older picture
+    return !broken && hz > 0 && hz < 250 && OpenGlHelper.isFramebufferEnabled() && System.getProperty("luka.rendering") == null;
   }
 
   /** Paints the HUD with {@code paint} when it is due, then pastes the cached picture. Call where the HUD is normally drawn. */

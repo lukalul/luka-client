@@ -41,9 +41,36 @@ final class RenderJob {
     private int clips, next, menuTicks;
     private boolean running, done, preview;
     private long lastStatus;
+    /** One job of a RenderServer: when it ends, the game stays for the next one instead of quitting. */
+    private final boolean serverMode;
+    private String lastState = "starting";
 
-    private RenderJob(File jobFile) {
+    private RenderJob(File jobFile, boolean serverMode) {
         this.jobFile = jobFile;
+        this.serverMode = serverMode;
+    }
+
+    /** A job the render server took from its folder; step() it every tick until finished(). */
+    static RenderJob forServer(File jobFile) {
+        RenderJob j = new RenderJob(jobFile, true);
+        j.load();
+        return j;
+    }
+
+    boolean finished() {
+        return done;
+    }
+
+    /** The last state written to the status file (done, error, ...). */
+    String state() {
+        return lastState;
+    }
+
+    /** The job is over: a single job's game quits, a render server's game waits for the next job. */
+    private void endGame() {
+        if (!serverMode) {
+            Minecraft.getMinecraft().shutdown();
+        }
     }
 
     /** Client tick end: start the next clip once the game sits at the main menu with no replay running. */
@@ -53,14 +80,15 @@ final class RenderJob {
             return;
         }
         if (job == null) {
-            job = new RenderJob(new File(path));
+            job = new RenderJob(new File(path), false);
             job.load();
         }
         job.step();
     }
 
+    /** This game renders for the replay editor: one job, or a render server that takes job after job. */
     static boolean active() {
-        return System.getProperty(PROPERTY) != null;
+        return System.getProperty(PROPERTY) != null || RenderServer.active();
     }
 
     private void load() {
@@ -121,7 +149,7 @@ final class RenderJob {
         }
     }
 
-    private void step() {
+    void step() {
         if (done) {
             return;
         }
@@ -159,7 +187,7 @@ final class RenderJob {
             done = true;
             SubFrameMod.LOG.info("[job] previews done");
             write("done", null);
-            mc.shutdown();
+            endGame();
             return;
         }
         join();
@@ -232,7 +260,7 @@ final class RenderJob {
             SubFrameMod.LOG.error("[job] joining failed", t);
             write("error", t.getMessage());
         }
-        Minecraft.getMinecraft().shutdown();
+        endGame();
     }
 
     /** Where Replay puts the PNG frames of a render to this video name. */
@@ -266,11 +294,12 @@ final class RenderJob {
     private void fail(String message) {
         done = true;
         write("error", message);
-        Minecraft.getMinecraft().shutdown();
+        endGame();
     }
 
     private void write(String state, String message) {
         lastStatus = System.currentTimeMillis();
+        lastState = message == null ? state : state + ": " + message;
         if (status == null) {
             return;
         }

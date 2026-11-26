@@ -105,6 +105,7 @@ final class FfmpegSink implements FrameSink {
         buf = BufferUtils.createByteBuffer(w * h * 3);
         try {
             if (SubFrameMod.asyncReadback && !Boolean.getBoolean("subframe.syncreadback")) {
+                GL11.glGetError(); // an error left from earlier must not turn the faster readback off
                 for (int i = 0; i < 2; i++) {
                     pbo[i] = GL15.glGenBuffers();
                     GL15.glBindBuffer(PACK, pbo[i]);

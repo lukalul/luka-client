@@ -114,6 +114,15 @@ final class ReplayEditor extends JFrame {
 
     /** Ends the render the editor started (its game). */
     void stopRender();
+
+    /** The editor closed: its render game (kept running for the next preview or render) can quit. */
+    default void endRenderSession() {}
+
+    /** The render game is already running and waiting (a job starts at once, no game start). */
+    default boolean renderGameReady() { return false; }
+
+    /** The editor opened: start its render game now, so the first preview or render does not wait for the game. */
+    default void warmRenderGame(File queue, boolean hidden) {}
   }
 
   /** Run once the window has closed (the editor-only launcher ends its process). */
@@ -307,6 +316,8 @@ final class ReplayEditor extends JFrame {
 
       @Override public void windowClosed(WindowEvent e) {
         if (poll != null) poll.stop();
+        if (autoTimer != null) autoTimer.stop();
+        host.endRenderSession();
         stopPlay();
         saveProject();
         if (onClosed != null) onClosed.run();
@@ -316,6 +327,10 @@ final class ReplayEditor extends JFrame {
     refreshLibrary(true);
     updateLabels();
     record();
+    // the render game starts while the player picks clips (it quits when the editor closes)
+    host.warmRenderGame(new File(new File(recordings, ".editor-job"), "server"), hidingWorks() && hideGame.isSelected());
+    autoTimer = new Timer(1000, e -> autoTick());
+    autoTimer.start();
   }
 
   // ---- layout ----
@@ -1758,6 +1773,33 @@ final class ReplayEditor extends JFrame {
       setStatus("Every recording in the edit already has a preview.");
       return;
     }
+    runPreviews(todo, false);
+  }
+
+  /** Previews made on their own (autoTick): RENDER stays usable and waits for them; false for MAKE PREVIEWS. */
+  private boolean autoJob;
+  /** RENDER was pressed while automatic previews were being made: it starts when they are done. */
+  private boolean renderAfter;
+  /** Recordings automatic previews were already tried for (a failure is not retried on its own). */
+  private final java.util.Set<File> autoTried = new java.util.HashSet<>();
+  private Timer autoTimer;
+
+  /**
+   * Once a second: when the render game is up and idle and a recording in the edit has no preview yet, its previews are
+   * made in the background (the game is running anyway, so this costs seconds, not a game start).
+   */
+  private void autoTick() {
+    if (rendering || !host.renderGameReady()) return;
+    List<Recording> todo = new ArrayList<>();
+    for (Clip c : clips) {
+      if (!todo.contains(c.rec) && !autoTried.contains(c.rec.file) && c.rec.problem == null && !previewFresh(c.rec)) todo.add(c.rec);
+    }
+    if (todo.isEmpty()) return;
+    for (Recording r : todo) autoTried.add(r.file);
+    runPreviews(todo, true);
+  }
+
+  private void runPreviews(List<Recording> todo, boolean auto) {
     Properties p = new Properties();
     p.setProperty("preview", "true");
     p.setProperty("fps", Integer.toString(PREVIEW_FPS));
@@ -1775,7 +1817,9 @@ final class ReplayEditor extends JFrame {
     }
     previewDir().mkdirs();
     pendingPreviews = todo;
+    autoJob = auto;
     runJob(p, "Making previews");
+    if (auto && rendering) render.setEnabled(true); // RENDER waits for the previews instead of being greyed out
   }
 
   private List<Recording> pendingPreviews;
@@ -1854,6 +1898,11 @@ final class ReplayEditor extends JFrame {
   }
 
   private void startRender() {
+    if (rendering && autoJob) {
+      renderAfter = true;
+      setStatus("Making previews first; the render starts right after them.");
+      return;
+    }
     if (rendering) return;
     if (clips.isEmpty()) {
       setStatus("Add at least one clip first.");
@@ -1992,7 +2041,7 @@ final class ReplayEditor extends JFrame {
     previews.setEnabled(false);
     showFile.setEnabled(false);
     bar.setValue(0);
-    setStatus("Starting the game (checks files first)...");
+    setStatus(host.renderGameReady() ? jobWhat + "..." : "Starting the render game (checks files first)...");
     poll = new Timer(500, e -> readStatus(statusFile));
     poll.start();
   }
@@ -2067,6 +2116,11 @@ final class ReplayEditor extends JFrame {
           : "The game closed before the render finished (exit code " + code + "). See the launcher log.");
     }
     lastStatus = null;
+    autoJob = false;
+    if (renderAfter) {
+      renderAfter = false;
+      SwingUtilities.invokeLater(this::startRender);
+    }
   }
 
   private File lastOutput;

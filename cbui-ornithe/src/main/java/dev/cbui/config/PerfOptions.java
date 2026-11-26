@@ -19,7 +19,7 @@ public final class PerfOptions {
     List<Setting<?>> list = new ArrayList<>();
     // the picture settings are in the VIDEO tab (VideoOptions), this one is for what only trades look for speed
     list.add(grp("Frame rate", toggle("Limit FPS when unfocused", GlobalOptions.unfocusedLimit, true, "Drops to 30 FPS while the game window is in the background so it stops using your GPU")));
-    list.add(grp("Frame rate", choice("Main menu FPS", FpsContexts.index(GlobalOptions.menuFps), FpsContexts.CHOICES, 0, "Frame rate cap on the title screen and other menus outside a world. Off: the normal limit (vanilla caps menus at 30)")));
+    list.add(grp("Frame rate", choice("Main menu FPS", FpsContexts.index(GlobalOptions.menuFps), FpsContexts.CHOICES, 0, "Frame rate cap on the title screen and other menus outside a world. Off: your own Max Framerate (Unlimited: the screen refresh rate)")));
     list.add(grp("Frame rate", choice("Pause menu FPS", FpsContexts.index(GlobalOptions.pauseFps), FpsContexts.CHOICES, 0, "Frame rate cap while the pause menu is open. Off: the normal limit")));
     list.add(grp("Frame rate", choice("Container FPS", FpsContexts.index(GlobalOptions.containerFps), FpsContexts.CHOICES, 0, "Frame rate cap while a chest, furnace, crafting table or your inventory is open. Off: the normal limit")));
     list.add(grp("Frame rate", choice("HUD editor FPS", FpsContexts.index(GlobalOptions.hudEditorFps), FpsContexts.CHOICES, 0, "Frame rate cap while the HUD editor is open. Off: the normal limit")));

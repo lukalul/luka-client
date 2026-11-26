@@ -5,7 +5,7 @@ luka has no analytics or tracking. It connects to these places, and only for the
 | Where | Why |
 |---|---|
 | client.luka.wtf | The signed list of what to install, luka's own mods and the Vulkan renderer |
-| api.luka.wtf | Luka Online: friends and the luka icon over other luka players (see below, and you can switch it off). Also, with no switch: a crash report when luka fails (see below) |
+| api.luka.wtf | Luka Online: friends and the luka icon over other luka players (see below, and you can switch it off). Also, with no switch: a crash report when luka fails (see below); and logs, only when you press SEND LOGS (see below) |
 | Mojang (minecraft.net, mojang.com) | Minecraft itself, its assets, and joining online-mode servers |
 | Microsoft (microsoft.com, xboxlive.com) | Signing in, only if you choose a Microsoft account |
 | Modrinth | Mods by other authors, and Argentum |
@@ -51,6 +51,31 @@ The launcher generates a random id once, when you first install luka, and keeps 
 - When luka fails internally or the game crashes: which part failed, the error message, and the stack trace. Never anything you typed or any personal data.
 
 **What it does not do:** known, harmless noise (a flaky network connection, an optional feature that is not installed) is filtered out before anything is sent.
+
+## Sending logs (api.luka.wtf)
+
+Only when you press **SEND LOGS** (on the launcher's Settings page, or at the bottom left of luka's title screen in the
+game) and then SEND, luka sends luka's team a zip of what they need to look into a problem. You choose what goes in;
+each of these can be unticked:
+- The game log of your last three sessions, with every line of game chat taken out. The log still contains your
+  Minecraft name and the servers you joined.
+- Crash reports and Java crash files from the last week, the FPS Profiler's results, replay render logs and the replay
+  editor's last render job, the launcher's log, and your video and replay settings.
+- Your operating system, Java version, processor and graphics card names, memory, and the mods you use.
+- A debug session, if you recorded one. Only after you choose **Record a debug session first** in the launcher's SEND
+  LOGS window and then play: while that one game runs, the launcher writes down once a second how busy your processor
+  and graphics card are (in total and for the game), free memory, and on Nvidia cards the clock speed, power, temperature
+  and slowdown reasons; once, your graphics cards and driver versions, screen resolution and refresh rate, and power
+  plan; and when another program uses the graphics card heavily, that program's file name. The game writes down once a
+  second its frame rate, frame times, memory and a few of its settings. It stays on your PC until you send it.
+
+Always sent with it: your luka and Minecraft versions, renderer, the install id described above, and the note you
+write (if any).
+
+No account details, passwords or tokens are sent. The zip goes through api.luka.wtf straight to a private channel of
+luka's team on Discord, where it is read (also by an automated helper of the team that summarizes it); api.luka.wtf
+keeps only the report id, the install id, the size and the time, for 90 days. You get a report id to quote. At most
+3 reports an hour from one install.
 
 ## Copying a Lunar Client profile
 

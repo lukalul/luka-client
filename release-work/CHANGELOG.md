@@ -2,6 +2,17 @@
 
 The launcher shows the notes below on its What's New page. Add a new `## version` heading at the top for each release.
 
+## 1.6.5
+- Menus outside a world (title screen, server list, luka's menus) no longer run at Minecraft's hidden 30 FPS, which made the mouse feel laggy there. With Main menu FPS on Off they follow your Max Framerate; on Unlimited, your screen's refresh rate.
+- SEND LOGS (launcher Settings page, and bottom left of luka's title screen in the game) sends luka's team the logs they need when something goes wrong, with a note from you. You tick what goes: game log (without chat), crash reports, FPS Profiler results, replay render logs, launcher log, settings, system and mod list. You get a report id to quote on Discord. Nothing is sent unless you press SEND; see the privacy page.
+- Debug mode for GPU usage and FPS problems: in the launcher's SEND LOGS window choose "Record a debug session first", press PLAY and play until the problem shows, then close the game. luka records GPU and CPU use, clocks, temperature and FPS once a second, then opens SEND LOGS again so you can send it.
+- Replay editor: the editor starts its own render game when it opens and keeps it for every preview and render, so a preview or render starts in seconds instead of waiting for the game to load each time. With the Vulkan renderer that game has no window at all (Windows and Linux). It closes with the editor (or when you press PLAY).
+- Replay editor: previews are made by themselves when you add a recording to the edit (no need to press MAKE PREVIEWS). Pressing RENDER while they are being made starts the render right after them.
+- Replays (Vulkan renderer with borderless or fullscreen): long renders no longer slow down as they go. The game was being resized back to the window size on every frame during a render.
+- Replays (Vulkan renderer): videos no longer run one frame behind, and no longer now and then repeat a frame where the picture changes (a chest opening, a hit).
+- Replays: luka's HUD in a video is drawn fresh for every frame (with "HUD refresh rate" below 250 it could show the HUD of an earlier frame).
+- Replay editor (Linux, Normal renderer on 1.8.9): the game window is hidden completely during renders instead of minimised.
+
 ## 1.6.4
 - Replay editor (Linux): renders and previews no longer show the game window; it is minimised as soon as it opens, like the hidden window on Windows. "Hide the game window" is now in the editor on Linux too.
 

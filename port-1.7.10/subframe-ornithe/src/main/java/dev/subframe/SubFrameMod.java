@@ -156,6 +156,7 @@ public final class SubFrameMod implements ClientModInitializer {
                 selfTest.onTick();
             }
             RenderJob.tick();
+            RenderServer.tick();
             Minecraft mc = Minecraft.getMinecraft();
             registerKeys(mc);
             if (mc.effectRenderer != null && !(mc.effectRenderer instanceof DeterministicEffectRenderer)) {

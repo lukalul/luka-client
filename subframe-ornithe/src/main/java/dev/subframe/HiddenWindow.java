@@ -7,7 +7,8 @@ import java.lang.reflect.Method;
  * Windows the launcher runs the game on a hidden desktop instead (luka-hidden.exe), which Linux has no equivalent of.
  * A render draws into its own framebuffer and keeps its full speed while the window is minimised, as on Windows.
  * The window is minimised once, as soon as it exists: a player who brings it back keeps it.
- * Normal renderer: LWJGL 2's own X11 iconify call (also under XWayland). Vulkan renderer: pylon's SDL window.
+ * Normal renderer on 1.8.9 (legacy-lwjgl3, a GLFW window): hidden outright (no window, no taskbar entry; drawing goes on).
+ * Normal renderer with LWJGL 2 (1.7.10): its own X11 iconify call (also under XWayland). Vulkan renderer: pylon's SDL window.
  */
 final class HiddenWindow {
     static final String PROPERTY = "subframe.hideWindow";
@@ -24,7 +25,10 @@ final class HiddenWindow {
             return;
         }
         try {
-            if (minimiseSdl() || minimiseLwjgl2()) {
+            if (hideGlfw()) {
+                done = true;
+                SubFrameMod.LOG.info("[render] game window hidden for the render");
+            } else if (minimiseSdl() || minimiseLwjgl2()) {
                 done = true;
                 SubFrameMod.LOG.info("[render] game window minimised for the render");
             } else if (++tries > 600) {
@@ -35,6 +39,28 @@ final class HiddenWindow {
             done = true;
             SubFrameMod.LOG.warn("[render] could not minimise the game window: " + t);
         }
+    }
+
+    /**
+     * legacy-lwjgl3's window (a GLFW window; its Display class keeps the handle in a static field): hidden with GLFW.
+     * False when the game does not run on it, or the window is not created yet.
+     */
+    private static boolean hideGlfw() throws Exception {
+        Class<?> glfw;
+        java.lang.reflect.Field handleField;
+        try {
+            glfw = Class.forName("org.lwjgl.glfw.GLFW");
+            handleField = org.lwjgl.opengl.Display.class.getDeclaredField("handle");
+        } catch (ClassNotFoundException | NoSuchFieldException e) {
+            return false;
+        }
+        handleField.setAccessible(true);
+        long handle = handleField.getLong(null);
+        if (handle == 0L) {
+            return false;
+        }
+        glfw.getMethod("glfwHideWindow", long.class).invoke(null, handle);
+        return true;
     }
 
     /** The Vulkan renderer's window (pylon, SDL3). False when pylon is not there or its window is not created yet. */

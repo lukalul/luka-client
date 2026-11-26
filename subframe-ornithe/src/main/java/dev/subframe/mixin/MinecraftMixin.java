@@ -24,6 +24,12 @@ abstract class MinecraftMixin {
         SubFrameMod.onClientTickEnd();
     }
 
+    // the window is hidden for a render as soon as it exists (the loading screen comes seconds later)
+    @Inject(method = "createDisplay", at = @At("RETURN"), require = 0)
+    private void subframe$displayCreated(CallbackInfo ci) {
+        SubFrameMod.onSplashScreen();
+    }
+
     @Inject(method = "drawSplashScreen", at = @At("HEAD"), require = 0)
     private void subframe$splash(CallbackInfo ci) {
         SubFrameMod.onSplashScreen();

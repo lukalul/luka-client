@@ -256,6 +256,11 @@ final class LauncherFrame extends JFrame implements ReplayEditor.Host {
   }
 
   private void play(String server) {
+    if (running && render.idle()) {
+      // the replay editor's render game is waiting for jobs: end it, then play
+      render.endThen(() -> play(server));
+      return;
+    }
     if (running) return;
     final Accounts.Account account = accounts.selected();
     if (account == null) {
@@ -288,8 +293,24 @@ final class LauncherFrame extends JFrame implements ReplayEditor.Host {
                 }
                 GameRunner runner = new GameRunner(root, settings, id, this::appendLog, this::setStatus);
                 activeRunner = runner;
+                final DebugSession debug = debugArmed ? new DebugSession(root) : null;
+                if (debug != null) {
+                  debugArmed = false;
+                  runner.addJvmArg("-Dluka.debug=true");
+                  runner.onStart(debug::start);
+                  appendLog("Debug mode: recording to " + debug.dir());
+                }
                 long started = System.currentTimeMillis();
-                int code = runner.play();
+                int code;
+                try {
+                  code = runner.play();
+                } finally {
+                  if (debug != null) debug.stop();
+                }
+                if (debug != null) SwingUtilities.invokeLater(() -> {
+                  setVisible(true);
+                  sendLogs(true);
+                });
                 if (code != 0 && "vulkan".equals(settings.renderer()) && System.currentTimeMillis() - started < 45000 && !gameGotGoing()) {
                   settings.set("renderer", "normal");
                   settings.save();
@@ -386,49 +407,76 @@ final class LauncherFrame extends JFrame implements ReplayEditor.Host {
    * launch). onExit gets the game's exit code, or -1 and a message when it could not start. False while a game runs.
    */
   public boolean startRenderJob(File job, boolean hidden, java.util.function.BiConsumer<Integer, String> onExit) {
-    if (running) return false;
-    final Accounts.Account account = accounts.selected();
-    settings.save();
-    running = true;
-    new Thread(
-            () -> {
-              int code = -1;
-              String error = null;
-              try {
-                prepareGame();
-                GameRunner.Identity id = new GameRunner.Identity();
-                id.name = account != null ? account.name : "luka";
-                id.uuid = account != null ? account.uuid : Accounts.offlineUuid(id.name);
-                GameRunner runner = new GameRunner(root, settings, id, this::appendLog,
-                    (text, f) -> setStatus("Playing".equals(text) ? "Rendering a replay edit" : text, f));
-                runner.addJvmArg("-Dsubframe.renderjob=" + job.getAbsolutePath());
-                // a render joins no server: keep it off Luka Online (no second session flickering for friends) and out of crash reports
-                runner.addJvmArg("-Dluka.api=http://127.0.0.1:1");
-                if (hidden) runner.runHidden();
-                activeRunner = runner;
-                code = runner.play();
-                setStatus(code == 0 ? "Replay render done" : "Game exited (code " + code + ") - see the log", 0);
-              } catch (Throwable t) {
-                error = t.getMessage() == null ? t.toString() : t.getMessage();
-                appendLog("ERROR: " + t);
-                setStatus("Failed: " + error, 0);
-              } finally {
-                activeRunner = null;
-                running = false;
-                final int c = code;
-                final String e = error;
-                SwingUtilities.invokeLater(() -> onExit.accept(c, e));
-              }
-            },
-            "luka-render")
-        .start();
+    synchronized (renderLock) {
+      if (running && !render.alive()) return false; // the player's own game
+      settings.save();
+      running = true;
+      if (!render.start(job, new File(job.getParentFile(), "server"), hidden, onExit)) {
+        if (!render.alive()) running = false;
+        return false;
+      }
+    }
     return true;
   }
 
-  /** The editor's close button during a render: ends that game. */
+  /** The replay editor's render game, kept running between its previews and renders (RenderSession). */
+  private final Object renderLock = new Object();
+  private final RenderSession render = new RenderSession(new RenderSession.Env() {
+    @Override public GameRunner newRunner() {
+      final Accounts.Account account = accounts.selected();
+      GameRunner.Identity id = new GameRunner.Identity();
+      id.name = account != null ? account.name : "luka";
+      id.uuid = account != null ? account.uuid : Accounts.offlineUuid(id.name);
+      GameRunner runner = new GameRunner(root, settings, id, LauncherFrame.this::appendLog,
+          (text, f) -> setStatus("Playing".equals(text) ? "Render game running" : text, f));
+      // a render joins no server: keep it off Luka Online (no second session flickering for friends) and out of crash reports
+      runner.addJvmArg("-Dluka.api=http://127.0.0.1:1");
+      activeRunner = runner;
+      return runner;
+    }
+
+    @Override public void prepareGame() throws Exception {
+      LauncherFrame.this.prepareGame();
+    }
+
+    @Override public void log(String line) {
+      appendLog(line);
+    }
+
+    @Override public void ended() {
+      synchronized (renderLock) {
+        activeRunner = null;
+        running = false;
+      }
+      setStatus("Render game closed", 0);
+    }
+  }, () -> LauncherFrame.this.settings);
+
+  @Override
+  public boolean renderGameReady() {
+    return render.ready();
+  }
+
+  /** The editor opened: its render game starts now (not while the player's own game runs). */
+  @Override
+  public void warmRenderGame(File queue, boolean hidden) {
+    synchronized (renderLock) {
+      if (running) return;
+      settings.save();
+      running = true;
+      render.warm(queue, hidden);
+    }
+  }
+
+  /** The editor closed: its render game quits. */
+  @Override
+  public void endRenderSession() {
+    if (render.alive()) render.quit();
+  }
+
+  /** The editor's close button during a render: ends that game (the next job starts a new one). */
   public void stopRender() {
-    GameRunner r = activeRunner;
-    if (r != null) r.stop();
+    render.stop();
   }
 
   private boolean gameGotGoing() {
@@ -480,6 +528,74 @@ final class LauncherFrame extends JFrame implements ReplayEditor.Host {
         ? "Vulkan selected. Press PLAY to use it. Vulkan source code: see About."
         : "Normal selected. Press PLAY to use it.";
     fraction = 0;
+  }
+
+  /**
+   * SEND LOGS (Settings): the logs luka's team needs, zipped and sent through api.luka.wtf to luka's team on Discord
+   * (LogReport). Asks first, with a box for what went wrong; afterwards shows the report id to quote.
+   */
+  /** SEND LOGS > "Record a debug session first": the next PLAY records GPU, CPU and FPS (DebugSession, cbui DebugRecorder). */
+  private volatile boolean debugArmed;
+
+  private void sendLogs() {
+    sendLogs(false);
+  }
+
+  private void sendLogs(boolean afterDebug) {
+    javax.swing.JTextArea note = new javax.swing.JTextArea(4, 42);
+    note.setLineWrap(true);
+    note.setWrapStyleWord(true);
+    javax.swing.JPanel panel = new javax.swing.JPanel(new java.awt.BorderLayout(0, 8));
+    panel.add(new javax.swing.JLabel("<html><body style='width:330px'>" + (afterDebug
+        ? "The debug session is recorded. Send it now, with a few words on what went wrong. "
+        : "Sends luka's team the logs they need to look into a problem. GPU usage or FPS problems: press <b>Record a debug "
+            + "session first</b>, then PLAY and play until the problem shows. ")
+        + "Untick what you do not want to send. No account details, passwords or game chat are ever sent.</body></html>"), java.awt.BorderLayout.NORTH);
+    javax.swing.JPanel boxes = new javax.swing.JPanel(new java.awt.GridLayout(0, 1));
+    java.util.Map<LogReport.Part, javax.swing.JCheckBox> picks = new java.util.EnumMap<>(LogReport.Part.class);
+    for (LogReport.Part part : LogReport.Part.values()) {
+      javax.swing.JCheckBox box = new javax.swing.JCheckBox(part.label, true);
+      picks.put(part, box);
+      boxes.add(box);
+    }
+    javax.swing.JPanel middle = new javax.swing.JPanel(new java.awt.BorderLayout(0, 6));
+    middle.add(boxes, java.awt.BorderLayout.NORTH);
+    middle.add(new javax.swing.JLabel("What went wrong? (optional)"), java.awt.BorderLayout.CENTER);
+    panel.add(middle, java.awt.BorderLayout.CENTER);
+    panel.add(new javax.swing.JScrollPane(note), java.awt.BorderLayout.SOUTH);
+    Object[] choices = afterDebug || running ? new Object[] {"SEND", "Cancel"} : new Object[] {"SEND", "Record a debug session first", "Cancel"};
+    int answer = javax.swing.JOptionPane.showOptionDialog(this, panel, "Send logs to luka", javax.swing.JOptionPane.DEFAULT_OPTION,
+        javax.swing.JOptionPane.PLAIN_MESSAGE, null, choices, choices[0]);
+    if (answer == 1 && choices.length == 3) {
+      debugArmed = true;
+      setStatus("Debug mode: press PLAY, play until the problem shows, then close the game", 0);
+      return;
+    }
+    if (answer != 0) return;
+    final String text = note.getText();
+    final java.util.Set<LogReport.Part> parts = java.util.EnumSet.noneOf(LogReport.Part.class);
+    for (java.util.Map.Entry<LogReport.Part, javax.swing.JCheckBox> e : picks.entrySet()) if (e.getValue().isSelected()) parts.add(e.getKey());
+    setStatus("Sending logs...", 0);
+    new Thread(() -> {
+      try {
+        String hw = hardware[0] + (hardware[1].isEmpty() ? "" : " | " + hardware[1]);
+        LogReport report = new LogReport(root, settings, VERSION, hw);
+        byte[] zip = report.build(text, parts);
+        String id = LogReport.send(System.getProperty("luka.api", "https://api.luka.wtf"), GameRunner.installId(root),
+            LogReport.lukaVersion(root), zip);
+        appendLog("Logs sent as report " + id + " (" + report.included().size() + " files, " + (zip.length >> 10) + " KB)");
+        setStatus("Logs sent: report " + id, 0);
+        SwingUtilities.invokeLater(() -> javax.swing.JOptionPane.showMessageDialog(this,
+            "Sent. Your report id is " + id + ".\nQuote it to luka's team on Discord so they know which report is yours.",
+            "Send logs to luka", javax.swing.JOptionPane.INFORMATION_MESSAGE));
+      } catch (Exception e) {
+        String why = e.getMessage() == null ? e.toString() : e.getMessage();
+        appendLog("Could not send the logs: " + why);
+        setStatus("Could not send the logs: " + why, 0);
+        SwingUtilities.invokeLater(() -> javax.swing.JOptionPane.showMessageDialog(this, "Could not send the logs: " + why,
+            "Send logs to luka", javax.swing.JOptionPane.WARNING_MESSAGE));
+      }
+    }, "luka-send-logs").start();
   }
 
   private void repair() {
@@ -905,7 +1021,9 @@ final class LauncherFrame extends JFrame implements ReplayEditor.Host {
       g.setColor(new Color(255, 255, 255, over ? 90 : 55));
       g.drawRoundRect(x, y, w - 1, h - 1, 16, 16);
       boolean inGame = activeRunner != null && activeRunner.isGameRunning();
-      String title = !running ? "PLAY" : inGame ? "PLAYING" : "GETTING READY";
+      // the replay editor's render game: PLAY while it waits (pressing it ends that game first), RENDERING while it works
+      boolean renderGame = render.alive();
+      String title = !running || renderGame && render.idle() ? "PLAY" : renderGame ? "RENDERING" : inGame ? "PLAYING" : "GETTING READY";
       g.setFont(bold.deriveFont(25f));
       FontMetrics fm = g.getFontMetrics();
       int tx = x + (w - fm.stringWidth(title)) / 2;
@@ -1131,7 +1249,8 @@ final class LauncherFrame extends JFrame implements ReplayEditor.Host {
       g.setFont(bold.deriveFont(10f));
       g.setColor(new Color(0xCFC6DB));
       g.drawString("SHOW GAME LOG", x + 26, y + 193);
-      linkButton(g, x + 160, y + 174, 220, "REPAIR GAME FILES", LauncherFrame.this::repair);
+      linkButton(g, x + 150, y + 174, 150, "REPAIR GAME FILES", LauncherFrame.this::repair);
+      linkButton(g, x + 310, y + 174, 122, "SEND LOGS", LauncherFrame.this::sendLogs);
 
       g.setFont(bold.deriveFont(10f));
       g.setColor(MUTED);

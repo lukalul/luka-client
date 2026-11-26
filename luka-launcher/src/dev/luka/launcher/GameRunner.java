@@ -59,6 +59,28 @@ final class GameRunner {
     extraJvmArgs.add(arg);
   }
 
+  /** Told the game process as soon as it starts (debug mode records its CPU and GPU use). */
+  private Consumer<Process> onStart;
+
+  void onStart(Consumer<Process> listener) {
+    onStart = listener;
+  }
+
+  /** Extra game arguments, after luka's own (the window size of a headless render game). */
+  private final List<String> extraGameArgs = new ArrayList<>();
+
+  /**
+   * The replay editor's render game with no window at all (Vulkan renderer, -Dluka.headless): nothing to hide. The
+   * window size it believes it has decides the GUI scale of the render, so it is the player's screen size.
+   */
+  void runHeadless(int width, int height) {
+    extraJvmArgs.add("-Dluka.headless=true");
+    extraGameArgs.add("--width");
+    extraGameArgs.add(Integer.toString(width));
+    extraGameArgs.add("--height");
+    extraGameArgs.add(Integer.toString(height));
+  }
+
   /**
    * The replay editor's renders run out of sight. Windows: on a hidden desktop (luka-hidden.exe), so no window shows.
    * Linux has nothing like it: the replay mod minimises the game window as soon as it exists (subframe HiddenWindow).
@@ -146,6 +168,7 @@ final class GameRunner {
     }
     ProcessBuilder builder = new ProcessBuilder(launch).directory(gameDir()).redirectErrorStream(true);
     process = builder.start();
+    if (onStart != null) onStart.accept(process);
     progress.update("Playing", 1.0);
     try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
       String line;
@@ -289,6 +312,7 @@ final class GameRunner {
       command.add("--port");
       command.add(port);
     }
+    command.addAll(extraGameArgs);
     return command;
   }
 
@@ -387,6 +411,11 @@ final class GameRunner {
 
   /** Generated once and kept next to the other luka files; the same id every launch, this install only. */
   private String installId() {
+    return installId(root);
+  }
+
+  /** The install id of the luka folder root (made on first use). */
+  static String installId(File root) {
     File file = new File(root, "install-id.txt");
     try {
       if (file.isFile()) {

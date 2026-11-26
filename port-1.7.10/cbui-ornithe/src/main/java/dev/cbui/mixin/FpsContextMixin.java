@@ -18,8 +18,14 @@ public abstract class FpsContextMixin {
   private void cbui$screenFpsCap(CallbackInfoReturnable<Integer> cir) {
     try {
       if (!Display.isActive()) return;
-      int cap = FpsContexts.cap((Minecraft) (Object) this);
-      if (cap > 0) cir.setReturnValue(cap);
+      Minecraft mc = (Minecraft) (Object) this;
+      int cap = FpsContexts.cap(mc);
+      if (cap > 0) {
+        cir.setReturnValue(cap);
+      } else if (mc.theWorld == null && mc.currentScreen != null && cir.getReturnValue() == 30) {
+        // Minecraft's own 30 FPS for screens outside a world (see FpsContexts.outsideWorld)
+        cir.setReturnValue(FpsContexts.outsideWorld(mc));
+      }
     } catch (Throwable ignored) {
       // keep the normal limit
     }
