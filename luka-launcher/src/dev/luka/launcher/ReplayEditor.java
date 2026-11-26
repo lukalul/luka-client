@@ -149,8 +149,8 @@ final class ReplayEditor extends JFrame {
   private final Choice size = new Choice(new String[] {"720p", "1080p", "1440p", "4K"},
       new String[] {"1280x720", "1920x1080", "2560x1440", "3840x2160"}, 96);
   private final JCheckBox blur = check("Motion blur", true), chests = check("Show opened chests", true);
-  /** Windows only: the game renders on a hidden desktop (luka-hidden.exe), so no game window appears. */
-  private final JCheckBox hideGame = check("Hide the game window", Platform.windows());
+  /** The game renders out of sight: on a hidden desktop on Windows (luka-hidden.exe), minimised on Linux. */
+  private final JCheckBox hideGame = check("Hide the game window", hidingWorks());
   private final Choice subframes = new Choice(new String[] {"8", "16", "32", "64", "128"}, null, 0);
   private final JTextField output = new JTextField();
   // look of the video (render only; "" = as in the game or the recording)
@@ -485,7 +485,7 @@ final class ReplayEditor extends JFrame {
     p.add(stacked("Subframes per frame", subframes));
     p.add(section("REPLAY"));
     p.add(setting(null, chests));
-    if (Platform.windows()) p.add(setting(null, hideGame));
+    if (hidingWorks()) p.add(setting(null, hideGame));
     p.add(section("SAVE AS"));
     style(output);
     JPanel out = new JPanel(new BorderLayout(6, 0));
@@ -1836,7 +1836,7 @@ final class ReplayEditor extends JFrame {
     subframes.setEnabled(blur.isSelected());
     if (p.getProperty("subframes") != null) subframes.set(p.getProperty("subframes"));
     chests.setSelected(Boolean.parseBoolean(p.getProperty("showContainers", "true")));
-    hideGame.setSelected(Platform.windows() && Boolean.parseBoolean(p.getProperty("hideGame", "true")));
+    hideGame.setSelected(hidingWorks() && Boolean.parseBoolean(p.getProperty("hideGame", "true")));
     select(0);
     changed();
   }
@@ -1981,7 +1981,7 @@ final class ReplayEditor extends JFrame {
       return;
     }
     // previews always render out of sight; a full render follows the box
-    boolean hidden = Platform.windows() && (!"Rendering".equals(what) || hideGame.isSelected());
+    boolean hidden = hidingWorks() && (!"Rendering".equals(what) || hideGame.isSelected());
     if (!host.startRenderJob(job, hidden, this::renderEnded)) {
       setStatus("Close the game first: the editor starts its own game.");
       return;
@@ -2354,5 +2354,10 @@ final class ReplayEditor extends JFrame {
     f.setForeground(TEXT);
     f.setCaretColor(TEXT);
     f.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(LINE), BorderFactory.createEmptyBorder(5, 8, 5, 8)));
+  }
+
+  /** Renders can run out of sight: a hidden desktop on Windows, a minimised window on Linux. */
+  private static boolean hidingWorks() {
+    return Platform.windows() || Platform.linux();
   }
 }

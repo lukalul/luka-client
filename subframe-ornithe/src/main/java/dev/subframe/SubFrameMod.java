@@ -192,7 +192,13 @@ public final class SubFrameMod implements ClientModInitializer {
         }
     }
 
+    /** The loading screen is about to be drawn: the window exists (minimised at once for Linux renders). */
+    public static void onSplashScreen() {
+        HiddenWindow.poll();
+    }
+
     public static void onRenderStart() {
+        HiddenWindow.poll();
         try {
             if (selfTest != null) {
                 selfTest.onRenderStart();

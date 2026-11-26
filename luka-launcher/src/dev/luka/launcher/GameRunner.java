@@ -59,11 +59,15 @@ final class GameRunner {
     extraJvmArgs.add(arg);
   }
 
-  /** Start the game on a hidden desktop (Windows, the replay editor's renders): it renders, but no window shows. */
+  /**
+   * The replay editor's renders run out of sight. Windows: on a hidden desktop (luka-hidden.exe), so no window shows.
+   * Linux has nothing like it: the replay mod minimises the game window as soon as it exists (subframe HiddenWindow).
+   */
   private boolean hidden;
 
   void runHidden() {
     hidden = true;
+    if (Platform.linux()) extraJvmArgs.add("-Dsubframe.hideWindow=true");
   }
 
   /**

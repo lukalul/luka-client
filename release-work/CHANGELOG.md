@@ -2,6 +2,9 @@
 
 The launcher shows the notes below on its What's New page. Add a new `## version` heading at the top for each release.
 
+## 1.6.4
+- Replay editor (Linux): renders and previews no longer show the game window; it is minimised as soon as it opens, like the hidden window on Windows. "Hide the game window" is now in the editor on Linux too.
+
 ## 1.6.3
 - Friends: message your luka friends. Press MSG next to a friend in Friends. New messages also show in chat (a burst shows three lines and a count). Only friends can write to you; messages are kept for 30 days, and removing a friend deletes your conversation. See the privacy page.
 - Luka Online: names, server addresses and messages from other players are shown as plain text only, so nobody can put colours, fake lines or hidden characters into your chat or menus.

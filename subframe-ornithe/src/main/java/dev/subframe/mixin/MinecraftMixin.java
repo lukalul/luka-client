@@ -24,6 +24,11 @@ abstract class MinecraftMixin {
         SubFrameMod.onClientTickEnd();
     }
 
+    @Inject(method = "drawSplashScreen", at = @At("HEAD"), require = 0)
+    private void subframe$splash(CallbackInfo ci) {
+        SubFrameMod.onSplashScreen();
+    }
+
     @Inject(method = "runGameLoop", at = @At("HEAD"))
     private void subframe$renderStart(CallbackInfo ci) {
         SubFrameMod.onRenderStart();
