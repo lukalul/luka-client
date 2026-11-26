@@ -21,8 +21,9 @@ import net.minecraft.util.EnumChatFormatting;
 /**
  * Replaces the vanilla sidebar scoreboard. The module box is the scoreboard rectangle, so dragging
  * it in the HUD editor moves the real scoreboard. With default settings the result matches vanilla
- * (see GuiIngame.renderScoreboard). Vanilla rendering is cancelled only while this module is
- * enabled (it disables itself if drawing throws, which restores vanilla).
+ * (see GuiIngame.renderScoreboard). Vanilla rendering is cancelled while this module draws, and
+ * also while the player has switched it off: then no scoreboard is shown at all. A server that
+ * blocks the module, or a drawing error, gives vanilla's sidebar back.
  */
 public final class ScoreboardModule extends AbstractHudModule {
   private static final int TEXT = 0xFFFFFFFF; // opaque white (vanilla's 0x20FFFFFF constant is a low-alpha tint that dims rows)
@@ -66,10 +67,19 @@ public final class ScoreboardModule extends AbstractHudModule {
     return false;
   }
 
-  /** True when vanilla's renderScoreboard should be skipped in favour of this module. */
+  /** Set when drawing or reading the scoreboard threw: vanilla's sidebar takes over again until the next start. */
+  private volatile boolean broken;
+
+  /**
+   * True when vanilla's renderScoreboard should be skipped: this module draws it instead, or the player switched the
+   * Scoreboard off (its card toggle or the X in the HUD editor), which hides the sidebar completely, the server's
+   * vanilla one included. A server that blocks the module, or a drawing error, leaves vanilla's sidebar on screen.
+   */
   public static boolean replacesVanilla() {
     ScoreboardModule m = instance;
-    return m != null && m.enabled() && !m.mc.gameSettings.showDebugInfo;
+    if (m == null || m.broken) return false;
+    if (!m.userEnabled()) return true;
+    return m.enabled() && !m.mc.gameSettings.showDebugInfo;
   }
 
   @Override
@@ -85,7 +95,13 @@ public final class ScoreboardModule extends AbstractHudModule {
 
   @Override
   public void tick() {
-    rebuild();
+    if (broken) return;
+    try {
+      rebuild();
+    } catch (Throwable error) {
+      broken = true; // not enabled(false): a switched-off Scoreboard hides the sidebar, an error must give vanilla's back
+      Cbui.reportOnce("scoreboard module", error);
+    }
   }
 
   private ScoreObjective objective() {
@@ -190,6 +206,7 @@ public final class ScoreboardModule extends AbstractHudModule {
 
   @Override
   protected void draw(float partialTicks, boolean editor) {
+    if (broken) return;
     try {
       if (!built) rebuild();
       if (!built) return;
@@ -210,7 +227,7 @@ public final class ScoreboardModule extends AbstractHudModule {
       }
       font.drawString(title, 2 + contentWidth / 2 - titleWidth / 2, 0, TEXT, sh);
     } catch (Throwable error) {
-      enabled(false);
+      broken = true;
       Cbui.reportOnce("scoreboard module", error);
     }
   }

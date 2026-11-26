@@ -48,6 +48,11 @@ public class ModuleMenu extends GuiScreen {
 
   private static final ResourceLocation LOGO = new ResourceLocation("cbui", "logo_white.png");
   private static final ResourceLocation COG_ICON = new ResourceLocation("cbui", "icons/cog-64.png");
+  /** HUD box buttons: shown on the HUD (eye), hidden from it (crossed eye). */
+  private static final ResourceLocation EYE_ICON = new ResourceLocation("cbui", "icons/eye-64.png"),
+      EYE_OFF_ICON = new ResourceLocation("cbui", "icons/eye-off-64.png");
+  /** The X that switches a HUD box's module off. */
+  private static final int REMOVE_RED = 0xFFFF4A4A;
   private static final int RED = 0xFF8942DA, CARD = 0xD51A151F, MUTED = 0xFFA0A8B5;
   private static String activeProfileName = "Default";
 
@@ -560,12 +565,11 @@ public class ModuleMenu extends GuiScreen {
   /**
    * Modules that live on a settings tab (STYLE 0, PERFORMANCE 2, GENERAL 3) instead of having a card in the mods grid:
    * module name, tab, heading. Each gets a box on its tab: an on/off row, then its own options. The module itself is
-   * unchanged (same saved settings, server rules and Lunar import).
+   * unchanged (same saved settings, server rules and Lunar import). Chat and FPS Profiler were moved to cards
+   * (2026-11-26, owner: mods and tools belong in the mods list, not in Settings).
    */
   private static final String[][] SETTINGS_HOME = {
       {"GUI blur", "0", "Menu background blur"},
-      {"FPS Profiler", "2", "FPS Profiler"},
-      {"Chat", "3", "Chat"},
       {"Numerical Enchantments", "3", "Numerical Enchantments"},
       {"Raw Input", "3", "Raw Input"},
       {"Scroll Tweaks", "3", "Scroll Tweaks"},
@@ -1198,7 +1202,7 @@ public class ModuleMenu extends GuiScreen {
     }
     if (dragging != null) drawSnapGuides(dragging, elements);
     String hint =
-        "DRAG TO MOVE  -  CORNERS RESIZE  -  ARROWS NUDGE  -  CTRL+Z UNDO  -  I HIDES  -  X DISABLES  -  HOLD RIGHT CLICK TO PEEK";
+        "DRAG TO MOVE  -  CORNERS RESIZE  -  ARROWS NUDGE  -  CTRL+Z UNDO  -  EYE HIDES  -  RED X TURNS OFF  -  HOLD RIGHT CLICK TO PEEK";
     // everything below is drawn in "ui space" (scaled with the window) so the bar stays readable on big screens
     float u = ui();
     int umx = (int) (mx / u), umy = (int) (my / u);
@@ -1206,15 +1210,39 @@ public class ModuleMenu extends GuiScreen {
     GlStateManager.pushMatrix();
     GlStateManager.scale(u, u, 1f);
     // a backing plate keeps the instructions readable when a HUD box (e.g. the direction bar) sits at the top centre
-    float plate = Math.max(Fonts.regular().getStringWidth(hint), Fonts.bold().getStringWidth("HUD LAYOUT")) / 2f + 10;
-    Draw.rounded(uw / 2f - plate, 3, uw / 2f + plate, 34, 3, 0xEE0E0C10);
+    List<String> hintRows = hintLines(hint, uw - 240); // RESET/ADD on the left, DONE on the right
+    float hintW = Fonts.bold().getStringWidth("HUD LAYOUT");
+    for (String row : hintRows) hintW = Math.max(hintW, Fonts.regular().getStringWidth(row));
+    float plate = hintW / 2f + 10;
+    Draw.rounded(uw / 2f - plate, 3, uw / 2f + plate, 23 + 11 * hintRows.size(), 3, 0xEE0E0C10);
     Fonts.bold().drawCentered("HUD LAYOUT", uw / 2f, 9, 0xFFFFFFFF);
-    Fonts.regular().drawCentered(hint, uw / 2f, 22, 0xFFB2BAC7);
+    float rowY = 22;
+    for (String row : hintRows) {
+      Fonts.regular().drawCentered(row, uw / 2f, rowY, 0xFFB2BAC7);
+      rowY += 11;
+    }
     UiWidgets.cbButton("DONE", uw - 54, 5, 48, 20, Draw.inside(umx, umy, uw - 54, 5, 48, 20), false);
     UiWidgets.cbButton("RESET", 6, 5, 50, 20, Draw.inside(umx, umy, 6, 5, 50, 20), false);
     UiWidgets.cbButton(libraryOpen ? "CLOSE" : "ADD", 60, 5, 50, 20, Draw.inside(umx, umy, 60, 5, 50, 20), libraryOpen);
     if (libraryOpen) drawLibrary(umx, umy);
     GlStateManager.popMatrix();
+  }
+
+  /** A hint made of "  -  " separated parts, split into lines no wider than maxWidth (at least one part per line). */
+  private static List<String> hintLines(String hint, float maxWidth) {
+    List<String> lines = new ArrayList<String>();
+    StringBuilder line = new StringBuilder();
+    for (String part : hint.split("  -  ")) {
+      String trial = line.length() == 0 ? part : line + "  -  " + part;
+      if (line.length() > 0 && Fonts.regular().getStringWidth(trial) > maxWidth) {
+        lines.add(line.toString());
+        line = new StringBuilder(part);
+      } else {
+        line = new StringBuilder(trial);
+      }
+    }
+    if (line.length() > 0) lines.add(line.toString());
+    return lines;
   }
 
   // ---- HUD editor helpers (resize handles, snap guides, library, undo) ----
@@ -1335,7 +1363,7 @@ public class ModuleMenu extends GuiScreen {
     return true;
   }
 
-  /** The buttons above a box's top-right corner (below it when the box is at the top edge): 0 = cog (settings), 1 = I (hide), 2 = X (disable). */
+  /** The buttons above a box's top-right corner (below it when the box is at the top edge): 0 = cog (settings), 1 = eye (hide), 2 = red X (turn off). */
   private float[] hudButton(HudElement e, int index) {
     float u = ui();
     float x = e.x() * sf, y = e.y() * sf, w = e.width() * sf, h = e.height() * sf;
@@ -1353,10 +1381,14 @@ public class ModuleMenu extends GuiScreen {
       Draw.rounded(cog[0], cog[1], cog[0] + cog[2], cog[1] + cog[3], 2, hoverC ? RED : 0xF00E0C10);
       Draw.texture(COG_ICON, cog[0] + 2 * ui(), cog[1] + ui(), 9 * ui(), 9 * ui(), 1f);
     }
-    drawHudButton(i, "I", hoverI, !visible);
-    drawHudButton(xb, "X", hoverX, false);
+    // hide/show on the HUD: an eye while shown, a crossed eye while hidden
+    Draw.rounded(i[0], i[1], i[0] + i[2], i[1] + i[3], 2, hoverI ? RED : 0xF00E0C10);
+    Draw.texture(visible ? EYE_ICON : EYE_OFF_ICON, i[0] + 2 * ui(), i[1] + 1.5f * ui(), 9 * ui(), 9 * ui(), visible ? 1f : .7f);
+    // turn the module off: always a red X (white on red while hovered)
+    Draw.rounded(xb[0], xb[1], xb[0] + xb[2], xb[1] + xb[3], 2, hoverX ? 0xFFC42B2B : 0xF00E0C10);
+    drawHudX(xb, hoverX ? 0xFFFFFFFF : REMOVE_RED);
     if (hoverC) return "  -  SETTINGS";
-    if (hoverX) return "  -  DISABLE";
+    if (hoverX) return "Scoreboard".equals(e.name()) ? "  -  TURN OFF (HIDES THE SCOREBOARD)" : "  -  TURN OFF";
     if (hoverI) return visible ? "  -  HIDE FROM HUD" : "  -  SHOW ON HUD";
     return null;
   }
@@ -1391,12 +1423,12 @@ public class ModuleMenu extends GuiScreen {
     return Draw.inside((int) (mx / u), (int) (my / u), x, y, w, h);
   }
 
-  private void drawHudButton(float[] r, String label, boolean hover, boolean active) {
+  /** A bold X centred in a HUD box button, in the given colour. */
+  private void drawHudX(float[] r, int color) {
     float u = ui();
-    Draw.rounded(r[0], r[1], r[0] + r[2], r[1] + r[3], 2, hover ? RED : 0xF00E0C10);
     GlStateManager.pushMatrix();
     GlStateManager.scale(u, u, 1f);
-    Fonts.bold().drawCentered(label, (r[0] + r[2] / 2f) / u, r[1] / u + 2, active ? 0xFFB370FF : 0xFFFFFFFF);
+    Fonts.bold().drawCentered("X", (r[0] + r[2] / 2f) / u, r[1] / u + 2, color);
     GlStateManager.popMatrix();
   }
 
@@ -1998,8 +2030,17 @@ public class ModuleMenu extends GuiScreen {
     UiWidgets.cbButton("MODS", cx - 50, by, 100, 28, Draw.inside(mx, my, cx - 50, by, 100, 28), false);
     if (dev.cbui.Release.COSMETICS) iconButton(HUB_SHIRT, (int) (cx + 50 + 4), (int) by, 28, mx, my, false);
     GlStateManager.popMatrix();
-    String hint = "DRAG A HUD BOX TO MOVE IT  -  SCROLL OVER IT TO RESIZE  -  I HIDES  -  X DISABLES  -  ESC CLOSES";
-    Fonts.regular().drawCentered(hint, cx, 12, 0x90FFFFFF);
+    String hint = "DRAG A HUD BOX TO MOVE IT  -  SCROLL OVER IT TO RESIZE  -  EYE HIDES  -  RED X TURNS OFF  -  ESC CLOSES";
+    // narrow and on a plate: it sits over HUD boxes (boss bar, top-corner boxes) on smaller windows
+    List<String> rows = hintLines(hint, Math.min(width - 24, 240));
+    float rowW = 0;
+    for (String row : rows) rowW = Math.max(rowW, Fonts.regular().getStringWidth(row));
+    Draw.rounded(cx - rowW / 2f - 8, 6, cx + rowW / 2f + 8, 6 + 4 + 11 * rows.size(), 3, 0xC00E0C10);
+    float hy = 9;
+    for (String row : rows) {
+      Fonts.regular().drawCentered(row, cx, hy, 0xD0FFFFFF);
+      hy += 11;
+    }
   }
 
   private void hubClick(int mx, int my, int button) {

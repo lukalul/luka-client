@@ -11,8 +11,12 @@ import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.IChatComponent;
 import net.minecraft.util.ResourceLocation;
 
-/** How chat looks and behaves. With the mod off, chat is plain vanilla. */
-public final class ChatModule extends FeatureModule {
+/**
+ * How chat looks and behaves. The card's on/off switch shows or hides chat: off, no chat lines are drawn at all
+ * (messages still arrive and are kept). Each look/behaviour option below can be turned off for vanilla behaviour. A
+ * server that blocks the mod gives plain vanilla chat (still shown).
+ */
+public final class ChatModule extends FeatureModule implements Features.Synced {
   public final Setting.Toggle noBackground = grouped("Look", add(new Setting.Toggle("No chat background", false, "Remove the dark box behind chat lines")));
   public final Setting.Toggle shadow = grouped("Look", add(new Setting.Toggle("Chat text shadow", true, "Drop shadow on chat text")));
   public final Setting.Toggle smooth = grouped("Look", add(new Setting.Toggle("Smooth chat", true, "New messages slide in instead of jumping into place")));
@@ -36,6 +40,45 @@ public final class ChatModule extends FeatureModule {
   public static ChatModule active() {
     ChatModule module = Features.get(ChatModule.class);
     return module != null && module.enabled() ? module : null;
+  }
+
+  /** True when the player switched Chat off: chat is not drawn at all. (A server block is not the player's switch.) */
+  public static boolean hidden() {
+    ChatModule module = Features.get(ChatModule.class);
+    return module != null && !module.userEnabled();
+  }
+
+  private boolean switchChecked;
+
+  /**
+   * Once per install: before 1.6.8 the switch meant "luka's chat options off, plain vanilla chat"; now off hides chat.
+   * A player who had it off keeps seeing chat: the switch goes on with every option set to vanilla's behaviour.
+   */
+  @Override
+  public void sync() {
+    if (switchChecked) return;
+    switchChecked = true;
+    try {
+      java.io.File marker = new java.io.File(mc.mcDataDir, "config/cbui/chat-switch-hides.done");
+      if (marker.exists()) return;
+      if (!userEnabled()) {
+        noBackground.set(false);
+        shadow.set(true);
+        smooth.set(false);
+        highlight.set(false);
+        mentionSound.set(false);
+        stack.set(false);
+        timestamps.set(false);
+        longHistory.set(false);
+        copy.set(false);
+        enabled(true);
+        if (dev.cbui.Cbui.config() != null && dev.cbui.Cbui.hud() != null) dev.cbui.Cbui.config().save(dev.cbui.Cbui.hud());
+      }
+      if (!marker.getParentFile().isDirectory()) marker.getParentFile().mkdirs();
+      marker.createNewFile();
+    } catch (Throwable error) {
+      dev.cbui.Cbui.reportOnce("chat switch update", error);
+    }
   }
 
   /** Applies the mention options to a new message and returns the message to show. */

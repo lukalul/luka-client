@@ -43,6 +43,14 @@ public abstract class ChatFeaturesMixin implements ChatAccess {
   @Unique private ChatLine cbui$firstBefore;
   @Unique private boolean cbui$reprinting;
 
+  // ---- chat switched off ----
+
+  /** The Chat card's switch is off: no chat lines are drawn at all (the messages are still kept). */
+  @Inject(method = "drawChat", at = @At("HEAD"), cancellable = true, require = 0)
+  private void cbui$hidden(int updateCounter, CallbackInfo ci) {
+    if (ChatModule.hidden()) ci.cancel();
+  }
+
   // ---- background and text shadow ----
 
   /** The first drawRect in drawChat is the dark box behind each line (the later ones are the scroll bar). */

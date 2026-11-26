@@ -76,6 +76,10 @@ public final class LunarImport {
     POSITION_CHILD.put("PING", "PING_HUD");
   }
 
+  /** luka modules whose off switch hides the thing entirely (not "back to vanilla" as in Lunar). */
+  private static final java.util.Set<String> HIDES_WHEN_OFF =
+      new java.util.HashSet<String>(java.util.Arrays.asList("Chat", "Scoreboard"));
+
   private LunarImport() {}
 
   /** Lunar's per-profile settings folder, or null when Lunar Client is not installed for this user. */
@@ -130,8 +134,12 @@ public final class LunarImport {
       JsonObject lunar = e.getAsJsonObject();
       boolean touched = false;
       if (lunar.has("enabled") && lunar.get("enabled").isJsonPrimitive()) {
-        module.enabled(lunar.get("enabled").getAsBoolean());
-        touched = true;
+        boolean on = lunar.get("enabled").getAsBoolean();
+        // Lunar's Chat/Scoreboard mod off means vanilla chat/sidebar; luka's off hides them completely, so keep them on
+        if (on || !HIDES_WHEN_OFF.contains(m.getValue())) {
+          module.enabled(on);
+          touched = true;
+        }
       }
       JsonObject place = lunar.has("position") ? lunar : null;
       String child = POSITION_CHILD.get(m.getKey());

@@ -2,6 +2,14 @@
 
 The launcher shows the notes below on its What's New page. Add a new `## version` heading at the top for each release.
 
+## 1.6.8
+- Saturation no longer draws a light bar behind the hunger icons. That bar (exhaustion) is now an option on the Saturation card, off unless you turn it on.
+- Chat has its own card in the mods list (it was under Settings > General). Its on/off switch now shows or hides chat completely. If you had it off before, it is switched on for you with every chat option at Minecraft's normal behaviour, so your chat stays as it was.
+- Scoreboard: turning it off (its card switch, or the red X in the HUD editor) now hides the scoreboard completely, the server's own one included. Turn it on again to bring it back.
+- HUD editor: the button that hides a box from your HUD is now an eye (crossed out while hidden), and the button that turns the mod off is a red X. The instructions at the top of the HUD screen now wrap and sit on a dark plate instead of running off the screen.
+- Chat Macros: each macro's key is set right on the Chat Macros card, next to its text. The macro keys are no longer listed in Controls or on the Keybinds card. Keys you already set are kept.
+- FPS Profiler has its own card in the mods list (it was under Settings > Performance), with its start/stop key on the card.
+
 ## 1.6.7
 - Discord status: while the launcher is open your Discord profile shows luka ("Idle / In the launcher"), and while you play it shows luka's and Minecraft's version and where you are (menus, singleplayer or the server), with Website and Discord buttons. Closing the game goes back to Idle. In game, the Discord Status module chooses what is shown (server, version, the buttons, or nothing while you play); Streamer mode hides the server. Turn it all off with DISCORD STATUS on the launcher's Settings page.
 - luka's website links to luka's Discord (top bar and a Join the Discord button).

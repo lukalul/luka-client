@@ -1,20 +1,27 @@
 package dev.cbui.feature.chatmacros;
 
+import com.google.gson.JsonObject;
+import dev.cbui.config.JsonFiles;
 import dev.cbui.feature.FeatureModule;
 import dev.cbui.hud.Setting;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.Arrays;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.MathHelper;
-import org.lwjgl.input.Keyboard;
 
-/** Eight configurable, rate-limited chat and command hotkeys. */
+/**
+ * Eight configurable, rate-limited chat and command hotkeys. Each macro's key is set on this card only: the keys are not
+ * listed in Options > Controls or on the Keybinds card, and are kept in {@code config/cbui/macro-keys.json} (until
+ * 1.6.8 they were Controls keys in options.txt; those codes are read once when that file does not exist yet).
+ */
 public final class ChatMacrosModule extends FeatureModule {
   @SuppressWarnings("unchecked")
   public final Setting.Text[] macros = new Setting.Text[8];
+  /** The key of each macro, edited on the card (mouse buttons are -100 + button, as in Controls). */
+  private final Setting.Key[] keyRows = new Setting.Key[8];
+  private final int[] codes = new int[8];
   public final Setting.Slider cooldown = add(new Setting.Slider(
       "Cooldown (ms)", 1000f, 200f, 5000f, 100f,
       "Send preset chat messages or /commands with eight keys; this is the shared delay between sends"));
@@ -34,7 +41,25 @@ public final class ChatMacrosModule extends FeatureModule {
       String tip = i == 0
           ? "Send preset chat messages or /commands with a key; placeholders: {x} {y} {z} {name} {health}"
           : "Text sent by Macro " + (i + 1) + "; leave empty to disable this slot";
-      macros[i] = add(new Setting.Text("Macro " + (i + 1), "", tip));
+      macros[i] = grouped("Macro " + (i + 1), add(new Setting.Text("Macro " + (i + 1), "", tip)));
+      keyRows[i] = grouped("Macro " + (i + 1), add(new Setting.Key("Macro " + (i + 1) + " key", 0,
+          "Click, then press the key that sends this macro; Escape clears it")));
+    }
+    loadCodes();
+    for (int i = 0; i < keyRows.length; i++) {
+      final int slot = i;
+      keyRows[i].bind(new Setting.Key.Binding() {
+        @Override public int get() { return codes[slot]; }
+        @Override public void set(int key) {
+          if (codes[slot] == key) return;
+          codes[slot] = key;
+          if (keys != null) {
+            keys[slot].setKeyCode(key);
+            KeyBinding.resetKeyBindingArrayAndHash();
+          }
+          saveCodes();
+        }
+      });
     }
   }
 
@@ -83,32 +108,63 @@ public final class ChatMacrosModule extends FeatureModule {
     } catch (Throwable ignored) { }
   }
 
+  /**
+   * The macro keys exist as key bindings (so presses are seen like any other key) but are not added to the game's
+   * key list, which is what Options > Controls and the Keybinds card show.
+   */
   private void ensureKeys() {
     if (keys != null || mc.gameSettings == null) return;
     try {
       KeyBinding[] created = new KeyBinding[8];
-      for (int i = 0; i < created.length; i++)
-        created[i] = new KeyBinding("Macro " + (i + 1), Keyboard.KEY_NONE, "Chat Macros");
-      restoreCodes(created);
-      KeyBinding[] old = mc.gameSettings.keyBindings;
-      KeyBinding[] all = Arrays.copyOf(old, old.length + created.length);
-      System.arraycopy(created, 0, all, old.length, created.length);
-      mc.gameSettings.keyBindings = all;
+      for (int i = 0; i < created.length; i++) created[i] = new KeyBinding("Macro " + (i + 1), codes[i], "luka"); // an existing category: no empty Controls heading
       KeyBinding.resetKeyBindingArrayAndHash();
       keys = created;
     } catch (Throwable ignored) { keys = null; }
   }
 
-  private void restoreCodes(KeyBinding[] bindings) throws Exception {
-    File options = new File(mc.mcDataDir, "options.txt");
-    if (!options.isFile()) return;
-    for (String line : Files.readAllLines(options.toPath(), StandardCharsets.UTF_8)) {
-      for (KeyBinding key : bindings) {
-        String prefix = "key_" + key.getKeyDescription() + ":";
-        if (line.startsWith(prefix)) try {
-          key.setKeyCode(Integer.parseInt(line.substring(prefix.length()).trim()));
-        } catch (NumberFormatException ignored) { }
+  private File codesFile() {
+    return new File(mc.mcDataDir, "config/cbui/macro-keys.json");
+  }
+
+  private void loadCodes() {
+    try {
+      File file = codesFile();
+      if (file.isFile()) {
+        JsonObject root = JsonFiles.read(file);
+        for (int i = 0; i < codes.length; i++) {
+          String id = "Macro " + (i + 1);
+          if (root.has(id)) codes[i] = root.get(id).getAsInt();
+        }
+        return;
       }
+      // first start with this version: take the keys the macros had in Controls (options.txt)
+      File options = new File(mc.mcDataDir, "options.txt");
+      if (!options.isFile()) return;
+      boolean found = false;
+      for (String line : Files.readAllLines(options.toPath(), StandardCharsets.UTF_8)) {
+        for (int i = 0; i < codes.length; i++) {
+          String prefix = "key_Macro " + (i + 1) + ":";
+          if (line.startsWith(prefix)) try {
+            codes[i] = Integer.parseInt(line.substring(prefix.length()).trim());
+            found = true;
+          } catch (NumberFormatException ignored) { }
+        }
+      }
+      if (found) saveCodes();
+    } catch (Throwable error) {
+      dev.cbui.Cbui.reportOnce("macro keys load", error);
+    }
+  }
+
+  private void saveCodes() {
+    try {
+      JsonObject root = new JsonObject();
+      for (int i = 0; i < codes.length; i++) if (codes[i] != 0) root.addProperty("Macro " + (i + 1), codes[i]);
+      File file = codesFile();
+      if (!file.getParentFile().isDirectory()) file.getParentFile().mkdirs();
+      JsonFiles.writeAtomic(file, root);
+    } catch (Throwable error) {
+      dev.cbui.Cbui.reportOnce("macro keys save", error);
     }
   }
 }
