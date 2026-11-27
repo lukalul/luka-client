@@ -220,6 +220,41 @@ final class Encoders {
         return java.util.Collections.emptyList();
     }
 
+    /**
+     * Colour. The game's frames are RGB and video is YUV. Left to itself, ffmpeg converts with the old SD matrix (BT.601)
+     * and writes no colour information, so players and editors guess (most take BT.709 for HD video) and colours come out
+     * slightly off: reds towards orange, greens towards yellow. The conversion is made explicit as BT.709 and written into
+     * the file. Normal video uses limited range (16-235, what every player expects); lossless output keeps the full 0-255
+     * range so no shades are merged. Left alone when the player's own encoder arguments already set colour.
+     */
+    static String colorFilter(String args) {
+        if (ownColor(args)) {
+            return "";
+        }
+        // setparams stamps the same values on every frame: newer ffmpeg takes the file's colour tags from the frames
+        String range = lossless(args) ? "full" : "tv";
+        return ",scale=out_color_matrix=bt709:out_range=" + range
+                + ",setparams=range=" + range + ":color_primaries=bt709:color_trc=bt709:colorspace=bt709";
+    }
+
+    /** The colour tags written into the file, matching {@link #colorFilter}. */
+    static java.util.List<String> colorTags(String args) {
+        if (ownColor(args)) {
+            return java.util.Collections.emptyList();
+        }
+        return java.util.Arrays.asList("-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
+                "-color_range", lossless(args) ? "pc" : "tv");
+    }
+
+    /** Lossless output settings: NVENC's lossless tune, or x264/x265 at quantiser or CRF 0. */
+    static boolean lossless(String args) {
+        return args.contains("-tune lossless") || args.matches("(?s).*(^|\\s)-(qp|crf)\\s+0(\\s.*|$)");
+    }
+
+    private static boolean ownColor(String args) {
+        return args.contains("-color") || args.contains("colorspace") || args.contains("out_color_matrix") || args.contains("zscale");
+    }
+
     /** What the filter chain needs at its end for these output arguments: VAAPI encodes frames uploaded to the GPU. */
     static String hwFilter(String args) {
         return args.contains("_vaapi") ? ",format=nv12,hwupload" : "";

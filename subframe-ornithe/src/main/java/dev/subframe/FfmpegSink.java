@@ -73,8 +73,10 @@ final class FfmpegSink implements FrameSink {
         cmd.addAll(Encoders.hwInput(encoderArgs)); // the VAAPI device, for AMD and Intel cards on Linux
         cmd.addAll(Arrays.asList("-f", "rawvideo", "-pix_fmt", "rgb24",
                 "-s", w + "x" + h, "-framerate", String.valueOf(this.encodeFps), "-i", "-",
-                "-vf", "vflip,crop=trunc(iw/2)*2:trunc(ih/2)*2" + (blurFilter != null ? "," + blurFilter : "") + Encoders.hwFilter(encoderArgs)));
+                "-vf", "vflip,crop=trunc(iw/2)*2:trunc(ih/2)*2" + (blurFilter != null ? "," + blurFilter : "")
+                        + Encoders.colorFilter(encoderArgs) + Encoders.hwFilter(encoderArgs)));
         cmd.addAll(Arrays.asList(encoderArgs.trim().split("\\s+")));
+        cmd.addAll(Encoders.colorTags(encoderArgs));
         if (this.encodeFps < fps) {
             slowFile = new File(outFile.getPath() + ".part.mp4");
             cmd.add(slowFile.getAbsolutePath());

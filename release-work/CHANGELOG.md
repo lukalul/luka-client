@@ -2,6 +2,9 @@
 
 The launcher shows the notes below on its What's New page. Add a new `## version` heading at the top for each release.
 
+## 1.6.10
+- Replay renders keep the game's colours. Videos are now converted with the HD colour standard (BT.709) and say so inside the file, so players, editors and frame-blending tools show them as the game drew them. Before, reds and greens came out slightly shifted in most players. Lossless renders keep the full colour range, so no shades are merged.
+
 ## 1.6.9
 - Motion Blur now matches how blur looks in other clients at around 240 FPS. Note: the same level now gives a much shorter trail than before, so you may want to raise your level. New installs start at level 5. V1 Phosphor's strength per level changed slightly (0.72 at level 1 up to 0.99 at level 10).
 - Menu Blur (the blurred world behind menus) has its own card under Visuals instead of a switch in Settings > General. It is off by default; turn it on in the card if you want it.

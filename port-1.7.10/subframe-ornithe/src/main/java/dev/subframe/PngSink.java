@@ -34,12 +34,14 @@ final class PngSink implements FrameSink {
         pw.println("SubFrame frame sequence: " + w + "x" + h + " at " + fps + " fps, numbered from 000001.png.");
         pw.println();
         pw.println("Turn it into a video at the same speed:");
-        pw.println("  ffmpeg -framerate " + fps + " -i %06d.png -c:v libx264 -crf 12 -pix_fmt yuv420p out.mp4");
+        // BT.709 conversion and tags, so players show the colours as the game drew them (see Encoders.colorFilter)
+        String color = " -colorspace bt709 -color_primaries bt709 -color_trc bt709 -color_range tv";
+        pw.println("  ffmpeg -framerate " + fps + " -i %06d.png -vf scale=out_color_matrix=bt709:out_range=tv -c:v libx264 -crf 12 -pix_fmt yuv420p" + color + " out.mp4");
         pw.println();
         int k = Math.max(1, fps / 60);
         pw.println("Blend every " + k + " frames into one (" + fps + " fps -> 60 fps, tested with ffmpeg 7):");
         pw.println("  ffmpeg -framerate " + fps + " -i %06d.png -vf \"tmix=frames=" + k + ",select='not(mod(n\\," + k
-                + "))',setpts=N/(60*TB)\" -r 60 -c:v libx264 -crf 12 -pix_fmt yuv420p blended.mp4");
+                + "))',setpts=N/(60*TB),scale=out_color_matrix=bt709:out_range=tv\" -r 60 -c:v libx264 -crf 12 -pix_fmt yuv420p" + color + " blended.mp4");
         pw.close();
         worker = new Thread(new Runnable() {
             public void run() {
