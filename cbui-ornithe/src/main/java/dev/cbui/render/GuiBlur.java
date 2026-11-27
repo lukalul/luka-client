@@ -16,7 +16,7 @@ import net.minecraft.util.ResourceLocation;
 import org.lwjgl.opengl.GL11;
 
 /**
- * "GUI blur": while a menu is open in a world, the picture behind it is blurred (the game's own two-pass blur post-effect, radius 20).
+ * "Menu Blur": while a menu is open in a world, the picture behind it is blurred (the game's own two-pass blur post-effect, radius 20).
  * It costs nothing during play: the effect is loaded when a menu opens and removed the moment it closes, and only effects this class started are removed.
  * Where post-effect shaders cannot load (Vulkan), the picture is shrunk step by step and stretched back instead, which needs only framebuffers.
  */
@@ -137,7 +137,7 @@ public final class GuiBlur {
 
     private static boolean enabled() {
         if (Cbui.hud() == null) return false;
-        AbstractHudModule module = Cbui.hud().find("GUI blur");
+        AbstractHudModule module = Cbui.hud().find("Menu Blur");
         return module != null && module.enabled();
     }
 

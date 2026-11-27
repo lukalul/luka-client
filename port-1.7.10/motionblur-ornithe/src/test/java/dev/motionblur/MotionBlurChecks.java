@@ -16,13 +16,13 @@ public final class MotionBlurChecks {
         System.out.println("MotionBlur plain-Java checks: ALL PASSED");
     }
 
-    /** The weights at the 60 FPS reference, level by level. */
+    /** The weights per frame at the reference frame rate, level by level. */
     private static void checkLevelWeights() {
         for (int level = 1; level <= 10; level++) {
             require(Math.abs(AlphaMath.frameWeight(level, 1) - Math.min(0.99, level / 10.0)) < 1e-12, "V2 weight at level " + level);
             require(Math.abs(AlphaMath.frameWeight(level, 2) - Math.min(0.675, 0.95 * level / 10.0)) < 1e-12, "V3 weight at level " + level);
             double v1 = AlphaMath.frameWeight(level, 0);
-            require(v1 >= 0.69 - 1e-12 && v1 <= 0.99 + 1e-12, "V1 factor range at level " + level);
+            require(Math.abs(v1 - (0.69 + 0.03 * level)) < 1e-12, "V1 weight at level " + level);
         }
         require(AlphaMath.frameWeight(0, 1) == 0.0 && AlphaMath.frameWeight(0, 2) == 0.0, "level 0 is off");
         require(Math.abs(AlphaMath.frameWeight(5, 1) - 0.5) < 1e-12, "level 5 in V2 keeps half the previous frame");
@@ -35,30 +35,53 @@ public final class MotionBlurChecks {
         System.out.println("weights: V1/V2/V3 formulas for levels 1-10");
     }
 
-    /** Default behaviour: the weight per frame does not depend on the frame time, so the trail gets shorter in real time as FPS rises. */
-    /** The history fades at the same real-time speed at every frame rate. */
+    /** The history fades at the same real-time speed at every frame rate; at the reference frame rate the weight applies as it is. */
     private static void checkFrameRateIndependentMode() {
+        int ref = AlphaMath.DEFAULT_REFERENCE_FPS;
+        require(ref == 240, "the reference is 240 FPS");
         for (int mode = 0; mode < 3; mode++) {
+            for (int level = 1; level <= 10; level++) {
+                double w = AlphaMath.frameWeight(level, mode);
+                require(Math.abs(AlphaMath.retention(w, 1.0 / 240, ref) - w) < 1e-12, "240 FPS keeps the weight (mode " + mode + ", level " + level + ")");
+                require(Math.abs(AlphaMath.retention(w, 1.0 / 120, ref) - w * w) < 1e-12, "120 FPS keeps the weight squared (mode " + mode + ", level " + level + ")");
+                require(Math.abs(AlphaMath.retention(w, 1.0 / 480, ref) - Math.sqrt(w)) < 1e-12, "480 FPS keeps the square root (mode " + mode + ", level " + level + ")");
+            }
             double base = AlphaMath.frameWeight(6, mode);
-            double expected = Math.pow(base, 0.25 / AlphaMath.REFERENCE_DT);
-            for (int fps : new int[] {30, 60, 144, 500, 1000, 2000}) {
+            double expected = Math.pow(base, 0.25 * ref);
+            for (int fps : new int[] {30, 60, 144, 240, 500, 1000, 2000}) {
                 int frames = (int) Math.round(0.25 * fps);
                 double dt = 0.25 / frames, kept = 1.0;
-                for (int i = 0; i < frames; i++) kept *= AlphaMath.retention(base, dt);
+                for (int i = 0; i < frames; i++) kept *= AlphaMath.retention(base, dt, ref);
                 require(Math.abs(kept - expected) < 1e-9, "mode " + mode + " fade drift at " + fps + " FPS");
             }
-            require(Math.abs(AlphaMath.retention(base, AlphaMath.REFERENCE_DT) - base) < 1e-12, "at 60 FPS both modes agree");
         }
-        require(AlphaMath.retention(0.9, 1.0 / 1000) > 0.98, "at 1000 FPS a strong time-scaled blur keeps almost all of the previous frame");
-        System.out.println("time-scaled mode: same real-time fade at 30-2000 FPS for V1/V2/V3, equal to per-frame at 60 FPS");
+        // the decay the rig measures through the real pass at 240 FPS (percent of white after 1, 2, 3 black frames)
+        require(close(Math.pow(AlphaMath.frameWeight(5, 2), 1), 0.475) && close(Math.pow(AlphaMath.frameWeight(5, 2), 3), 0.1072), "V3 level 5 decay");
+        require(close(Math.pow(AlphaMath.frameWeight(10, 2), 2), 0.4556), "V3 level 10 decay");
+        require(close(Math.pow(AlphaMath.frameWeight(5, 1), 3), 0.125), "V2 level 5 decay");
+        require(close(AlphaMath.frameWeight(5, 0), 0.84) && close(Math.pow(AlphaMath.frameWeight(5, 0), 2), 0.7056) && close(Math.pow(AlphaMath.frameWeight(5, 0), 3), 0.5927), "V1 level 5 decay");
+        require(close(AlphaMath.retention(AlphaMath.frameWeight(5, 2), 1.0 / 120, ref), 0.2256), "V3 level 5 at 120 FPS");
+        // another reference frame rate, clamped to 60..1000
+        require(Math.abs(AlphaMath.retention(0.5, 1.0 / 60, 60) - 0.5) < 1e-12, "a 60 FPS reference keeps the weight at 60 FPS");
+        require(AlphaMath.referenceFps(10) == 60 && AlphaMath.referenceFps(5000) == 1000 && AlphaMath.referenceFps(240) == 240, "reference clamp");
+        require(Math.abs(AlphaMath.retention(0.5, 1.0 / 240, 5000) - AlphaMath.retention(0.5, 1.0 / 240, 1000)) < 1e-12, "reference clamped in retention");
+        // the first blend and frame skip: one frame (or N frames) at the reference
+        require(Math.abs(AlphaMath.referenceDt(240, 1) - 1.0 / 240) < 1e-15 && Math.abs(AlphaMath.referenceDt(240, 3) - 3.0 / 240) < 1e-15, "reference dt");
+        require(AlphaMath.retention(0.9, 1.0 / 1000, ref) > 0.97, "at 1000 FPS a strong blur keeps almost all of the previous frame");
+        System.out.println("time-scaled mode: weight as is at 240 FPS, squared at 120, square root at 480; same real-time fade at 30-2000 FPS");
+    }
+
+    private static boolean close(double a, double b) {
+        return Math.abs(a - b) < 5e-4;
     }
 
     private static void checkClamping() {
-        require(AlphaMath.retention(2.0, 99.0) < 1.0, "weight must never reach one");
-        require(AlphaMath.retention(Double.NaN, 1.0) == 0.0, "NaN weight clamp");
-        require(AlphaMath.retention(0.5, -1.0) == AlphaMath.retention(0.5, AlphaMath.MIN_DT), "negative dt clamp");
-        double capped = AlphaMath.retention(0.5, AlphaMath.MAX_DT);
-        require(AlphaMath.retention(0.5, 100.0) == capped, "dt upper clamp");
+        int ref = AlphaMath.DEFAULT_REFERENCE_FPS;
+        require(AlphaMath.retention(2.0, 99.0, ref) < 1.0, "weight must never reach one");
+        require(AlphaMath.retention(Double.NaN, 1.0, ref) == 0.0, "NaN weight clamp");
+        require(AlphaMath.retention(0.5, -1.0, ref) == AlphaMath.retention(0.5, AlphaMath.MIN_DT, ref), "negative dt clamp");
+        double capped = AlphaMath.retention(0.5, AlphaMath.MAX_DT, ref);
+        require(AlphaMath.retention(0.5, 100.0, ref) == capped, "dt upper clamp");
         System.out.printf("clamps: maxDt=%.2fs maxEffective=%.3f%n", AlphaMath.MAX_DT, AlphaMath.MAX_EFFECTIVE_ALPHA);
     }
 
@@ -86,6 +109,8 @@ public final class MotionBlurChecks {
         File file = new File(directory, "motionblur.json");
         try {
             MotionBlurConfig.Data fresh = MotionBlurConfig.load(file);
+            require(fresh.level == 5, "a new config starts at level 5");
+            require(fresh.referenceFps == 240, "a new config uses the 240 FPS reference");
             MotionBlurConfig.Data written = new MotionBlurConfig.Data();
             written.enabled = true;
             written.level = 7;
@@ -99,6 +124,18 @@ public final class MotionBlurChecks {
             require(read.blurMenus == written.blurMenus, "config menus");
             require(read.frameSkip == written.frameSkip, "config frame skip");
             require(read.toggleKey == written.toggleKey, "config key");
+            require(read.referenceFps == 240, "config reference FPS");
+            written.referenceFps = 144;
+            MotionBlurConfig.save(file, written);
+            require(MotionBlurConfig.load(file).referenceFps == 144, "config reference FPS round trip");
+            // a config saved before this change: no referenceFps key, its own level
+            Files.write(file.toPath(), "{ \"enabled\": true, \"level\": 3, \"mode\": 2 }".getBytes("UTF-8"));
+            MotionBlurConfig.Data old = MotionBlurConfig.load(file);
+            require(old.level == 3 && old.referenceFps == 240, "an existing config keeps its level and gets the 240 FPS reference");
+            Files.write(file.toPath(), "{ \"referenceFps\": 20 }".getBytes("UTF-8"));
+            require(MotionBlurConfig.load(file).referenceFps == 60, "reference FPS clamped to 60");
+            Files.write(file.toPath(), "{ \"referenceFps\": 4000 }".getBytes("UTF-8"));
+            require(MotionBlurConfig.load(file).referenceFps == 1000, "reference FPS clamped to 1000");
             System.out.println("config: JSON round trip passed");
         } finally {
             if (file.exists() && !file.delete()) file.deleteOnExit();

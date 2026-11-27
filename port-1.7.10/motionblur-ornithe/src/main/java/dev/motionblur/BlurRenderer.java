@@ -16,7 +16,8 @@ import org.lwjgl.opengl.GL30;
  *   <li>V2 blend: {@code history = history * w + frame * (1 - w)} - symmetric smear</li>
  *   <li>V3 capped blend: V2 with the history weight limited to 0.675 - never gets long or mushy</li>
  * </ul>
- * The weights are scaled by frame time so the look is the same at any FPS. The history lives in 16-bit float textures
+ * The weights apply as they are at the reference frame rate (240 FPS by default, see {@link AlphaMath}) and are scaled by
+ * frame time so the look is the same at any FPS. The history lives in 16-bit float textures
  * (rendered into through a framebuffer), because at hundreds of FPS the weight of a new frame is far below 1/255 and an
  * 8-bit history would stop updating (stuck ghosts). If float framebuffers are unavailable, an 8-bit history copied from
  * the screen is used instead (V1 then behaves like V2).
@@ -118,6 +119,10 @@ public final class BlurRenderer {
             // The settings flag can be switched on without enabledChanged() ever running (a config that loads as
             // enabled): then BlurState stayed off and no frame was ever blended. Keep the two in step here.
             STATE.setEnabled(true);
+            if (selfTest != null) {
+                runSelfTest(mc);
+                return;
+            }
             if (MotionBlurSettings.level <= 0) {
                 STATE.clearHistory();
                 return;
@@ -142,9 +147,14 @@ public final class BlurRenderer {
                 lastBlendNanos = System.nanoTime();
             } else if (action == BlurState.Action.BLEND) {
                 long now = System.nanoTime();
-                double dt = fixedDt > 0 ? fixedDt : lastBlendNanos == 0L ? AlphaMath.REFERENCE_DT : (now - lastBlendNanos) / 1_000_000_000.0;
+                int ref = MotionBlurSettings.referenceFps;
+                int skip = AlphaMath.clamp(MotionBlurSettings.frameSkip, 1, 10);
+                // a blend stands for every frame since the last one: with "Blend every Nth frame" that is N frames, also
+                // for offline renders, where fixedDt is the time of one rendered frame
+                double dt = fixedDt > 0 ? fixedDt * skip
+                    : lastBlendNanos == 0L ? AlphaMath.referenceDt(ref, skip) : (now - lastBlendNanos) / 1_000_000_000.0;
                 lastBlendNanos = now;
-                float keep = (float) AlphaMath.retention(AlphaMath.frameWeight(MotionBlurSettings.level, mode), dt);
+                float keep = (float) AlphaMath.retention(AlphaMath.frameWeight(MotionBlurSettings.level, mode), dt, ref);
                 dbgBlends++;
                 dbgWeight += keep;
                 if (MotionBlurSettings.handOnly) HandBlur.composite(mc.displayWidth, mc.displayHeight, keep, false, PASS);
@@ -156,6 +166,71 @@ public final class BlurRenderer {
             gpu(false);
             MotionBlur.report("render", t);
         }
+    }
+
+    /**
+     * Decay check for the test rig: set to {@code "<mode 0-2>,<level>[,frames]"} (commas or spaces) while the blur is on. On the next frame the
+     * real pass is run on one white frame and then {@code frames} black ones (all within that frame), and the centre of the
+     * screen after each pass is written to {@link #selfTestResult} as a percentage of white. Uses {@link #fixedDt} when set,
+     * else one frame at the reference frame rate. The history then starts afresh.
+     */
+    public static volatile String selfTest;
+    public static volatile String selfTestResult = "";
+
+    private static void runSelfTest(Minecraft mc) {
+        String spec = selfTest;
+        selfTest = null;
+        StringBuilder out = new StringBuilder();
+        try {
+            String[] p = spec.trim().split("[\\s,]+");
+            int mode = AlphaMath.clamp(Integer.parseInt(p[0]), 0, 2);
+            int level = AlphaMath.clamp(Integer.parseInt(p[1]), 1, 10);
+            int frames = p.length > 2 ? AlphaMath.clamp(Integer.parseInt(p[2]), 1, 20) : 3;
+            int w = mc.displayWidth, h = mc.displayHeight;
+            int ref = AlphaMath.referenceFps(MotionBlurSettings.referenceFps);
+            double dt = fixedDt > 0 ? fixedDt : 1.0 / ref;
+            double weight = AlphaMath.frameWeight(level, mode);
+            float keep = (float) AlphaMath.retention(weight, dt, ref);
+            STATE.clearHistory();
+            fillScreen(1f);
+            process(w, h, 0f, true, mode);
+            out.append(String.format(java.util.Locale.ROOT, "mode=V%d level=%d weight=%.4f dt=%.6f ref=%d keep=%.4f floatHistory=%b size=%dx%d seed=%.1f |",
+                mode + 1, level, weight, dt, ref, keep, fboOk, w, h, centrePercent(w, h)));
+            for (int i = 0; i < frames; i++) {
+                fillScreen(0f);
+                process(w, h, keep, false, mode);
+                out.append(String.format(java.util.Locale.ROOT, " %.1f", centrePercent(w, h)));
+            }
+        } catch (Throwable t) {
+            out.append(" ERROR ").append(t);
+        }
+        STATE.clearHistory();
+        selfTestResult = out.toString();
+        System.out.println("[motionblur] self-test " + selfTestResult);
+    }
+
+    private static void fillScreen(float value) {
+        GL11.glPushAttrib(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_SCISSOR_BIT);
+        try {
+            GL11.glDisable(GL11.GL_SCISSOR_TEST);
+            GL11.glColorMask(true, true, true, true);
+            GL11.glClearColor(value, value, value, 1f);
+            GL11.glClear(GL11.GL_COLOR_BUFFER_BIT);
+        } finally {
+            GL11.glPopAttrib();
+        }
+    }
+
+    /** The mean of R, G and B over a 16x16 block in the middle of the bound framebuffer, in percent of 255. */
+    private static double centrePercent(int w, int h) {
+        int size = 16;
+        ByteBuffer pixels = org.lwjgl.BufferUtils.createByteBuffer(size * size * 4);
+        GL11.glReadPixels(w / 2 - size / 2, h / 2 - size / 2, size, size, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
+        long sum = 0;
+        for (int i = 0; i < size * size; i++) {
+            sum += (pixels.get(i * 4) & 0xFF) + (pixels.get(i * 4 + 1) & 0xFF) + (pixels.get(i * 4 + 2) & 0xFF);
+        }
+        return sum * 100.0 / (size * size * 3 * 255.0);
     }
 
     /** Writes how many frames were blended (only when config/motionblur-debug exists). */

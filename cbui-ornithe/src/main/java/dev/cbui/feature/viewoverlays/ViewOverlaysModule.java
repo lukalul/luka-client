@@ -3,6 +3,9 @@ package dev.cbui.feature.viewoverlays;
 import dev.cbui.feature.FeatureModule;
 import dev.cbui.feature.Features;
 import dev.cbui.hud.Setting;
+import net.minecraft.block.Block;
+import net.minecraft.block.material.Material;
+import net.minecraft.init.Blocks;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.entity.Entity;
@@ -17,6 +20,7 @@ public final class ViewOverlaysModule extends FeatureModule {
   private static final String ARM = "Your arm";
   private static final String CURSE = "Guardian curse";
   private static final String WATER = "Underwater";
+  private static final String LAVA = "Lava";
   private static final String FIRE = "Burning";
   private static final String BLOCK = "Inside blocks";
   private static final String PORTAL = "Portal";
@@ -32,6 +36,10 @@ public final class ViewOverlaysModule extends FeatureModule {
       "Curse flash size", 1, 0.1f, 2, 0.1f, "Size of the elder guardian's face compared to vanilla.")));
   private final Setting.Toggle clearWater = grouped(WATER, add(new Setting.Toggle(
       "Clear underwater view", false, "Drops the rippling texture over the screen underwater.")));
+  private final Setting.Toggle clearWaterFog = grouped(WATER, add(new Setting.Toggle(
+      "Clear water", false, "See through water as if it were air: no blue fog or short view distance (and no ripple texture). The water itself still shows.")));
+  private final Setting.Toggle clearLava = grouped(LAVA, add(new Setting.Toggle(
+      "Clear lava", false, "See through lava as if it were air: no red fog or short view distance. The lava and its surface still show.")));
   private final Setting.Toggle fireproofNoFlames = grouped(FIRE, add(new Setting.Toggle(
       "No flames when fireproof", false, "Skips the flames on screen in creative mode or with fire resistance.")));
   private final Setting.Slider flameStrength = grouped(FIRE, add(new Setting.Slider(
@@ -120,7 +128,24 @@ public final class ViewOverlaysModule extends FeatureModule {
 
   // ---- water ----
 
-  public boolean skipWaterTexture() { return clearWater.get(); }
+  public boolean skipWaterTexture() { return clearWater.get() || clearWaterFog.get(); }
+
+  // ---- clear water and lava ----
+
+  /**
+   * The block fog and fog colour should treat the camera as being in: air when Clear water or Clear lava covers the liquid the
+   * camera is in, so the game fogs as in the open (vanilla's own air fog, which also follows luka's fog options). The
+   * liquid blocks themselves are drawn as always.
+   */
+  public static Block fogBlock(Block block) {
+    if (block == null) return null;
+    Material material = block.getMaterial();
+    if (material != Material.water && material != Material.lava) return block;
+    ViewOverlaysModule module = active();
+    if (module == null) return block;
+    if (material == Material.water ? module.clearWaterFog.get() : module.clearLava.get()) return Blocks.air;
+    return block;
+  }
 
   // ---- fire ----
 

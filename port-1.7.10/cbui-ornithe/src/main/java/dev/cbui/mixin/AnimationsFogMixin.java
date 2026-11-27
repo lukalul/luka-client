@@ -32,7 +32,7 @@ public abstract class AnimationsFogMixin {
     EntityLivingBase viewer = mc.renderViewEntity;
     if (viewer == null || mc.theWorld == null) return;
     if (viewer.isPotionActive(Potion.blindness)) return;
-    Block block = ActiveRenderInfo.getBlockAtEntityViewpoint(mc.theWorld, viewer, partialTicks);
+    Block block = dev.cbui.feature.viewoverlays.ViewOverlaysModule.fogBlock(ActiveRenderInfo.getBlockAtEntityViewpoint(mc.theWorld, viewer, partialTicks));
     Material material = block.getMaterial();
     if (material == Material.water || material == Material.lava) {
       if (!liquid) GlStateManager.setFogDensity(0.0F);

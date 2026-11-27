@@ -38,6 +38,8 @@ final class RenderServer {
 
     // the settings each job may change, as the game had them when the server started
     private int outputFps, subframes, maxSeconds, renderWidth, renderHeight;
+    private double shutter;
+    private String weighting;
     private boolean exportVideo, blend, outputPng, showContainers;
     private float fov, gamma;
     private int renderDistance, particles;
@@ -151,6 +153,8 @@ final class RenderServer {
     private void snapshot(Minecraft mc) {
         outputFps = SubFrameMod.outputFps;
         subframes = SubFrameMod.subframes;
+        shutter = SubFrameMod.shutter;
+        weighting = SubFrameMod.weighting;
         maxSeconds = SubFrameMod.maxSeconds;
         renderWidth = SubFrameMod.renderWidth;
         renderHeight = SubFrameMod.renderHeight;
@@ -174,6 +178,8 @@ final class RenderServer {
         }
         SubFrameMod.outputFps = outputFps;
         SubFrameMod.subframes = subframes;
+        SubFrameMod.shutter = shutter;
+        SubFrameMod.weighting = weighting;
         SubFrameMod.maxSeconds = maxSeconds;
         SubFrameMod.renderWidth = renderWidth;
         SubFrameMod.renderHeight = renderHeight;

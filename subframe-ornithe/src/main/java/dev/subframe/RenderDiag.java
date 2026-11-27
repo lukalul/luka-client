@@ -53,7 +53,7 @@ final class RenderDiag {
                 .append('\n');
         sb.append("SubFrame: fps=").append(SubFrameMod.outputFps).append(" subframes=").append(SubFrameMod.subframes)
                 .append(" blend=").append(SubFrameMod.blend).append(" png=").append(SubFrameMod.outputPng)
-                .append(" shutter=").append(SubFrameMod.shutter).append(" maxSeconds=").append(SubFrameMod.maxSeconds)
+                .append(" shutter=").append(SubFrameMod.shutter).append(" weighting=").append(SubFrameMod.weighting).append(" maxSeconds=").append(SubFrameMod.maxSeconds)
                 .append(" useRecordedSettings=").append(SubFrameMod.useRecordedSettings).append('\n');
         sb.append("recording: frames=").append(rec.frameCount).append(" packets=").append(rec.packets.size())
                 .append(" tickSnapshots=").append(rec.ticks.size()).append(" joinTick=").append(rec.joinTick)

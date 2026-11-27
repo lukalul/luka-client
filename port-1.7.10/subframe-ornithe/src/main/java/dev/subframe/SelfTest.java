@@ -21,6 +21,8 @@ final class SelfTest {
     private static final String VIEWREC = System.getProperty("subframe.viewrec");
     private static final String RENDERREC = System.getProperty("subframe.renderrec");
     private static final boolean VIEWMENU = Boolean.getBoolean("subframe.viewmenu");
+    /** -Dsubframe.menushots=true: the viewer menu at each GUI scale, a screenshot each, layout lines, then quit. */
+    private static final boolean MENUSHOTS = Boolean.getBoolean("subframe.menushots");
     private static final boolean NOSTART = Boolean.getBoolean("subframe.nostart");
     /** Developer check: in the test world take an in-game screenshot (with the client's own crosshair), then quit. */
     private static final boolean SHOT = Boolean.getBoolean("subframe.shot");
@@ -53,7 +55,12 @@ final class SelfTest {
                     SubFrameMod.blend = Boolean.parseBoolean(System.getProperty("subframe.render.blend", "false"));
                     SubFrameMod.maxSeconds = Integer.getInteger("subframe.render.seconds", 20);
                     SubFrameMod.LOG.info("[render] rendering " + RENDERREC);
-                    Replay.start(new File(RENDERREC));
+                    if (SubFrameMod.captureLive) {
+                        // -Dsubframe.diff=true too: compare this recording's saved live frames with the replay (A/B of a change)
+                        Replay.startDiff(new File(RENDERREC));
+                    } else {
+                        Replay.start(new File(RENDERREC));
+                    }
                     replayStarted = Replay.active != null;
                     stage = replayStarted ? Stage.REPLAYING : Stage.DONE;
                     timer = 0;
@@ -258,6 +265,10 @@ final class SelfTest {
             viewStart = System.nanoTime();
         }
         double sec = (System.nanoTime() - viewStart) / 1e9;
+        if (MENUSHOTS) {
+            menuShots(sec);
+            return;
+        }
         if (VIEWMENU) {
             fpsBoxCheck(sec);
             return;
@@ -297,7 +308,7 @@ final class SelfTest {
             SubFrameMod.LOG.info("[fpsbox] FAIL: the viewer menu did not open (" + mc.currentScreen + ")");
         } else {
             ReplayMenuScreen s = (ReplayMenuScreen) mc.currentScreen;
-            int fx = s.width / 2 + 61, fy = s.height / 4 + 100;
+            int fx = s.fpsBoxPoint()[0], fy = s.fpsBoxPoint()[1];
             SubFrameMod.LOG.info("[fpsbox] start: fps=" + SubFrameMod.outputFps + " box='" + s.fpsText() + "'");
             s.mouseClicked(fx, fy, 0);
             boxType(s, "####144!");
@@ -312,7 +323,7 @@ final class SelfTest {
             SubFrameMod.LOG.info("[fpsbox] typed 75 + Enter: fps=" + SubFrameMod.outputFps + " box='" + s.fpsText() + "'");
             s.mouseClicked(fx, fy, 0);
             boxType(s, "###333");
-            s.mouseClicked(s.width / 2 - 90, s.height / 4 + 95, 0);
+            s.mouseClicked(s.fpsPresetPoint()[0], s.fpsPresetPoint()[1], 0);
             SubFrameMod.LOG.info("[fpsbox] typed 333 then clicked the preset button: fps=" + SubFrameMod.outputFps + " box='" + s.fpsText() + "'");
             s.mouseClicked(fx, fy, 0);
             boxType(s, "#####5000!");
@@ -328,6 +339,72 @@ final class SelfTest {
         }
         Replay.abort();
         mc.shutdown();
+    }
+
+    /** GUI scales the menu pictures are taken at (0 = Auto). */
+    private static final int[] SHOT_SCALES = {0, 1, 2, 3, 4};
+    private int shotStep = -1, shotFrames, savedGuiScale;
+
+    /** Menu pictures (-Dsubframe.menushots): one per GUI scale, saved as screenshots/subframe-menu-scale<N>.png. */
+    private void menuShots(double sec) {
+        if (sec < 6) {
+            return;
+        }
+        if (shotStep < 0) {
+            savedGuiScale = mc.gameSettings.guiScale;
+            shotStep = 0;
+            openMenuAt(SHOT_SCALES[0]);
+            return;
+        }
+        if (++shotFrames < 4) {
+            return;
+        }
+        int scale = SHOT_SCALES[shotStep];
+        if (mc.currentScreen instanceof ReplayMenuScreen) {
+            ReplayMenuScreen s = (ReplayMenuScreen) mc.currentScreen;
+            SubFrameMod.LOG.info("[menushot] scale " + (scale == 0 ? "auto" : scale) + ": " + s.layoutReport());
+            try {
+                net.minecraft.util.ScreenShotHelper.saveScreenshot(mc.mcDataDir, "subframe-menu-scale" + scale + ".png", mc.displayWidth, mc.displayHeight, mc.getFramebuffer());
+            } catch (Throwable t) {
+                SubFrameMod.LOG.error("[menushot] screenshot failed", t);
+            }
+            if (scale == 0) {
+                // the new buttons respond: two clicks on Intensity, three on Weighting, then the hints over them
+                double i0 = SubFrameMod.shutter;
+                String w0 = SubFrameMod.weighting;
+                s.mouseClicked(s.intensityPoint()[0], s.intensityPoint()[1], 0);
+                String i1 = ReplayMenuScreen.intensityText(SubFrameMod.shutter);
+                s.mouseClicked(s.intensityPoint()[0], s.intensityPoint()[1], 0);
+                String i2 = ReplayMenuScreen.intensityText(SubFrameMod.shutter);
+                StringBuilder w = new StringBuilder();
+                for (int k = 0; k < 3; k++) {
+                    s.mouseClicked(s.weightPoint()[0], s.weightPoint()[1], 0);
+                    w.append(k == 0 ? "" : " -> ").append(SubFrameMod.weighting);
+                }
+                SubFrameMod.LOG.info("[menushot] intensity " + ReplayMenuScreen.intensityText(i0) + " -> " + i1 + " -> " + i2 + "; weighting " + w0 + " -> " + w);
+                SubFrameMod.LOG.info("[menushot] hint over Intensity: " + s.hintAt(s.intensityPoint()[0], s.intensityPoint()[1]));
+                SubFrameMod.LOG.info("[menushot] hint over Weighting: " + s.hintAt(s.weightPoint()[0], s.weightPoint()[1]));
+                SubFrameMod.shutter = i0;
+                SubFrameMod.weighting = w0;
+            }
+        } else {
+            SubFrameMod.LOG.info("[menushot] FAIL: the viewer menu is not open at scale " + scale + " (" + mc.currentScreen + ")");
+        }
+        shotStep++;
+        if (shotStep < SHOT_SCALES.length) {
+            openMenuAt(SHOT_SCALES[shotStep]);
+            return;
+        }
+        mc.gameSettings.guiScale = savedGuiScale;
+        finishedView = true;
+        Replay.abort();
+        mc.shutdown();
+    }
+
+    private void openMenuAt(int scale) {
+        mc.gameSettings.guiScale = scale;
+        shotFrames = 0;
+        mc.displayGuiScreen(new ReplayMenuScreen());
     }
 
     /** \b is Backspace, \n is Enter, anything else is typed as a character. */

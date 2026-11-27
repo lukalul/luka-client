@@ -32,7 +32,10 @@ public final class SubFrameMod implements ClientModInitializer {
     static volatile long lastBeat;
     static int outputFps = 60;
     static int subframes = 16;
+    /** Intensity of the in-mod frame blending: how many output frame intervals each frame's subframes span (0.05 to 2). */
     static double shutter = 0.5;
+    /** How the subframes of one frame are weighted (BlendPlan.WEIGHTINGS). */
+    static String weighting = "equal";
     static int warmupFrames = 60;
     static boolean exportVideo = true;
     static boolean blend = true;
@@ -372,7 +375,8 @@ public final class SubFrameMod implements ClientModInitializer {
         }
         outputFps = integer(p, "outputFps", outputFps, 1, 1_000_000);
         subframes = integer(p, "subframes", subframes, 1, 4096);
-        shutter = decimal(p, "shutter", shutter);
+        shutter = BlendPlan.clampIntensity(decimal(p, "shutter", shutter));
+        weighting = BlendPlan.normalizeName(p.getProperty("weighting", weighting));
         warmupFrames = integer(p, "warmupFrames", warmupFrames, 0, 1000);
         maxSeconds = integer(p, "maxSeconds", maxSeconds, 0, 100000);
         gpuQp = integer(p, "gpuQuality", gpuQp, 1, 51);
@@ -403,6 +407,7 @@ public final class SubFrameMod implements ClientModInitializer {
         p.setProperty("outputFps", Integer.toString(outputFps));
         p.setProperty("subframes", Integer.toString(subframes));
         p.setProperty("shutter", Double.toString(shutter));
+        p.setProperty("weighting", weighting);
         p.setProperty("warmupFrames", Integer.toString(warmupFrames));
         p.setProperty("maxSeconds", Integer.toString(maxSeconds));
         p.setProperty("gpuQuality", Integer.toString(gpuQp));

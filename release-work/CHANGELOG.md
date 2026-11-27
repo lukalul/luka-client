@@ -2,6 +2,16 @@
 
 The launcher shows the notes below on its What's New page. Add a new `## version` heading at the top for each release.
 
+## 1.6.9
+- Motion Blur now matches how blur looks in other clients at around 240 FPS. Note: the same level now gives a much shorter trail than before, so you may want to raise your level. New installs start at level 5. V1 Phosphor's strength per level changed slightly (0.72 at level 1 up to 0.99 at level 10).
+- Menu Blur (the blurred world behind menus) has its own card under Visuals instead of a switch in Settings > General. It is off by default; turn it on in the card if you want it.
+- Potion counter: new "Numbers only" option shows just the count (12) instead of "Health potions: 12".
+- Overlay Tweaks: new "Clear water" and "Clear lava" options. With your head in water or lava you see as far and as clearly as in the open, without the blue or red fog. The water or lava itself, and its surface, still show.
+- No Glint: new "Glint toggle key" on the card. Press it in game to hide or show the enchantment shine, even while the card is off.
+- Replays: your own hit particles now appear at the moment they did in your game, instead of popping in a moment late, part-way through their motion.
+- Replay renders with "Blending in mod": choose how the moments in each frame are weighted (Equal, Ascending, Descending, Pyramid, Gaussian, Gaussian sym, Gaussian reverse) and the Intensity of the blur (0.25 to 2; above 1 neighbouring frames share moments for a heavy smear). Equal at 0.5 looks the same as before. luka's Motion Blur now pauses during a blended render, so the two blurs no longer stack, and comes back afterwards.
+- The replay menu is laid out in two columns (Replay and Render settings) so it fits on the screen at every GUI scale.
+
 ## 1.6.8
 - Saturation no longer draws a light bar behind the hunger icons. That bar (exhaustion) is now an option on the Saturation card, off unless you turn it on.
 - Chat has its own card in the mods list (it was under Settings > General). Its on/off switch now shows or hides chat completely. If you had it off before, it is switched on for you with every chat option at Minecraft's normal behaviour, so your chat stays as it was.

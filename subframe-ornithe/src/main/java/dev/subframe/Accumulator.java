@@ -10,8 +10,9 @@ import org.lwjgl.opengl.GL30;
 import java.nio.ByteBuffer;
 
 /**
- * A float16 accumulation buffer. Each subframe is converted from sRGB to linear light, scaled by its
- * weight and added; resolve() converts the sum back to sRGB and draws it into the game framebuffer.
+ * Float16 accumulation buffers ("slots", one per output frame being blended at the same time). Each subframe is copied once
+ * ({@link #capture}), converted from sRGB to linear light, scaled by its weight and added to every slot it counts in
+ * ({@link #addCaptured}); {@link #resolve} converts a slot's sum back to sRGB and draws it into the game framebuffer.
  */
 final class Accumulator {
     private static final String VERT =
@@ -26,23 +27,29 @@ final class Accumulator {
             + "  gl_FragColor = vec4(pow(c, vec3(1.0 / 2.2)), 1.0); }";
 
     private final int w, h;
-    private final int tex, fbo;
+    /** One float16 texture and framebuffer per slot. */
+    private final int[] tex, fbo;
     /** Receives a copy of the frame the game just drew, wherever it drew it (window or off-screen buffer). */
     private final int staging;
     private final int progAdd, progOut;
 
-    Accumulator(int w, int h) {
+    Accumulator(int w, int h, int slots) {
         this.w = w;
         this.h = h;
+        int count = Math.max(1, slots);
+        tex = new int[count];
+        fbo = new int[count];
         GL11.glPushAttrib(GL11.GL_TEXTURE_BIT);
-        tex = GL11.glGenTextures();
-        GL11.glBindTexture(GL11.GL_TEXTURE_2D, tex);
-        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST);
-        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
-        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_CLAMP);
-        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_CLAMP);
-        GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_RGBA16F, w, h, 0, GL11.GL_RGBA, GL11.GL_FLOAT,
-                (ByteBuffer) null);
+        for (int i = 0; i < count; i++) {
+            tex[i] = GL11.glGenTextures();
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, tex[i]);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_CLAMP);
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_CLAMP);
+            GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL30.GL_RGBA16F, w, h, 0, GL11.GL_RGBA, GL11.GL_FLOAT,
+                    (ByteBuffer) null);
+        }
         staging = GL11.glGenTextures();
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, staging);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST);
@@ -52,10 +59,12 @@ final class Accumulator {
         GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, w, h, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE,
                 (ByteBuffer) null);
         GL11.glPopAttrib();
-        fbo = OpenGlHelper.glGenFramebuffers();
-        OpenGlHelper.glBindFramebuffer(OpenGlHelper.GL_FRAMEBUFFER, fbo);
-        OpenGlHelper.glFramebufferTexture2D(OpenGlHelper.GL_FRAMEBUFFER, OpenGlHelper.GL_COLOR_ATTACHMENT0,
-                GL11.GL_TEXTURE_2D, tex, 0);
+        for (int i = 0; i < count; i++) {
+            fbo[i] = OpenGlHelper.glGenFramebuffers();
+            OpenGlHelper.glBindFramebuffer(OpenGlHelper.GL_FRAMEBUFFER, fbo[i]);
+            OpenGlHelper.glFramebufferTexture2D(OpenGlHelper.GL_FRAMEBUFFER, OpenGlHelper.GL_COLOR_ATTACHMENT0,
+                    GL11.GL_TEXTURE_2D, tex[i], 0);
+        }
         restoreGameFramebuffer();
         progAdd = program(FRAG_ADD);
         progOut = program(FRAG_OUT);
@@ -159,20 +168,28 @@ final class Accumulator {
         }
     }
 
-    void clear() {
+    int slots() {
+        return fbo.length;
+    }
+
+    void clear(int slot) {
         restoreTarget = boundFbo();
         GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
-        OpenGlHelper.glBindFramebuffer(OpenGlHelper.GL_FRAMEBUFFER, fbo);
+        OpenGlHelper.glBindFramebuffer(OpenGlHelper.GL_FRAMEBUFFER, fbo[slot]);
         GL11.glClearColor(0, 0, 0, 0);
         GL11.glClear(GL11.GL_COLOR_BUFFER_BIT);
         GL11.glPopAttrib();
         restoreGameFramebuffer();
     }
 
-    /** Adds the game framebuffer's current contents, scaled by weight, in linear light. */
-    void add(float weight) {
+    /** Copies the frame the game just drew, for {@link #addCaptured}. */
+    void capture() {
         copyScreen();
-        beginPass(fbo, progAdd, staging, true);
+    }
+
+    /** Adds the captured frame to a slot, scaled by weight, in linear light. */
+    void addCaptured(int slot, float weight) {
+        beginPass(fbo[slot], progAdd, staging, true);
         GL20.glUniform1f(GL20.glGetUniformLocation(progAdd, "weight"), weight);
         quad();
         endPass();
@@ -186,18 +203,20 @@ final class Accumulator {
         GL11.glPopAttrib();
     }
 
-    /** Draws the accumulated image into the game framebuffer as sRGB. */
-    void resolve() {
+    /** Draws a slot's accumulated image into the game framebuffer as sRGB. */
+    void resolve(int slot) {
         Framebuffer fb = Minecraft.getMinecraft().getFramebuffer();
-        beginPass(fb.framebufferObject, progOut, tex, false);
+        beginPass(fb.framebufferObject, progOut, tex[slot], false);
         quad();
         endPass();
     }
 
     void delete() {
-        GL11.glDeleteTextures(tex);
+        for (int i = 0; i < fbo.length; i++) {
+            GL11.glDeleteTextures(tex[i]);
+            OpenGlHelper.glDeleteFramebuffers(fbo[i]);
+        }
         GL11.glDeleteTextures(staging);
-        OpenGlHelper.glDeleteFramebuffers(fbo);
         GL20.glDeleteProgram(progAdd);
         GL20.glDeleteProgram(progOut);
     }

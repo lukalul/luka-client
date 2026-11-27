@@ -65,6 +65,7 @@
     "AnimationsSkyMixin",
     "AnimationsStarsMixin",
     "AnimationsFogMixin",
+    "ClearLiquidFogMixin",
     "GuiNewChatMixin",
     "ArgentumPylonFullscreenMixin",
     "MovementInputMixin",

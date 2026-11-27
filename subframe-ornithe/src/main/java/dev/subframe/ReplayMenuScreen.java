@@ -15,14 +15,22 @@ final class ReplayMenuScreen extends GuiScreen {
     private static final int MIN_FPS = 1, MAX_FPS = 1_000_000;
     private static final int[] SUBFRAMES = {1, 4, 8, 16, 32, 64, 128};
 
+    /** Frame blending intensity presets (the shutter: share of the gap to the next frame that each frame blurs). */
+    private static final double[] INTENSITIES = {0.25, 0.5, 0.75, 1.0, 1.5, 2.0};
+
     private static final int RESUME = 0, OPTIONS = 1, FPS_BTN = 2, SUB_BTN = 3, RENDER = 4, QUIT = 5, BLEND_BTN = 6, OUT_BTN = 7, ENC_BTN = 8, GAME_MENU_BTN = 9,
-            RES_BTN = 11, CONTAINERS_BTN = 12;
+            RES_BTN = 11, CONTAINERS_BTN = 12, WEIGHT_BTN = 13, INTENSITY_BTN = 14;
     /** Render size presets (0 x 0 = the window's size); any other size is typed into the box beside the button. */
     private static final int[][] SIZES = {{0, 0}, {1280, 720}, {1920, 1080}, {2560, 1440}, {3840, 2160}};
     /** Same bounds as renderWidth/renderHeight in subframe.properties. */
     static final int MIN_SIZE = 16, MAX_W = 7680, MAX_H = 4320;
 
-    private GuiButton fpsButton, subButton, blendButton, outButton, encButton, resButton, containersButton;
+    private GuiButton fpsButton, subButton, blendButton, outButton, encButton, resButton, containersButton, weightButton, intensityButton;
+    /** Layout: where the title, the two column headings and the hint line go (two columns when the screen is wide enough). */
+    private int titleY, headY, hintY, leftX, rightX;
+    private boolean twoColumns;
+    /** Where the render settings column starts and its row pitch (hover help and self-test clicks). */
+    private int setX, setY, setPitch;
     /** Render size typed in by hand ("2560x1080"). */
     private GuiTextField resField;
     private int resX, resY;
@@ -35,44 +43,125 @@ final class ReplayMenuScreen extends GuiScreen {
     @Override
     public void initGui() {
         buttonList.clear();
-        int x = width / 2 - 100;
-        int y = height / 4;
-        buttonList.add(new GuiButton(RESUME, x, y, 200, 20, "Back to replay"));
-        buttonList.add(new GuiButton(OPTIONS, x, y + 28, 200, 20, "Options (video, resource packs, shaders)..."));
-        buttonList.add(new GuiButton(GAME_MENU_BTN, x, y + 52, 200, 20, "Game menu (other mods' settings)..."));
-        fpsButton = new GuiButton(FPS_BTN, x, y + 90, 146, 20, "");
         Keyboard.enableRepeatEvents(true);
-        fpsField = new GuiTextField(10, fontRendererObj, boxX = x + 151, boxY = y + 91, BOX_W, BOX_H);
+        // Two columns (replay on the left, render settings on the right) fit even the default GUI scale of a 720p window
+        // (426 x 240); one column is only used when the screen is narrower than that, with tighter rows.
+        twoColumns = width >= 420;
+        int pitch = twoColumns || height >= 330 ? 24 : 22;
+        int rightRows = 7;
+        int block = rightRows * pitch - (pitch - 20);
+        if (twoColumns) {
+            leftX = width / 2 - 205;
+            rightX = width / 2 + 5;
+            int total = 14 + 12 + block + 14;
+            titleY = Math.max(6, Math.min(height / 4 - 30, (height - total) / 2));
+            headY = titleY + 14;
+            int top = headY + 12;
+            placeLeft(leftX, top, new int[]{0, pitch, 2 * pitch, 5 * pitch, 6 * pitch});
+            placeRight(rightX, top, pitch);
+            hintY = top + block + 4;
+        } else {
+            leftX = width / 2 - 100;
+            rightX = leftX;
+            titleY = 4;
+            headY = -100;
+            int top = titleY + 14;
+            placeLeft(leftX, top, new int[]{0, pitch, 2 * pitch, 3 * pitch + 10 + rightRows * pitch, 4 * pitch + 10 + rightRows * pitch});
+            placeRight(rightX, top + 3 * pitch + 6, pitch);
+            hintY = Math.min(height - 10, top + 5 * pitch + 12 + rightRows * pitch);
+        }
+        refreshLabels();
+    }
+
+    /** Back to replay, Options, Game menu, Render, Close: at {@code x}, rows {@code y + dy[i]}. */
+    private void placeLeft(int x, int y, int[] dy) {
+        buttonList.add(new GuiButton(RESUME, x, y + dy[0], 200, 20, "Back to replay"));
+        buttonList.add(new GuiButton(OPTIONS, x, y + dy[1], 200, 20, "Options (video, packs, shaders)..."));
+        buttonList.add(new GuiButton(GAME_MENU_BTN, x, y + dy[2], 200, 20, "Game menu (other mods' settings)..."));
+        Replay active = Replay.active;
+        String sel = active != null ? active.rangeLabel() : null;
+        buttonList.add(new GuiButton(RENDER, x, y + dy[3], 200, 20, sel == null ? "Render video with these settings" : "Render " + sel + " with these settings"));
+        buttonList.add(new GuiButton(QUIT, x, y + dy[4], 200, 20, "Close replay"));
+    }
+
+    /** The render settings, one row every {@code pitch} from {@code y}. */
+    private void placeRight(int x, int y, int pitch) {
+        setX = x;
+        setY = y;
+        setPitch = pitch;
+        fpsButton = new GuiButton(FPS_BTN, x, y, 146, 20, "");
+        fpsField = newField(boxX = x + 151, boxY = y + 1, BOX_W, BOX_H);
         fpsField.setMaxStringLength(7);
         fpsField.setText(Integer.toString(SubFrameMod.outputFps));
-        blendButton = new GuiButton(BLEND_BTN, x, y + 114, 200, 20, "");
-        subButton = new GuiButton(SUB_BTN, x, y + 138, 200, 20, "");
-        outButton = new GuiButton(OUT_BTN, x, y + 162, 98, 20, "");
+        blendButton = new GuiButton(BLEND_BTN, x, y + pitch, 200, 20, "");
+        subButton = new GuiButton(SUB_BTN, x, y + 2 * pitch, 98, 20, "");
+        intensityButton = new GuiButton(INTENSITY_BTN, x + 102, y + 2 * pitch, 98, 20, "");
+        weightButton = new GuiButton(WEIGHT_BTN, x, y + 3 * pitch, 200, 20, "");
+        outButton = new GuiButton(OUT_BTN, x, y + 4 * pitch, 98, 20, "");
+        encButton = new GuiButton(ENC_BTN, x + 102, y + 4 * pitch, 98, 20, "");
+        resButton = new GuiButton(RES_BTN, x, y + 5 * pitch, 128, 20, "");
+        resField = newField(resX = x + 134, resY = y + 5 * pitch + 1, RES_W, BOX_H);
+        resField.setMaxStringLength(9);
+        resetResField();
+        containersButton = new GuiButton(CONTAINERS_BTN, x, y + 6 * pitch, 200, 20, "");
         buttonList.add(fpsButton);
         buttonList.add(blendButton);
         buttonList.add(subButton);
+        buttonList.add(intensityButton);
+        buttonList.add(weightButton);
         buttonList.add(outButton);
-        encButton = new GuiButton(ENC_BTN, x + 102, y + 162, 98, 20, "");
         buttonList.add(encButton);
-        resButton = new GuiButton(RES_BTN, x, y + 186, 128, 20, "");
         buttonList.add(resButton);
-        resField = newField(resX = x + 134, resY = y + 187, RES_W, BOX_H);
-        resField.setMaxStringLength(9);
-        resetResField();
-        Replay active = Replay.active;
-        String sel = active != null ? active.rangeLabel() : null;
-        containersButton = new GuiButton(CONTAINERS_BTN, x, y + 210, 200, 20, "");
         buttonList.add(containersButton);
-        buttonList.add(new GuiButton(RENDER, x, y + 242, 200, 20, sel == null ? "Render video with these settings" : "Render " + sel + " with these settings"));
-        buttonList.add(new GuiButton(QUIT, x, y + 270, 200, 20, "Close replay"));
-        refreshLabels();
+    }
+
+    /** Self-test: the screen size, the layout and whether every row, box and the hint line stay on the screen. */
+    String layoutReport() {
+        int bottom = Math.max(setY + 7 * setPitch - (setPitch - 20), twoColumns ? 0 : leftBottom());
+        int left = Math.min(leftX, rightX);
+        int right = Math.max(leftX, rightX) + 200;
+        boolean fits = titleY >= 0 && bottom <= height && hintY + 9 <= height && left >= 0 && right <= width;
+        return width + "x" + height + (twoColumns ? " two columns" : " one column") + " title=" + titleY + " bottom=" + bottom
+                + " hint=" + hintY + " x=" + left + ".." + right + (fits ? " FITS" : " DOES NOT FIT");
+    }
+
+    private int leftBottom() {
+        // Close replay: row 11 of the single column, which starts 3 rows and 6 px above the settings
+        return setY + 8 * setPitch + 24;
+    }
+
+    /** Centres of the Intensity and Weighting buttons (self-test clicks). */
+    int[] intensityPoint() {
+        return new int[]{setX + 102 + 49, setY + 2 * setPitch + 10};
+    }
+
+    int[] weightPoint() {
+        return new int[]{setX + 100, setY + 3 * setPitch + 10};
+    }
+
+    /** Where to click in the fps box, and on the fps preset button (self-test). */
+    int[] fpsBoxPoint() {
+        return new int[]{boxX + BOX_W / 2, boxY + BOX_H / 2};
+    }
+
+    int[] fpsPresetPoint() {
+        return new int[]{setX + 10, setY + 5};
+    }
+
+    static String intensityText(double v) {
+        String t = String.format(java.util.Locale.ROOT, "%.2f", v).replaceAll("0+$", "");
+        return t.endsWith(".") ? t.substring(0, t.length() - 1) : t;
     }
 
     private void refreshLabels() {
         fpsButton.displayString = "Video fps: " + SubFrameMod.outputFps;
         blendButton.displayString = "Blending in mod: " + (SubFrameMod.blend ? "ON" : "OFF (raw high-fps frames)");
-        subButton.displayString = SubFrameMod.blend ? "Subframes per frame: " + SubFrameMod.subframes : "Subframes: n/a (blending off)";
+        subButton.displayString = "Subframes: " + (SubFrameMod.blend ? Integer.toString(SubFrameMod.subframes) : "n/a");
         subButton.enabled = SubFrameMod.blend;
+        intensityButton.displayString = "Intensity: " + (SubFrameMod.blend ? intensityText(SubFrameMod.shutter) : "n/a");
+        intensityButton.enabled = SubFrameMod.blend;
+        weightButton.displayString = "Weighting: " + (SubFrameMod.blend ? BlendPlan.label(SubFrameMod.weighting) : "n/a (blending off)");
+        weightButton.enabled = SubFrameMod.blend;
         encButton.displayString = "Enc: " + Encoders.label();
         outButton.displayString = "Output: " + (SubFrameMod.outputPng ? "PNG" : "video");
         containersButton.displayString = "Show opened chests: " + (SubFrameMod.showContainers ? "ON" : "OFF");
@@ -179,6 +268,9 @@ final class ReplayMenuScreen extends GuiScreen {
         int fps = SubFrameMod.outputFps;
         long frames = (long) Math.ceil(seconds * fps);
         int subframes = SubFrameMod.blend ? Math.max(1, SubFrameMod.subframes) : 1;
+        // subframes drawn per output frame: an intensity over 1 shares subframes between neighbouring frames
+        BlendPlan plan = new BlendPlan(subframes, SubFrameMod.shutter, SubFrameMod.weighting);
+        int draws = subframes > 1 ? Math.min(plan.n, plan.perFrame) : 1;
         double bytesPerPixel;
         String kind;
         if (SubFrameMod.outputPng) {
@@ -198,7 +290,7 @@ final class ReplayMenuScreen extends GuiScreen {
         if (!big) {
             return null;
         }
-        double minutes = frames * subframes * MS_PER_SUBFRAME_1080P * ((double) w * h / (1920.0 * 1080.0)) / 60000.0;
+        double minutes = frames * draws * MS_PER_SUBFRAME_1080P * ((double) w * h / (1920.0 * 1080.0)) / 60000.0;
         return new String[]{
                 String.format("%,d frames: %.1f s at %,d fps, %d x %d", frames, seconds, fps, w, h),
                 "Estimated size: about " + size(bytes) + " of " + kind + " (could be half or twice that)",
@@ -296,6 +388,22 @@ final class ReplayMenuScreen extends GuiScreen {
                 break;
             case SUB_BTN:
                 SubFrameMod.subframes = next(SUBFRAMES, SubFrameMod.subframes);
+                refreshLabels();
+                break;
+            case INTENSITY_BTN: {
+                double nextIntensity = INTENSITIES[0];
+                for (double v : INTENSITIES) {
+                    if (v > SubFrameMod.shutter + 1e-9) {
+                        nextIntensity = v;
+                        break;
+                    }
+                }
+                SubFrameMod.shutter = nextIntensity;
+                refreshLabels();
+                break;
+            }
+            case WEIGHT_BTN:
+                SubFrameMod.weighting = BlendPlan.nextWeighting(SubFrameMod.weighting);
                 refreshLabels();
                 break;
             case BLEND_BTN:
@@ -439,15 +547,53 @@ final class ReplayMenuScreen extends GuiScreen {
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         drawDefaultBackground();
-        drawCenteredString(fontRendererObj, "SubFrame replay", width / 2, height / 4 - 20, 0xFFFFFF);
+        drawCenteredString(fontRendererObj, "SubFrame replay", width / 2, titleY, 0xFFFFFF);
+        if (twoColumns) {
+            drawCenteredString(fontRendererObj, "Replay", leftX + 100, headY, 0xA0A0A0);
+            drawCenteredString(fontRendererObj, "Render settings", rightX + 100, headY, 0xA0A0A0);
+        }
         super.drawScreen(mouseX, mouseY, partialTicks);
         fpsField.drawTextBox();
         resField.drawTextBox();
+        String hint = hintAt(mouseX, mouseY);
+        if (hint != null) {
+            drawCenteredString(fontRendererObj, hint, width / 2, hintY, 0xA0A0A0);
+        }
+    }
+
+    /** The help line for what the mouse is over (or the box being typed in), else null. */
+    String hintAt(int mouseX, int mouseY) {
         if (mouseX >= resX && mouseX < resX + RES_W && mouseY >= resY && mouseY < resY + BOX_H || resField.isFocused()) {
-            drawCenteredString(fontRendererObj, "Type any size, like 3840x2160 (up to " + MAX_W + "x" + MAX_H + "), Enter to set", width / 2, resY + 22, 0xA0A0A0);
+            return "Type any size, like 3840x2160 (up to " + MAX_W + "x" + MAX_H + "), Enter to set";
         }
         if (mouseX >= boxX && mouseX < boxX + BOX_W && mouseY >= boxY && mouseY < boxY + BOX_H || fpsField.isFocused()) {
-            drawCenteredString(fontRendererObj, "Type any fps (" + MIN_FPS + "-" + MAX_FPS + "), Enter to set", width / 2, boxY - 13, 0xA0A0A0);
+            return "Type any fps (" + MIN_FPS + "-" + MAX_FPS + "), Enter to set";
+        }
+        if (SubFrameMod.blend && over(setX + 102, setY + 2 * setPitch, 98, mouseX, mouseY)) {
+            return "Share of the gap to the next frame each frame blurs: 0.5 film, 1 smooth, 2 heavy";
+        }
+        if (SubFrameMod.blend && over(setX, setY + 3 * setPitch, 200, mouseX, mouseY)) {
+            return weightingHint(SubFrameMod.weighting);
+        }
+        if (SubFrameMod.blend && over(setX, setY + 2 * setPitch, 98, mouseX, mouseY)) {
+            return "Moments averaged into each frame: more = smoother blur, longer render";
+        }
+        return null;
+    }
+
+    private static boolean over(int bx, int by, int bw, int x, int y) {
+        return x >= bx && y >= by && x < bx + bw && y < by + 20;
+    }
+
+    static String weightingHint(String weighting) {
+        switch (BlendPlan.normalizeName(weighting)) {
+            case "ascending": return "Newest moments count most: the trail fades out behind the motion";
+            case "descending": return "Oldest moments count most: the trail runs ahead of the motion";
+            case "pyramid": return "Middle moments count most, soft at both ends";
+            case "gaussian": return "Newest moments count most, with a smooth fade (a softer Ascending)";
+            case "gaussian_sym": return "Middle moments count most, smooth bell curve: the most camera-like";
+            case "gaussian_reverse": return "Oldest moments count most, with a smooth fade";
+            default: return "Every moment counts the same: an even smear";
         }
     }
 

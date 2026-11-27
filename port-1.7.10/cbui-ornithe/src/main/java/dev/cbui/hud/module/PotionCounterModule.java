@@ -16,10 +16,12 @@ import net.minecraft.potion.PotionEffect;
 public final class PotionCounterModule extends AbstractHudModule {
   private final Setting.Slider warnBelow = grouped("Warning", add(new Setting.Slider("Warn below", 8, 0, 36, 1, "Turn the health potion count red when you hold fewer than this")));
   private final Setting.Color warnColor = grouped("Warning", adv(new Setting.Color("Warning color", 0xFFFF5555, "Colour of the count when it is low")));
+  private final Setting.Toggle numbersOnly = grouped("Display", add(new Setting.Toggle("Numbers only", false, "Show just the count (12) instead of \"Health potions: 12\"")));
   private final Setting.Toggle showSpeed = grouped("Also count", add(new Setting.Toggle("Count speed potions", false, "Add your speed potions to the list")));
   private final Setting.Toggle showFireRes = grouped("Also count", add(new Setting.Toggle("Count fire resistance potions", false, "Add your fire resistance potions to the list")));
 
   private int health = -1, speed = -1, fireRes = -1;
+  private boolean numbersShown;
   private String healthText = "Health potions: 0", speedText = "Speed potions: 0", fireText = "Fire res potions: 0";
 
   public PotionCounterModule() { super("Potion counter", false, Anchor.CENTER_LEFT, 5, 0, 90, 11); }
@@ -39,11 +41,18 @@ public final class PotionCounterModule extends AbstractHudModule {
         }
       }
     }
-    if (h != health) { health = h; healthText = "Health potions: " + h; }
-    if (s != speed) { speed = s; speedText = "Speed potions: " + s; }
-    if (f != fireRes) { fireRes = f; fireText = "Fire res potions: " + f; }
+    boolean numbers = numbersOnly.get();
+    if (h != health || s != speed || f != fireRes || numbers != numbersShown) {
+      health = h;
+      speed = s;
+      fireRes = f;
+      numbersShown = numbers;
+      healthText = numbers ? Integer.toString(h) : "Health potions: " + h;
+      speedText = numbers ? Integer.toString(s) : "Speed potions: " + s;
+      fireText = numbers ? Integer.toString(f) : "Fire res potions: " + f;
+    }
     int lines = 1 + (showSpeed.get() ? 1 : 0) + (showFireRes.get() ? 1 : 0);
-    float widest = Math.max(textWidth(healthText), textWidth("Health potions: 36"));
+    float widest = Math.max(textWidth(healthText), textWidth(numbers ? "36" : "Health potions: 36"));
     if (showSpeed.get()) widest = Math.max(widest, textWidth(speedText));
     if (showFireRes.get()) widest = Math.max(widest, textWidth(fireText));
     size(widest, linesHeight(lines));

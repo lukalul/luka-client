@@ -14,7 +14,7 @@ public final class MotionBlurConfig {
 
     public static final class Data {
         public boolean enabled;
-        public int level = 3;
+        public int level = 5;
         public boolean blurMenus = true;
         public int frameSkip = 1;
         public int toggleKey;
@@ -23,12 +23,15 @@ public final class MotionBlurConfig {
         public boolean smoothFov = true;
         public boolean smoothHandSway = true;
         public boolean handOnly;
+        /** See {@link AlphaMath#DEFAULT_REFERENCE_FPS}. Only set in the file; luka's menu has no row for it. */
+        public int referenceFps = AlphaMath.DEFAULT_REFERENCE_FPS;
 
         public void sanitize() {
             level = AlphaMath.clamp(level, 0, 10);
             frameSkip = AlphaMath.clamp(frameSkip, 1, 10);
             if (toggleKey < 0) toggleKey = 0;
             mode = AlphaMath.clamp(mode, 0, 2);
+            referenceFps = AlphaMath.referenceFps(referenceFps);
         }
     }
 
@@ -51,6 +54,7 @@ public final class MotionBlurConfig {
         data.smoothFov = readBoolean(json, "smoothFov", data.smoothFov);
         data.smoothHandSway = readBoolean(json, "smoothHandSway", data.smoothHandSway);
         data.handOnly = readBoolean(json, "handOnly", data.handOnly);
+        data.referenceFps = readInt(json, "referenceFps", data.referenceFps);
         data.sanitize();
         return data;
     }
@@ -71,7 +75,8 @@ public final class MotionBlurConfig {
             + "  \"smoothSwings\": " + data.smoothSwings + ",\n"
             + "  \"smoothFov\": " + data.smoothFov + ",\n"
             + "  \"smoothHandSway\": " + data.smoothHandSway + ",\n"
-            + "  \"handOnly\": " + data.handOnly + "\n"
+            + "  \"handOnly\": " + data.handOnly + ",\n"
+            + "  \"referenceFps\": " + data.referenceFps + "\n"
             + "}\n";
         try (FileOutputStream out = new FileOutputStream(file)) {
             out.write(json.getBytes(StandardCharsets.UTF_8));

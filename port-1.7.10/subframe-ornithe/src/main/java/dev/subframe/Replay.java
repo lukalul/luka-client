@@ -30,7 +30,7 @@ import java.util.UUID;
 
 /**
  * Plays a recording back on a virtual clock and renders it offline. Each output frame is the average
- * (in linear light) of N subframes spread across the shutter window; the game's real-time loop is
+ * (in linear light, weighted, see BlendPlan) of N subframes spread across the shutter window; the game's real-time loop is
  * frozen, so ticks, packets and the camera are all driven from here.
  */
 final class Replay {
@@ -48,6 +48,11 @@ final class Replay {
     private final File outFile;
     private int outFps, subframes;
     private double shutter;
+    /** Blended renders: which subframes each frame averages and their weights (weighting and intensity). */
+    private BlendPlan plan;
+    /** Next grid moment to draw, and whether the accumulators hold the frames after the last written one. */
+    private long nextGrid;
+    private boolean blendCarried;
     private double frameDur; // nanoseconds of recorded time per output frame
 
     // viewer: plays in real time with one subframe per displayed frame, so settings can be changed while watching
@@ -189,6 +194,23 @@ final class Replay {
     /** Raw high-fps renders: the seconds each rendered frame counts as in luka's own Motion Blur (0 = leave the blur alone). */
     private double blurDt;
 
+    /** True while a blended render has luka's Motion Blur switched off; finish() puts it back. */
+    private boolean motionBlurPaused;
+
+    /**
+     * luka's Motion Blur on or off for the length of a blended render: the in-mod blending is the blur there, and the live
+     * blur would otherwise run on every subframe on wall-clock time (stacked on top, and depending on how fast the PC draws).
+     * Only the switch the blur reads is touched, not its saved settings.
+     */
+    private static void setLukaMotionBlur(boolean on) {
+        try {
+            Class.forName("dev.motionblur.MotionBlurSettings").getField("enabled").setBoolean(null, on);
+            Class.forName("dev.motionblur.BlurRenderer").getMethod("reset").invoke(null);
+        } catch (Throwable t) {
+            SubFrameMod.LOG.warn("[render] could not switch luka's Motion Blur " + (on ? "back on" : "off") + ": " + t);
+        }
+    }
+
     /** Runs the game's own Motion Blur on every frame of an offline render, as if the game ran at the output frame rate. */
     private static void setBlurClock(double dt) {
         try {
@@ -212,7 +234,9 @@ final class Replay {
             forcedBlend = true;
             SubFrameMod.LOG.info("[render] Motion Blur is on: blending " + subframes + " subframes per frame instead of writing raw frames");
         }
-        shutter = Math.max(0.01, Math.min(1.0, SubFrameMod.shutter));
+        shutter = BlendPlan.clampIntensity(SubFrameMod.shutter);
+        plan = new BlendPlan(subframes, shutter, SubFrameMod.weighting);
+        blendCarried = false;
         frameDur = 1e9 / outFps;
         blurDt = (outFps > 120 && subframes == 1 && lukaMotionBlurOn()) ? 1.0 / outFps : 0;
     }
@@ -722,7 +746,10 @@ final class Replay {
         fTicks++;
         ticksRun++;
         applyPlayerState();
-        injectParticles(ticksRun - 2);
+        // particles the replay did not make (the player's own hits) are rebuilt at the end of the tick they were made in,
+        // as the live game showed them; waiting longer (it was 2 ticks) made them pop in half-way through their motion.
+        // A late replayed spawn of the same particle then finds nothing to match and is dropped.
+        injectParticles(ticksRun - 1);
         channel.outboundMessages().clear();
         reclaimScreen();
     }
@@ -961,13 +988,7 @@ final class Replay {
             // raw output: one untouched frame per 1/fps of recorded time, to be blended (or not) by other software
             renderSubframe((long) (tEnd - frameDur));
         } else {
-            acc.clear();
-            for (int i = 0; i < subframes; i++) {
-                double ti = tEnd - shutter * frameDur + (i + 0.5) / subframes * shutter * frameDur;
-                renderSubframe((long) ti);
-                acc.add(1f / subframes);
-            }
-            acc.resolve();
+            blendFrame(dry);
             // restoring the buffer bindings raises a harmless INVALID_OPERATION on setups where the game draws straight
             // into the window; clear it so the readback check below only reports real problems
             org.lwjgl.opengl.GL11.glGetError();
@@ -1045,6 +1066,39 @@ final class Replay {
             double done = (frameIndex * frameDur) / (rangeEndT - rangeStartT) * 100;
             Display.setTitle(String.format("SubFrame replay %.0f%%", done));
         }
+    }
+
+    /**
+     * Draws the subframes this frame still needs and blends them. Each subframe is drawn once and added to every frame
+     * whose window it falls in (more than one when the intensity is over 1), so the slots of the next frames carry over.
+     * A settle frame (not written) starts that carry-over afresh, so nothing is added twice.
+     */
+    private void blendFrame(boolean dry) {
+        long k = frameIndex;
+        int slots = acc.slots();
+        if (!blendCarried || dry) {
+            for (int s = 0; s < slots; s++) {
+                acc.clear(s);
+            }
+            nextGrid = plan.first(k);
+        }
+        long end = plan.end(k);
+        for (long j = nextGrid; j < end; j++) {
+            // the first frames of an intensity over 1 reach back before the range: those moments show its first moment
+            renderSubframe((long) Math.max(rangeStartT, plan.time(j, rangeStartT, frameDur)));
+            acc.capture();
+            for (int m = 0; m < slots; m++) {
+                float wgt = plan.weight(j, k + m);
+                if (wgt > 0f) {
+                    acc.addCaptured((int) ((k + m) % slots), wgt);
+                }
+            }
+        }
+        nextGrid = end;
+        int slot = (int) (k % slots);
+        acc.resolve(slot);
+        acc.clear(slot);
+        blendCarried = !dry;
     }
 
     /** One displayed frame of the viewer: advance the virtual clock by real time, unless paused or in a menu. */
@@ -1253,7 +1307,14 @@ final class Replay {
         }
         try {
             if (subframes > 1) {
-                acc = new Accumulator(w, h);
+                acc = new Accumulator(w, h, plan.overlap());
+                blendCarried = false;
+                SubFrameMod.LOG.info("[render] blending: " + plan);
+                if (lukaMotionBlurOn()) {
+                    setLukaMotionBlur(false);
+                    motionBlurPaused = true;
+                    SubFrameMod.LOG.info("[render] luka Motion Blur is off for this blended render (the blending is the blur); it comes back after");
+                }
             }
             if (blurDt > 0) {
                 setBlurClock(blurDt);
@@ -2072,6 +2133,11 @@ final class Replay {
         if (blurDt > 0) {
             setBlurClock(0);
             blurDt = 0;
+        }
+        if (motionBlurPaused) {
+            motionBlurPaused = false;
+            setLukaMotionBlur(true);
+            SubFrameMod.LOG.info("[render] luka Motion Blur is back on");
         }
         Freecam.exit();
         if (finished) {

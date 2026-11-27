@@ -22,6 +22,7 @@ import java.util.Properties;
  * <pre>
  * output=C:/.../My edit.mp4      status=C:/.../status.properties
  * fps=60  blend=true  subframes=16  width=1920  height=1080      (optional; left out = the player's settings)
+ * intensity=1.0  weighting=ascending                              (optional; frame blending, see BlendPlan)
  * clips=2
  * clip.0.file=C:/.../rec-1.sfr  clip.0.start=1.5  clip.0.end=8.25
  * clip.1.file=C:/.../rec-2.sfr  clip.1.start=0    clip.1.end=4
@@ -117,6 +118,16 @@ final class RenderJob {
             SubFrameMod.subframes = intOr("subframes", SubFrameMod.subframes, 1, 4096);
             if (p.getProperty("blend") != null) {
                 SubFrameMod.blend = Boolean.parseBoolean(p.getProperty("blend").trim());
+            }
+            if (p.getProperty("intensity") != null) {
+                try {
+                    SubFrameMod.shutter = BlendPlan.clampIntensity(Double.parseDouble(p.getProperty("intensity").trim()));
+                } catch (NumberFormatException ignored) {
+                    // keep the player's intensity
+                }
+            }
+            if (p.getProperty("weighting") != null) {
+                SubFrameMod.weighting = BlendPlan.normalizeName(p.getProperty("weighting"));
             }
             if (p.getProperty("width") != null && p.getProperty("height") != null) {
                 SubFrameMod.renderWidth = intOr("width", 0, 0, ReplayMenuScreen.MAX_W) / 2 * 2;

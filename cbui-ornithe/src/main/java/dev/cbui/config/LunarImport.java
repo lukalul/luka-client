@@ -55,7 +55,7 @@ public final class LunarImport {
     MODULES.put("SCOREBOARD", "Scoreboard");
     MODULES.put("TEAM_VIEW", "Team HUD");
     MODULES.put("PACK_DISPLAY", "Resource packs");
-    MODULES.put("MENU_BLUR", "GUI blur");
+    MODULES.put("MENU_BLUR", "Menu Blur");
     MODULES.put("FREELOOK", "Freelook");
     MODULES.put("ZOOM", "Zoom");
     MODULES.put("FOV", "FOVChanger");

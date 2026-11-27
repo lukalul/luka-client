@@ -207,7 +207,7 @@ public class ModuleMenu extends GuiScreen {
   private static final String[] USEFULNESS = {
     "Cooldowns", "Potion status", "Armour status", "Alerts", "Team HUD", "Potion counter", "Scoreboard", "Coordinates",
     "Toggle sprint", "Keystrokes", "CPS", "Combo", "Reach", "FPS", "Ping", "Direction",
-    "Server address", "Clock", "Memory", "Resource packs", "GUI blur"
+    "Server address", "Clock", "Memory", "Resource packs", "Menu Blur"
   };
 
   private static int usefulness(String name) {
@@ -219,7 +219,7 @@ public class ModuleMenu extends GuiScreen {
     if (module instanceof dev.cbui.feature.FeatureModule) return ((dev.cbui.feature.FeatureModule) module).category();
     String n = module.name();
     if (n.equals("Toggle sprint")) return "UTILITY";
-    if (n.equals("GUI blur")) return "VISUALS";
+    if (n.equals("Menu Blur")) return "VISUALS";
     return "HUD";
   }
 
@@ -569,7 +569,6 @@ public class ModuleMenu extends GuiScreen {
    * (2026-11-26, owner: mods and tools belong in the mods list, not in Settings).
    */
   private static final String[][] SETTINGS_HOME = {
-      {"GUI blur", "0", "Menu background blur"},
       {"Numerical Enchantments", "3", "Numerical Enchantments"},
       {"Raw Input", "3", "Raw Input"},
       {"Scroll Tweaks", "3", "Scroll Tweaks"},

@@ -92,6 +92,10 @@ final class FrameDiff {
         if (frames == 1) {
             writePngs("first", index, live, replay);
         }
+        // test only: -Dsubframe.diff.frames=6848,3832 saves those frames' live and replay pictures too
+        if (("," + System.getProperty("subframe.diff.frames", "") + ",").contains("," + index + ",")) {
+            writePngs("f" + index, index, live, replay);
+        }
         if (pOver8 > 5 && prevLive != null && neighbourLogged < 40) {
             neighbourLogged++;
             SubFrameMod.LOG.info(String.format(Locale.ROOT,
